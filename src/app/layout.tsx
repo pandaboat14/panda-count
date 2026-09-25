@@ -1,13 +1,28 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Fraunces, Karla } from "next/font/google";
+import localFont from "next/font/local";
 import "@neondatabase/auth-ui/css";
 import "./globals.css";
 import { AuthProvider } from "@/components/AuthProvider";
 import { hasAuth } from "@/lib/auth/server";
 
-const fraunces = Fraunces({ subsets: ["latin"], weight: ["400", "600", "800"], variable: "--font-fraunces" });
-const karla = Karla({ subsets: ["latin"], weight: ["400", "600", "700"], variable: "--font-karla" });
-const bricolage = Bricolage_Grotesque({ subsets: ["latin"], weight: "800", variable: "--font-bricolage" });
+// Bundled (latin subset, from Fontsource) so builds don't depend on reaching Google Fonts.
+const fraunces = localFont({
+  src: [
+    { path: "./fonts/fraunces-400.woff2", weight: "400" },
+    { path: "./fonts/fraunces-600.woff2", weight: "600" },
+    { path: "./fonts/fraunces-800.woff2", weight: "800" },
+  ],
+  variable: "--font-fraunces",
+});
+const karla = localFont({
+  src: [
+    { path: "./fonts/karla-400.woff2", weight: "400" },
+    { path: "./fonts/karla-600.woff2", weight: "600" },
+    { path: "./fonts/karla-700.woff2", weight: "700" },
+  ],
+  variable: "--font-karla",
+});
+const bricolage = localFont({ src: "./fonts/bricolage-800.woff2", weight: "800", variable: "--font-bricolage" });
 
 export const metadata: Metadata = {
   title: "Panda Count",
