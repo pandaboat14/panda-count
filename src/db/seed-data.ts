@@ -1,19 +1,15 @@
-// Panda roster: the single source of truth for the site.
-// The headline count is every panda with status "resident".
-// To update: change a status, or add/remove an entry, then bump LAST_UPDATED.
-//   status: "resident" = in a US zoo now (counted)
-//           "incoming" = announced / in transit (shown, not counted)
+// The roster as it stood before the site moved to Neon. `npm run db:seed` loads it,
+// and the site shows it read-only when DATABASE_URL isn't set (local dev, previews).
 
-const LAST_UPDATED = "2026-09-25";
+export const SEED_UPDATED = "2026-09-25";
 
-// Each zoo's giant panda page, keyed by the `zoo` name used below.
-const ZOO_LINKS = {
-  "San Diego Zoo": "https://zoo.sandiegozoo.org/giant-pandas",
-  "Smithsonian’s National Zoo": "https://nationalzoo.si.edu/animals/giant-panda",
-  "Zoo Atlanta": "https://zooatlanta.org/animal/giant-panda/",
-};
+export const SEED_ZOOS = [
+  { name: "San Diego Zoo", location: "San Diego, California", url: "https://zoo.sandiegozoo.org/giant-pandas" },
+  { name: "Smithsonian’s National Zoo", location: "Washington, D.C.", url: "https://nationalzoo.si.edu/animals/giant-panda" },
+  { name: "Zoo Atlanta", location: "Atlanta, Georgia", url: "https://zooatlanta.org/animal/giant-panda/" },
+];
 
-const PANDAS = [
+export const SEED_PANDAS = [
   {
     name: "Yun Chuan",
     chinese: "云川",
@@ -22,7 +18,6 @@ const PANDAS = [
     origin: "Sichuan Province",
     birthplace: "CCRCGP Ya'an Base (Bifengxia)",
     zoo: "San Diego Zoo",
-    location: "San Diego, California",
     arrived: "2024-06-27",
     status: "resident",
     fact: "His name blends “yun” (cloud) with “chuan,” short for Sichuan. His mom, Zhen Zhen, was born at the San Diego Zoo.",
@@ -35,7 +30,6 @@ const PANDAS = [
     origin: "Sichuan Province",
     birthplace: "CCRCGP Wolong Base",
     zoo: "San Diego Zoo",
-    location: "San Diego, California",
     arrived: "2024-06-27",
     status: "resident",
     fact: "Her name means “prosperous treasure.” She and Yun Chuan were the first pandas to enter the US in 21 years.",
@@ -48,7 +42,6 @@ const PANDAS = [
     origin: "Sichuan Province",
     birthplace: "CCRCGP Shenshuping Base, Wolong",
     zoo: "Smithsonian’s National Zoo",
-    location: "Washington, D.C.",
     arrived: "2024-10-15",
     status: "resident",
     fact: "Panda royalty: his mom Bao Bao was born at the National Zoo, and his grandparents were Mei Xiang and Tian Tian.",
@@ -61,7 +54,6 @@ const PANDAS = [
     origin: "Sichuan Province",
     birthplace: "CCRCGP Dujiangyan Base",
     zoo: "Smithsonian’s National Zoo",
-    location: "Washington, D.C.",
     arrived: "2024-10-15",
     status: "resident",
     fact: "Her name means “green treasure,” after the lush mountains of Dujiangyan where she grew up.",
@@ -74,7 +66,6 @@ const PANDAS = [
     origin: "Sichuan Province",
     birthplace: "Chengdu Research Base of Giant Panda Breeding",
     zoo: "Zoo Atlanta",
-    location: "Atlanta, Georgia",
     arrived: null,
     status: "incoming",
     fact: "Announced September 24, 2026 under a new 10-year conservation agreement. Expected to arrive in the coming days.",
@@ -87,9 +78,8 @@ const PANDAS = [
     origin: "Sichuan Province",
     birthplace: "Chengdu Research Base of Giant Panda Breeding",
     zoo: "Zoo Atlanta",
-    location: "Atlanta, Georgia",
     arrived: null,
     status: "incoming",
     fact: "Traveling with Ping Ping to Zoo Atlanta, which hosted pandas for 25 years (and seven cubs) until 2024.",
   },
-];
+] as const;

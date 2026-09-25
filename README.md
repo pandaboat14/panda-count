@@ -1,0 +1,57 @@
+# Panda Count
+
+A running count of every giant panda living in the United States, shown as a 3D scene: one bamboo
+island per zoo, a panda for each resident, and a canoe for pandas on their way. Friends can sign
+in to add pandas or update them.
+
+- **Next.js 16** (App Router) on **Vercel**
+- **React Three Fiber** + **drei** + **three.js** for the scene (`src/components/world/`)
+- **Neon Postgres** through **Drizzle ORM** (`src/db/`)
+- **Neon Auth** for sign-in (`src/lib/auth/`, pages under `/auth/*` and `/account/*`)
+
+Without `DATABASE_URL`, the site shows the original roster (`src/db/seed-data.ts`) read-only. That
+covers local tinkering and preview deploys that have no database.
+
+## One-time setup
+
+1. **Import the repo into Vercel.** Go to vercel.com/new and pick `pandaboat14/panda-count`. The
+   Next.js preset needs no extra settings.
+2. **Add Neon.** In the Vercel project, open **Storage**, choose **Create Database**, then **Neon**.
+   Connect the database to all environments. This sets `DATABASE_URL` for you.
+3. **Turn on Neon Auth.** In the Neon Console, open the project, go to **Auth**, and enable it.
+   Copy the **Auth URL**. You can also switch on Google/GitHub sign-in there.
+4. **Add the auth env vars** in Vercel under **Settings**, then **Environment Variables**:
+   - `NEON_AUTH_BASE_URL`: the Auth URL from step 3
+   - `NEON_AUTH_COOKIE_SECRET`: 32+ random characters (`openssl rand -base64 32`)
+   - `EDITOR_EMAILS` (optional, recommended): comma-separated emails of the friends allowed to
+     edit. If you leave it unset, anyone who signs up can edit.
+5. **Create the tables and load the current pandas.** Run this once from your machine:
+   ```sh
+   npm install
+   npx vercel link && npx vercel env pull .env.local
+   npm run db:migrate
+   npm run db:seed
+   ```
+6. **Redeploy** so the new env vars take effect.
+7. **Move the domain.** In Vercel, open **Settings**, then **Domains**, and add `pandacount.net`.
+   Then update DNS as Vercel shows. Once it's live on Vercel, turn off GitHub Pages for this repo
+   and delete `CNAME`.
+
+## Everyday use
+
+- Anyone can view the count. Signed-in editors see **+ Add a panda**, and an **Edit** button on
+  each trading card.
+- When an incoming panda arrives, edit it and set the status to **Here now** with an arrival date.
+  It joins the count and moves from the canoe onto its zoo's island.
+
+## Development
+
+```sh
+npm install
+npm run dev          # http://localhost:3000
+npm run lint
+npm run build
+```
+
+Schema changes: edit `src/db/schema.ts`, then run `npm run db:generate` and commit the new file in
+`drizzle/`. After that, run `npm run db:migrate`.
