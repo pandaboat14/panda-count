@@ -14,7 +14,7 @@ export default async function Home() {
       pandas={pandas}
       lastUpdated={lastUpdated}
       canEdit={Boolean(user && isEditor(user.email))}
-      topBar={<TopBar signedIn={Boolean(user)} authEnabled={hasAuth()} />}
+      topBar={<TopBar signedIn={Boolean(user)} authEnabled={hasAuth()} tab="usa" />}
     />
   );
 }

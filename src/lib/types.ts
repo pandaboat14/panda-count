@@ -16,3 +16,41 @@ export type Panda = {
 };
 
 export type Roster = { pandas: Panda[]; lastUpdated: string };
+
+export type WorldPlace = {
+  id: number;
+  name: string;
+  kind: "zoo" | "breeding_center";
+  city: string;
+  country: string;
+  lat: number;
+  lng: number;
+  count: number;
+  incoming: number;
+  names: string;
+  note: string;
+  asOf: string;
+  sourceUrl: string | null;
+  // US zoos come from the main roster; their cards link back to the trading cards.
+  us?: boolean;
+};
+
+export type WildRange = {
+  id: number;
+  name: string;
+  province: string;
+  estimate: number;
+  survey: string;
+  sourceUrl: string | null;
+  lat: number;
+  lng: number;
+  spanLat: number;
+  spanLng: number;
+  angle: number;
+};
+
+export type World = {
+  places: WorldPlace[];
+  wild: WildRange[];
+  captive: { count: number; asOf: string; sourceUrl: string };
+};

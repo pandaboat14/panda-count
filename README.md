@@ -36,6 +36,14 @@ covers local tinkering and preview deploys that have no database.
 7. **Move the domain.** In Vercel, open **Settings**, then **Domains**, and add `pandacount.net`.
    Then update DNS as Vercel shows. Once it's live on Vercel, turn off GitHub Pages for this repo.
 
+## World tab
+
+`/world` is a 3D globe of every giant panda on Earth:
+- a heat glow over the six wild mountain ranges in China, using the 4th national survey estimates
+- columns for China's two big breeding centres, every zoo abroad, and the US zoos (from the USA roster)
+
+Its data lives in the `world_places` and `wild_ranges` tables. The starting dataset, with a source link and "as of" date per place, is in `src/db/world-data.ts`. Editors can update counts from each place's card, add a place with **+ Add a place**, and update wild estimates when a new survey comes out.
+
 ## Everyday use
 
 - Anyone can view the count. Signed-in editors see **+ Add a panda**, and an **Edit** button on
