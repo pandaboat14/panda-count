@@ -52,6 +52,9 @@ export async function getPanda(id: number): Promise<Panda | null> {
 }
 
 export async function getZoos() {
-  if (!hasDatabase()) return SEED_ZOOS;
-  return db().select({ name: zoos.name, location: zoos.location, url: zoos.url }).from(zoos).orderBy(asc(zoos.name));
+  if (!hasDatabase()) return SEED_ZOOS.map((z) => ({ ...z, lat: null, lng: null }));
+  return db()
+    .select({ name: zoos.name, location: zoos.location, url: zoos.url, lat: zoos.lat, lng: zoos.lng })
+    .from(zoos)
+    .orderBy(asc(zoos.name));
 }

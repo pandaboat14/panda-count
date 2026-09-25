@@ -14,3 +14,11 @@ export function age(iso: string) {
   if (now < new Date(now.getFullYear(), m - 1, d)) a--;
   return a;
 }
+
+// "2026", "2026-08" or "2026-08-15" → "2026", "Aug 2026", "Aug 15, 2026".
+export function fmtAsOf(iso: string) {
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!m) return String(y);
+  if (!d) return new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  return fmtDate(iso);
+}

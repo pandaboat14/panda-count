@@ -1,20 +1,16 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { Component, useState, useSyncExternalStore } from "react";
+import { useState } from "react";
 import type { Panda } from "@/lib/types";
 import { fmtDate } from "@/lib/format";
+import { useReducedMotion } from "@/lib/hooks";
+import { SceneBoundary } from "../SceneBoundary";
 import { TradingCardDialog } from "../TradingCard";
 
 const Scene = dynamic(() => import("./Scene"), { ssr: false, loading: () => null });
 
 type Props = { pandas: Panda[]; lastUpdated: string; canEdit: boolean; topBar: React.ReactNode };
-
-const subscribeMotion = (cb: () => void) => {
-  const mq = matchMedia("(prefers-reduced-motion: reduce)");
-  mq.addEventListener("change", cb);
-  return () => mq.removeEventListener("change", cb);
-};
 
 // Shown while the scene loads, and in place of it when WebGL isn't available.
 function Fallback({ count }: { count: number }) {
@@ -26,24 +22,10 @@ function Fallback({ count }: { count: number }) {
   );
 }
 
-class SceneBoundary extends Component<{ fallback: React.ReactNode; children: React.ReactNode }, { failed: boolean }> {
-  state = { failed: false };
-  static getDerivedStateFromError() {
-    return { failed: true };
-  }
-  render() {
-    return this.state.failed ? this.props.fallback : this.props.children;
-  }
-}
-
 export function PandaWorld({ pandas, lastUpdated, canEdit, topBar }: Props) {
   const [selected, setSelected] = useState<number | null>(null);
   const [ready, setReady] = useState(false);
-  const still = useSyncExternalStore(
-    subscribeMotion,
-    () => matchMedia("(prefers-reduced-motion: reduce)").matches,
-    () => true,
-  );
+  const still = useReducedMotion();
 
   const residents = pandas.filter((p) => p.status === "resident");
   const incoming = pandas.filter((p) => p.status === "incoming");

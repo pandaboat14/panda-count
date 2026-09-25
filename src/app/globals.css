@@ -82,6 +82,27 @@ a { color: inherit; }
 .brand em { font-style: normal; color: var(--bamboo-deep); }
 .topbar-actions { display: flex; align-items: center; gap: 10px; }
 
+/* ---------- View tabs ---------- */
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--paper) 85%, transparent);
+  box-shadow: 0 2px 10px -4px rgba(0,0,0,.25);
+}
+.tabs a {
+  padding: 6px 16px;
+  border-radius: 99px;
+  font-weight: 700;
+  font-size: .9rem;
+  text-decoration: none;
+  color: var(--forest);
+}
+.tabs a.on { background: var(--forest); color: var(--paper); }
+.tabs a:not(.on):hover { background: var(--cream); }
+.tabs a:focus-visible { outline: 3px solid var(--bamboo-deep); outline-offset: 1px; }
+
 /* ---------- 3D world ---------- */
 .world {
   position: fixed;
@@ -186,6 +207,67 @@ a { color: inherit; }
   padding: 3px 10px;
   border-radius: 99px;
 }
+
+/* ---------- World globe ---------- */
+.world.globe { background: radial-gradient(ellipse at 50% 45%, #fffaf3 0%, var(--cream) 45%, #efe0c2 100%); }
+.world-overlay > .globe-head { pointer-events: none; }
+.globe-stage { position: absolute; inset: 0; }
+.globe .world-overlay { pointer-events: none; justify-content: flex-start; }
+.globe .world-overlay > .hud { margin-top: auto; }
+.globe .world-overlay > .hud { background: linear-gradient(to top, color-mix(in srgb, var(--cream) 96%, transparent) 70%, transparent); }
+.globe-head { text-align: center; margin-top: -4px; }
+.globe-count {
+  font-family: var(--font-bricolage), var(--sans);
+  font-weight: 800;
+  font-size: clamp(2.6rem, 7vw, 4.2rem);
+  line-height: 1;
+  color: var(--ink);
+  text-shadow: 3px 3px 0 var(--bamboo);
+}
+.globe-head .hud-sub { margin-top: 6px; }
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: .8rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.legend li, .chip { display: inline-flex; align-items: center; gap: 6px; }
+.legend i, .chip i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+i.heat { background: radial-gradient(circle, #d64828 0%, #e97846 55%, #e9b8a8 100%); }
+.chip .n { font-weight: 800; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.chip:hover .n, .chip:focus-visible .n { color: inherit; }
+.globe .chips { max-height: 92px; overflow-y: auto; padding: 2px; }
+.info-card {
+  background: var(--paper);
+  border-radius: 22px;
+  padding: 22px 22px 20px;
+  box-shadow: 0 30px 60px -20px rgba(0,0,0,.6), inset 0 0 0 2px var(--bamboo);
+  animation: pop .4s cubic-bezier(.2,1.4,.3,1);
+}
+.info-card h2 { font-family: var(--serif); font-weight: 800; font-size: 1.6rem; line-height: 1.1; margin: 2px 0 10px; }
+.info-kind { margin: 0; font-size: .75rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.info-count {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-family: var(--font-bricolage), var(--sans);
+  font-weight: 800;
+  font-size: 3.2rem;
+  line-height: 1;
+}
+.info-count span { font-family: var(--sans); font-size: 1rem; font-weight: 700; color: var(--ink-soft); }
+.info-soon { margin: 4px 0 0; font-weight: 700; color: #a24a30; }
+.info-names { margin: 12px 0 0; font-weight: 600; color: var(--forest); }
+.info-card .fact { margin: 12px 0 0; }
+.info-meta { margin: 12px 0 0; font-size: .82rem; color: var(--ink-soft); }
+.info-card .form-actions { margin-top: 14px; }
+.info-card .form-actions:empty { display: none; }
 
 /* ---------- Portrait (SVG panda) ---------- */
 .portrait { display: grid; place-items: center; overflow: hidden; position: relative; }
@@ -322,7 +404,8 @@ a { color: inherit; }
 }
 .panda-form legend { font-family: var(--serif); font-weight: 800; font-size: 1.1rem; padding: 0 6px; }
 .panda-form label { display: grid; gap: 4px; font-weight: 700; font-size: .85rem; color: var(--forest); }
-.panda-form label.wide { grid-column: 1 / -1; }
+.panda-form .wide { grid-column: 1 / -1; }
+.panda-form p.hint { margin: -4px 0 0; }
 .panda-form .hint { font-weight: 400; color: var(--ink-soft); font-size: .8rem; }
 .panda-form input, .panda-form select, .panda-form textarea {
   font: 400 1rem var(--sans);
@@ -343,6 +426,9 @@ a { color: inherit; }
 @media (max-width: 560px) {
   .topbar { padding: 12px 16px; }
   .brand span { display: none; }
+  .tabs a { padding: 6px 12px; }
+  .btn-label { display: none; }
+  .topbar { gap: 8px; }
   .hud { padding: 32px 16px 16px; }
   .hud-meta { font-size: .72rem; }
   .zoo-label { font-size: .85rem; padding: 3px 10px 4px; }

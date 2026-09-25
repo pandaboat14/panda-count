@@ -75,7 +75,7 @@ function layout(n: number, portrait: boolean): Layout {
   const back = 2 - (n - 1) * 4.2;
   return {
     islands,
-    headline: [0, 3.6, back - 3.5],
+    headline: [0, 2.9, back - 3.5],
     target: [0, 1.8, (2 + back) / 2 - 0.5],
     view: [0, 0.9, 1],
     halfWidth: 4,
