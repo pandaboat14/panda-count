@@ -34,8 +34,7 @@ covers local tinkering and preview deploys that have no database.
    ```
 6. **Redeploy** so the new env vars take effect.
 7. **Move the domain.** In Vercel, open **Settings**, then **Domains**, and add `pandacount.net`.
-   Then update DNS as Vercel shows. Once it's live on Vercel, turn off GitHub Pages for this repo
-   and delete `CNAME`.
+   Then update DNS as Vercel shows. Once it's live on Vercel, turn off GitHub Pages for this repo.
 
 ## Everyday use
 
