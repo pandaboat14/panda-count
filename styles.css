@@ -315,6 +315,14 @@ a { color: inherit; }
   border: 1px solid color-mix(in srgb, var(--bamboo-deep) 35%, transparent);
 }
 .zoo-list h3 { font-family: var(--serif); margin: 0; font-size: 1.3rem; }
+.zoo-list h3 a {
+  text-decoration: underline;
+  text-decoration-color: var(--bamboo-deep);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+.zoo-list h3 a:hover { color: var(--forest); text-decoration-color: var(--forest); }
+.zoo-list .ext { font-size: .8em; margin-left: 4px; color: var(--bamboo-deep); }
 .zoo-list .city { color: var(--ink-soft); font-size: .92rem; }
 .zoo-list .who { margin-top: 10px; font-weight: 600; color: var(--forest); }
 .zoo-list .big { font-family: var(--serif); font-weight: 800; font-size: 2.4rem; float: right; line-height: 1; color: var(--forest); }

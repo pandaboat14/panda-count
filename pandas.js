@@ -6,6 +6,13 @@
 
 const LAST_UPDATED = "2026-09-25";
 
+// Each zoo's giant panda page, keyed by the `zoo` name used below.
+const ZOO_LINKS = {
+  "San Diego Zoo": "https://zoo.sandiegozoo.org/giant-pandas",
+  "Smithsonian’s National Zoo": "https://nationalzoo.si.edu/animals/giant-panda",
+  "Zoo Atlanta": "https://zooatlanta.org/animal/giant-panda/",
+};
+
 const PANDAS = [
   {
     name: "Yun Chuan",

@@ -121,7 +121,7 @@
   $("zoo-list").innerHTML = [...zoos].map(([zoo, z]) => `
     <li>
       <span class="big ${z.res.length ? "" : "soon"}">${z.res.length || z.inc.length}</span>
-      <h3>${esc(zoo)}</h3>
+      <h3>${ZOO_LINKS[zoo] ? `<a href="${esc(ZOO_LINKS[zoo])}" target="_blank" rel="noopener">${esc(zoo)}<span class="ext" aria-hidden="true">↗</span></a>` : esc(zoo)}</h3>
       <div class="city">${esc(z.location)}</div>
       <div class="who ${z.res.length ? "" : "soon"}">${esc((z.res.length ? z.res : z.inc).join(" & "))}${z.res.length ? "" : " (arriving soon)"}</div>
     </li>`).join("");
