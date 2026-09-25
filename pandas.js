@@ -1,0 +1,88 @@
+// Panda roster: the single source of truth for the site.
+// The headline count is every panda with status "resident".
+// To update: change a status, or add/remove an entry, then bump LAST_UPDATED.
+//   status: "resident" = in a US zoo now (counted)
+//           "incoming" = announced / in transit (shown, not counted)
+
+const LAST_UPDATED = "2026-09-25";
+
+const PANDAS = [
+  {
+    name: "Yun Chuan",
+    chinese: "云川",
+    sex: "Male",
+    born: "2019-07-25",
+    origin: "Sichuan Province",
+    birthplace: "CCRCGP Ya'an Base (Bifengxia)",
+    zoo: "San Diego Zoo",
+    location: "San Diego, California",
+    arrived: "2024-06-27",
+    status: "resident",
+    fact: "His name blends “yun” (cloud) with “chuan,” short for Sichuan. His mom, Zhen Zhen, was born at the San Diego Zoo.",
+  },
+  {
+    name: "Xin Bao",
+    chinese: "鑫宝",
+    sex: "Female",
+    born: "2020-07-31",
+    origin: "Sichuan Province",
+    birthplace: "CCRCGP Wolong Base",
+    zoo: "San Diego Zoo",
+    location: "San Diego, California",
+    arrived: "2024-06-27",
+    status: "resident",
+    fact: "Her name means “prosperous treasure.” She and Yun Chuan were the first pandas to enter the US in 21 years.",
+  },
+  {
+    name: "Bao Li",
+    chinese: "宝力",
+    sex: "Male",
+    born: "2021-08-04",
+    origin: "Sichuan Province",
+    birthplace: "CCRCGP Shenshuping Base, Wolong",
+    zoo: "Smithsonian’s National Zoo",
+    location: "Washington, D.C.",
+    arrived: "2024-10-15",
+    status: "resident",
+    fact: "Panda royalty: his mom Bao Bao was born at the National Zoo, and his grandparents were Mei Xiang and Tian Tian.",
+  },
+  {
+    name: "Qing Bao",
+    chinese: "青宝",
+    sex: "Female",
+    born: "2021-09-12",
+    origin: "Sichuan Province",
+    birthplace: "CCRCGP Dujiangyan Base",
+    zoo: "Smithsonian’s National Zoo",
+    location: "Washington, D.C.",
+    arrived: "2024-10-15",
+    status: "resident",
+    fact: "Her name means “green treasure,” after the lush mountains of Dujiangyan where she grew up.",
+  },
+  {
+    name: "Ping Ping",
+    chinese: "平平",
+    sex: "Male",
+    born: "2020",
+    origin: "Sichuan Province",
+    birthplace: "Chengdu Research Base of Giant Panda Breeding",
+    zoo: "Zoo Atlanta",
+    location: "Atlanta, Georgia",
+    arrived: null,
+    status: "incoming",
+    fact: "Announced September 24, 2026 under a new 10-year conservation agreement. Expected to arrive in the coming days.",
+  },
+  {
+    name: "Fu Shuang",
+    chinese: "福双",
+    sex: "Female",
+    born: "2020",
+    origin: "Sichuan Province",
+    birthplace: "Chengdu Research Base of Giant Panda Breeding",
+    zoo: "Zoo Atlanta",
+    location: "Atlanta, Georgia",
+    arrived: null,
+    status: "incoming",
+    fact: "Traveling with Ping Ping to Zoo Atlanta, which hosted pandas for 25 years (and seven cubs) until 2024.",
+  },
+];
