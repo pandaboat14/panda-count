@@ -9,6 +9,16 @@ export type Release = {
 export const RELEASES: Release[] = [
   {
     date: "2026-09-26",
+    title: "Autopilot",
+    pr: 13,
+    notes: [
+      "Going offline? Switch on 🤖 Autopilot from a game's ⋯ menu, or put every game on autopilot at once from the lobby. The computer plays your turns (careful or aggressive, your choice) until you take back command.",
+      "Autopilot answers offers, builds, recruits and attacks for you, and leaves you a private recap of each turn. Your \"since your last turn\" replay waits for you, so you can catch up on everything when you're back.",
+      "Everyone can see who is on autopilot. A game where every person is on autopilot waits for someone to come back.",
+    ],
+  },
+  {
+    date: "2026-09-26",
     title: "Hex numbers the right way up",
     notes: [
       "Fixed: many hexes on the map showed their number upside down or sideways, so a 6 could pass for a 9. Every number now reads the right way up.",

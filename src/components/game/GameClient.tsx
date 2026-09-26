@@ -304,6 +304,17 @@ export function GameClient({ initial }: { initial: GamePayload }) {
     focusOn(to);
   };
 
+  const setAutopilot = async (on: boolean, level: "medium" | "hard" = "medium") => {
+    if (
+      on &&
+      !confirm(
+        `Put ${game.name} on autopilot (${level === "hard" ? "aggressive" : "careful"})? The computer will answer offers, build, recruit and attack for you on every turn until you take back command. You'll get a recap of each turn.`,
+      )
+    )
+      return;
+    if (await act({ type: "autopilot", on, level })) setToast(on ? "🤖 Autopilot on. Safe travels!" : "🙋 You're back in command.");
+  };
+
   const endTurn = async () => {
     if (await act({ type: "endTurn" })) {
       setDest(null);
@@ -413,6 +424,15 @@ export function GameClient({ initial }: { initial: GamePayload }) {
                 <Link role="menuitem" href={`/profile?back=/game/${game.id}`}>🐼 Change your avatar</Link>
                 <button role="menuitem" onClick={invite}>📨 Invite the Kirds</button>
                 <button role="menuitem" onClick={() => setHelp(true)}>📜 How to play</button>
+                {!over &&
+                  (me.autopilot ? (
+                    <button role="menuitem" onClick={() => setAutopilot(false)}>🙋 Take back command (autopilot off)</button>
+                  ) : (
+                    <>
+                      <button role="menuitem" onClick={() => setAutopilot(true, "medium")}>🤖 Autopilot: careful</button>
+                      <button role="menuitem" onClick={() => setAutopilot(true, "hard")}>🤖 Autopilot: aggressive</button>
+                    </>
+                  ))}
                 <Link role="menuitem" href="/game">🎲 All your games</Link>
                 <Link role="menuitem" href="/releases">📰 Release notes</Link>
                 <button role="menuitem" className="danger" onClick={() => leave(false)}>🚪 Leave this game</button>
@@ -427,6 +447,14 @@ export function GameClient({ initial }: { initial: GamePayload }) {
 
       <div className="game-goods">
         <GoodsBar goods={me.goods} />
+        {!over && me.autopilot && (
+          <p className="autopilot-pill" role="status">
+            🤖 Autopilot is playing your turns ({me.autopilot === "hard" ? "aggressive" : "careful"}).{" "}
+            <button type="button" onClick={() => setAutopilot(false)} disabled={busy}>
+              Take back command
+            </button>
+          </p>
+        )}
         {!over && view.threat && view.goal && (
           <p className={`threat-pill${view.threat === view.me ? " mine" : ""}`} role="status">
             {view.threat === view.me

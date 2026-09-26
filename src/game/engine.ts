@@ -62,6 +62,7 @@ export type Player = {
   id: string;
   name: string;
   bot?: BotLevel; // played by the computer
+  autopilot?: BotLevel | null; // a person who has handed their turns to the computer for a while
   color: string;
   seat: number;
   goods: Goods;
@@ -162,7 +163,11 @@ export type Action =
   | { type: "cancelOffer"; offerId: string }
   | { type: "breakPact"; with: string }
   | { type: "endTurn" }
-  | { type: "skipTurn" };
+  | { type: "skipTurn" }
+  | { type: "autopilot"; on: boolean; level?: BotLevel };
+
+// Who plays this seat automatically: computer players always, people only while on autopilot.
+export const autoLevel = (p: Pick<Player, "bot" | "autopilot">): BotLevel | null => p.bot ?? p.autopilot ?? null;
 
 export class GameError extends Error {}
 const fail = (msg: string): never => {
@@ -292,7 +297,7 @@ export function bankRate(s: GameState, pid: string) {
 // ---------------------------------------------------------------- events
 
 type Draft = Omit<GameEvent, "seq" | "turn" | "round">;
-function emit(s: GameState, out: GameEvent[], e: Draft) {
+export function emit(s: GameState, out: GameEvent[], e: Draft) {
   s.seq += 1;
   out.push({ seq: s.seq, turn: s.turn, round: s.round, ...e });
 }
@@ -451,6 +456,21 @@ function applyActionTo(s: GameState, actorId: string, a: Action, now: number): G
   const out: GameEvent[] = [];
   const me = playerById(s, actorId);
   if (s.winner) fail("This game is over.");
+  // Autopilot can be switched on or off at any time, not just on your turn.
+  if (a.type === "autopilot") {
+    if (me.bot) fail("Computer players are always on autopilot.");
+    if (a.on) {
+      const level = a.level ?? "medium";
+      if (!BOT_LEVELS.includes(level)) fail("Unknown autopilot setting.");
+      me.autopilot = level;
+      emit(s, out, { actor: me.id, type: "autopilot", text: `🤖 ${me.name} put their empire on autopilot. The computer plays their turns until they're back.`, regions: [], public: true });
+    } else {
+      if (!me.autopilot) fail("Autopilot is already off.");
+      me.autopilot = null;
+      emit(s, out, { actor: me.id, type: "autopilot", text: `🙋 ${me.name} is back in command.`, regions: [], public: true });
+    }
+    return out;
+  }
   if (a.type === "skipTurn") {
     // The host is the first person at the table (computer players can't be hosts).
     const host = s.players.find((p) => !p.bot) ?? s.players[0];
@@ -656,7 +676,8 @@ function applyActionTo(s: GameState, actorId: string, a: Action, now: number): G
     }
     case "endTurn":
       emit(s, out, { actor: me.id, type: "endTurn", text: `${me.name} ended their turn.`, regions: [], public: true });
-      me.lastTurnEndSeq = s.seq;
+      // Turns played on autopilot don't count as "seen": the replay waits for the person to come back.
+      if (!me.autopilot) me.lastTurnEndSeq = s.seq;
       endTurn(s, out, now);
       break;
     default:
@@ -1156,6 +1177,7 @@ export type PlayerView = {
   color: string;
   seat: number;
   bot?: BotLevel;
+  autopilot?: BotLevel | null;
   regions: number;
   cards: number; // total resources held, like Catan's hand size
   heroes: HeroId[];
@@ -1205,6 +1227,7 @@ export function viewFor(s: GameState, pid: string): GameView {
       color: p.color,
       seat: p.seat,
       ...(p.bot ? { bot: p.bot } : {}),
+      ...(p.autopilot ? { autopilot: p.autopilot } : {}),
       regions: ownedRegions(s, p.id).length,
       cards: RESOURCES.reduce((n, g) => n + p.goods[g], 0),
       heroes: heroesOf(s, p.id),

@@ -118,6 +118,12 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
           Talk to everyone in the Chat tab, or pick one Kird to message privately. The Log tab keeps every event in the world, and you can
           ▶ watch any battle again. Pick your face under ⋯ → Your avatar. Leaving a world turns your lands wild.
         </p>
+        <h3>🤖 Autopilot</h3>
+        <p>
+          Going somewhere without WiFi? Pick <strong>Autopilot</strong> in a game&rsquo;s ⋯ menu (careful or aggressive), or{" "}
+          <strong>Autopilot all my games</strong> in the lobby. The computer plays your turns until you take back command, and leaves you
+          a recap of each one. If every person in a world is on autopilot, the world waits.
+        </p>
         <h3>💾 Saving and finishing</h3>
         <p>
           Every move saves the moment you make it, so close the tab whenever you like: your worlds wait for you under{" "}

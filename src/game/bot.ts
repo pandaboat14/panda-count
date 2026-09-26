@@ -21,6 +21,8 @@ import {
 import {
   GameError,
   activePlayer,
+  autoLevel,
+  emit,
   applyAction,
   battle,
   bankRate,
@@ -127,8 +129,9 @@ const minus = (have: Record<Good, number>, c: Cost) =>
 // Plays the active bot's whole turn, ending it. Returns everything that happened.
 export function playBotTurn(s: GameState, now: number): GameEvent[] {
   const me = activePlayer(s);
-  if (!me?.bot || s.winner) return [];
-  const style = STYLE[me.bot];
+  const level = me ? autoLevel(me) : null;
+  if (!me || !level || s.winner) return [];
+  const style = STYLE[level];
   const roll = rng((s.rng ^ (s.turn * 7919) ^ (me.seat * 104729)) >>> 0);
   const out: GameEvent[] = [];
   const self = () => s.players.find((p) => p.id === me.id)!;
@@ -143,28 +146,43 @@ export function playBotTurn(s: GameState, now: number): GameEvent[] {
   };
 
   answerOffers(s, self, style, roll, tryAct);
-  propose(s, self, me.bot, roll, tryAct);
+  propose(s, self, level, roll, tryAct);
   heroPowers(s, self, style, tryAct);
   if (style.bankTrades) bankUp(s, self, style, tryAct);
   // Fight with what's rested first, then spend what's left on the future.
   if (roll() < style.attackChance) expand(s, self, style, roll, tryAct);
   if (style.bankTrades) layLine(s, self, tryAct);
   if (roll() < style.heroes) hireHero(s, self, tryAct);
-  if (roll() < style.build) putUpBuilding(s, self, me.bot, tryAct);
+  if (roll() < style.build) putUpBuilding(s, self, level, tryAct);
   recruit(s, self, style, tryAct);
   if (style.consolidate) consolidate(s, self, tryAct);
+
+  // A person on autopilot gets a private note of what was done in their name.
+  if (!me.bot) {
+    const done = out.filter((e) => e.actor === me.id && RECAP_TYPES.has(e.type)).map((e) => e.text);
+    emit(s, out, {
+      actor: null,
+      type: "autopilotRecap",
+      text: `🤖 Autopilot played your turn: ${done.length ? done.slice(0, 6).join(" ") + (done.length > 6 ? ` …and ${done.length - 6} more.` : "") : "it saved up and waited."}`,
+      regions: [],
+      only: [me.id],
+    });
+  }
 
   // Always hand the turn on, even if the bot couldn't afford to do anything.
   if (activePlayer(s).id === me.id) tryAct({ type: "endTurn" });
   return out;
 }
 
+const RECAP_TYPES = new Set(["build", "recruit", "arm", "gondola", "move", "capture", "battle", "hero", "heroMove", "thunder", "pickpocket", "offer", "pact", "loan", "trade", "decline"]);
+
 // Plays computer turns until it's a person's turn again (or a safety limit is hit).
 export function runBots(s: GameState, now: number, limit = 24): GameEvent[] {
   const out: GameEvent[] = [];
   for (let i = 0; i < limit; i++) {
     const p = activePlayer(s);
-    if (s.winner || !p?.bot || !s.players.some((q) => !q.bot)) break;
+    // Stop at the first person in command, and never auto-play a game where nobody is.
+    if (s.winner || !p || !autoLevel(p) || !s.players.some((q) => !autoLevel(q))) break;
     out.push(...playBotTurn(s, now));
   }
   return out;
