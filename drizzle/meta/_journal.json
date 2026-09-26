@@ -15,6 +15,13 @@
       "when": 1790375493476,
       "tag": "0001_world",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790390443142,
+      "tag": "0002_game",
+      "breakpoints": true
     }
   ]
 }
