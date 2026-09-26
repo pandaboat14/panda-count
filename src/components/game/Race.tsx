@@ -9,10 +9,10 @@ export function Race({ ctx }: { ctx: { view: GameView } }) {
   const top = Math.max(view.goal ?? 0, ranked[0]?.regions ?? 1, 1);
   return (
     <div className="race" aria-label={view.goal ? `Race to ${view.goal} regions` : "Regions held"}>
-      <p className="race-head">{view.goal ? `🏁 First to ${view.goal} regions wins` : "♾️ Endless world: most regions leads"}</p>
+      <p className="race-head">{view.goal ? `🏁 Hold ${view.goal} regions for a full round to win` : "♾️ Endless world: most regions leads"}</p>
       <ul>
         {ranked.map((p) => (
-          <li key={p.id} className={p.id === view.me ? "me" : ""}>
+          <li key={p.id} className={`${p.id === view.me ? "me" : ""}${p.id === view.threat ? " threat" : ""}`}>
             <span className="race-name">
               {p.bot ? "🤖 " : ""}
               {p.id === view.me ? "You" : p.name}

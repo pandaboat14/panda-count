@@ -35,8 +35,8 @@ export function PlanPanel({
       <Race ctx={ctx} />
       {firstTurn && myTurn && (
         <p className="small">
-          Grow by conquering neighbours. Troops only travel by 🚡 gondola, and you already have one line: use it. Every region you hold pays
-          you its resource and 2 🪙 each turn.
+          Grow by conquering neighbours. Troops only travel by 🚡 gondola, so your first big decision is where to build your first line:
+          pick a weak neighbour, ideally one with a resource you don&rsquo;t have. Every region you hold pays you its resource and 2 🪙 each turn.
         </p>
       )}
       {!myTurn ? (

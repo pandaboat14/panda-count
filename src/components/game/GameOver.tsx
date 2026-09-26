@@ -24,7 +24,7 @@ export function GameOver({ view, avatars, endedAt }: { view: GameView; avatars: 
       {champ && (
         <h2 className="game-over-title">
           {champ.id === view.me ? "🏆 You won the world!" : `🏆 ${champ.name} won the world`}
-          {view.goal ? <span className="muted small"> · first to {view.goal} regions</span> : null}
+          {view.goal ? <span className="muted small"> · held {view.goal} regions for a full round</span> : null}
         </h2>
       )}
       <ol>

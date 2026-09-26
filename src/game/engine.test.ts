@@ -463,35 +463,62 @@ test("natives: garrisons never grow past their caps, however long the game runs"
   assert.equal(ogres.units.nacam, NATIVE_CAP.nacams.nacam);
 });
 
-test("starts: every Kird lands with a gondola line to a soft neighbour, and can win a battle on turn one", () => {
+test("starts: nobody gets a free gondola, but everyone lands next to somewhere they can take", () => {
+  let soft = 0;
+  let total = 0;
   for (let seed = 1; seed <= 40; seed++) {
     const { s } = newGame(4, seed);
+    assert.equal(Object.keys(s.lines).length, 0, `no starter lines (seed ${seed})`);
     for (const p of s.players) {
-      const lines = Object.entries(s.lines).filter(([, l]) => l.owner === p.id);
-      assert.equal(lines.length, 1, `${p.name} has one starter line (seed ${seed})`);
-      const target = lineEnds(lines[0][0]).find((e) => e !== p.capital)!;
-      assert.ok(lineUsable(s, p.id, p.capital, target));
-      assert.ok(unitTotal(s.regions[target].units) <= 3, `soft target (seed ${seed}: ${unitTotal(s.regions[target].units)})`);
+      total++;
+      if (NEIGHBORS.get(p.capital)!.some((n) => !s.regions[n].owner && unitTotal(s.regions[n].units) <= 3)) soft++;
     }
   }
+  assert.ok(soft / total >= 0.95, `soft neighbour for ${soft}/${total} starts`);
 });
 
-test("victory: the first Kird to reach the goal wins, and nothing moves after", () => {
+test("victory: reaching the goal only warns everyone; you win if you still hold it when your next turn starts", () => {
   const s = newWorld(9, NOW, 3);
   addPlayer(s, "a", "A");
   addPlayer(s, "b", "B");
   const free = Object.values(s.regions).filter((r) => !r.owner).slice(0, 2);
-  for (const r of free) {
-    r.owner = "a";
-    r.native = null;
-  }
-  // Any action triggers the check.
-  const events = applyAction(s, "a", { type: "buy", good: "rice", count: 1 }, NOW);
-  assert.equal(s.winner, "a");
-  assert.ok(events.some((e) => e.type === "victory" && e.public));
+  for (const r of free) Object.assign(s.regions[r.id], { owner: "a", native: null });
+  // A's next move puts them on the goal: a warning, not a win.
+  const warned = applyAction(s, "a", { type: "buy", good: "rice", count: 1 }, NOW);
+  assert.equal(s.winner, null);
+  assert.equal(s.threat, "a");
+  assert.ok(warned.some((e) => e.type === "threat" && e.public));
+  assert.equal(viewFor(s, "b").threat, "a");
+  // B gets a full turn to respond; B does nothing.
+  applyAction(s, "a", { type: "endTurn" }, NOW);
+  assert.equal(s.winner, null, "no win on B's turn");
+  const end = applyAction(s, "b", { type: "endTurn" }, NOW);
+  assert.equal(s.winner, "a", "A survived the round");
+  assert.ok(end.some((e) => e.type === "victory"));
   assert.throws(() => applyAction(s, "a", { type: "endTurn" }, NOW), /over/);
   assert.equal(viewFor(s, "b").winner, "a");
-  assert.equal(viewFor(s, "b").goal, 3);
+});
+
+test("victory: knock the leader below the goal before their turn and the win is off", () => {
+  const s = newWorld(9, NOW, 3);
+  addPlayer(s, "a", "A");
+  addPlayer(s, "b", "B");
+  const free = Object.values(s.regions).filter((r) => !r.owner).slice(0, 2);
+  for (const r of free) Object.assign(s.regions[r.id], { owner: "a", native: null });
+  applyAction(s, "a", { type: "buy", good: "rice", count: 1 }, NOW);
+  applyAction(s, "a", { type: "endTurn" }, NOW);
+  // B takes one of A's regions (set up directly: an empty A region next to B with a line).
+  const lost = free[0].id;
+  Object.assign(s.regions[lost], { units: { panda: 0, armedPanda: 0, nacam: 0, cam: 0 } });
+  const bHome = s.players.find((p) => p.id === "b")!.capital;
+  s.regions[bHome].units.panda = 5;
+  s.lines[lineId(bHome, lost)] = { owner: "b", builtTurn: 0 };
+  s.regions[lost].owner = "a";
+  const events = applyAction(s, "b", { type: "move", from: bHome, to: lost, units: { panda: 2 } }, NOW);
+  assert.ok(events.some((e) => e.type === "threatOver"));
+  assert.equal(s.threat, null);
+  applyAction(s, "b", { type: "endTurn" }, NOW);
+  assert.equal(s.winner, null, "A no longer holds the goal when their turn starts");
 });
 
 test("victory: endless games (no goal) never end", () => {
@@ -531,23 +558,24 @@ test("odds: big armies are favourites, tiny ones aren't, and the numbers are sta
   assert.equal(battleOdds(mkUnits({ panda: 1 }), 0, mkUnits({}), 0).win, 1);
 });
 
-test("advisor: on turn one it points at the starter gondola's invasion, which really does win", () => {
+test("advisor: on turn one Sun Tzu says where to build, then to invade, and it really does win", () => {
   let wins = 0;
   let total = 0;
   for (let seed = 1; seed <= 30; seed++) {
     const { s } = newGame(1, seed);
     const me = s.players[0];
-    const tips = advise(viewFor(s, me.id));
-    const attack = tips.find((t) => t.plan);
-    assert.ok(attack, `seed ${seed}: ${tips.map((t) => t.title).join(" | ")}`);
-    // Do what it says with everything it planned to send.
+    const first = advise(viewFor(s, me.id));
+    const line = first.find((t) => t.action?.type === "gondola");
+    assert.ok(line, `seed ${seed}: ${first.map((t) => t.title).join(" | ")}`);
+    applyAction(s, me.id, line!.action!, NOW);
+    const attack = advise(viewFor(s, me.id)).find((t) => t.plan);
+    assert.ok(attack, `seed ${seed}: an invasion is suggested once the line is up`);
     const from = s.regions[attack!.plan!.from];
     const send = { ...from.units };
     send.panda -= 1;
-    const events = applyAction(s, me.id, { type: "move", from: from.id, to: attack!.plan!.to, units: send }, NOW);
+    applyAction(s, me.id, { type: "move", from: from.id, to: attack!.plan!.to, units: send }, NOW);
     total++;
     if (s.regions[attack!.plan!.to].owner === me.id) wins++;
-    assert.ok(events.length > 0);
   }
   assert.ok(wins / total >= 0.8, `advised attacks won ${wins}/${total}`);
 });
@@ -604,7 +632,10 @@ import { canReplay } from "./battleScript";
 test("replays: only battles that recorded their dice can be re-enacted (older games had none)", () => {
   const { s } = newGame(1, 3);
   const me = s.players[0];
-  const target = lineEnds(Object.keys(s.lines)[0]).find((e) => e !== me.capital)!;
+  const target = NEIGHBORS.get(me.capital)!.find((n) => !s.regions[n].owner)!;
+  me.goods.coin += 10;
+  applyAction(s, me.id, { type: "buy", good: "iron", count: 1 }, NOW);
+  applyAction(s, me.id, { type: "gondola", from: me.capital, to: target }, NOW);
   const send = { ...s.regions[me.capital].units };
   const events = applyAction(s, me.id, { type: "move", from: me.capital, to: target, units: send }, NOW);
   const fight = events.find((e) => e.type === "battle" || e.type === "capture")!;
@@ -629,4 +660,37 @@ test("Sun Tzu: every piece of advice comes with a saying, steady within a turn",
   }
   assert.ok(sunTzuOpening(1, true, true).length > 10);
   assert.ok(sunTzuOpening(-3, false, false).length > 10, "handles any turn number");
+});
+
+test("fuzz: with bots and a goal, warnings, comebacks and wins stay consistent to the very end", () => {
+  let finished = 0;
+  for (let seed = 1; seed <= 6; seed++) {
+    const s = newWorld(seed * 101, NOW, 6);
+    const events: GameEvent[] = [];
+    events.push(...addPlayer(s, "human", "Taylor"));
+    for (const [i, l] of (["easy", "medium", "hard"] as const).entries()) events.push(...addPlayer(s, `bot${i}`, `Bot ${i}`, l));
+    const rnd = lcg(seed * 31);
+    for (let step = 0; step < 3000 && !s.winner; step++) {
+      const snapshot = JSON.stringify(s);
+      const a = randomAction(s, rnd);
+      try {
+        events.push(...applyAction(s, "human", a, NOW));
+      } catch (e) {
+        if (!(e instanceof GameError)) throw e;
+        assert.equal(JSON.stringify(s), snapshot, "rejected moves change nothing");
+      }
+      events.push(...runBots(s, NOW));
+      checkInvariants(s, events);
+      // A warning only ever names someone at or above the goal.
+      if (s.threat) assert.ok(ownedRegions(s, s.threat).length >= 6, "threat means holding the goal");
+    }
+    if (s.winner) {
+      finished++;
+      assert.ok(ownedRegions(s, s.winner).length >= 6, "the winner holds the goal");
+      assert.ok(events.some((e) => e.type === "victory"));
+      assert.ok(events.some((e) => e.type === "threat" && e.actor === s.winner), "the win was announced a round ahead");
+      assert.throws(() => applyAction(s, activePlayer(s).id, { type: "endTurn" }, NOW), /over/);
+    }
+  }
+  assert.ok(finished >= 3, `games reached a winner: ${finished}/6`);
 });

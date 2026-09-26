@@ -343,7 +343,9 @@ function expand(s: GameState, me: () => Player, style: Style, roll: () => number
         const def = REGION_BY_ID.get(n)!;
         const human = to.owner && !s.players.find((p) => p.id === to.owner)?.bot;
         const hot = to.token === 6 || to.token === 8 ? 1.5 : to.token === 5 || to.token === 9 ? 1 : 0;
-        const value = odds * 4 + hot + (to.owner ? 1 : 0) + (style.preferHumans && human ? 2 : 0) + (def.native === "pandas" ? 1 : 0) + roll();
+        // Whoever is one round from winning becomes everyone's target.
+        const stopThem = to.owner && to.owner === s.threat && style.consolidate ? 6 : 0;
+        const value = odds * 4 + hot + (to.owner ? 1 : 0) + (style.preferHumans && human ? 2 : 0) + (def.native === "pandas" ? 1 : 0) + stopThem + roll();
         plans.push({ from, to, send, value });
       }
     }

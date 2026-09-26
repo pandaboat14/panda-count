@@ -12,6 +12,7 @@ import { Avatar } from "../Avatar";
 import { SceneBoundary } from "../SceneBoundary";
 import { canReplay } from "@/game/battleScript";
 import { BattleView } from "./BattleView";
+import { DiceRoll } from "./DiceRoll";
 import { ChatPanel, channelOf, type Channel } from "./ChatPanel";
 import type { Highlight } from "./Board";
 import { Glossary, GoodsBar } from "./bits";
@@ -45,6 +46,19 @@ const TONE: Record<string, Highlight["tone"]> = {
   move: "move",
   loan: "move",
 };
+
+type DiceShow = { seq: number; turn: number; roll: [number, number]; lines: string[] };
+
+// The latest roll (by `who`, or by anyone if null), with what it did in plain words.
+function diceFor(events: GameEvent[], who: string | null): DiceShow | null {
+  const rollEvent = [...events].reverse().find((e) => e.type === "roll" && (who === null || e.actor === who) && Array.isArray(e.data?.roll));
+  if (!rollEvent) return null;
+  const roll = rollEvent.data!.roll as [number, number];
+  const lines = [rollEvent.text.replace(/^🎲 .*? rolled \d+[.:]?\s*/u, "")];
+  const income = events.find((e) => e.type === "income" && e.actor === rollEvent.actor && e.turn === rollEvent.turn);
+  if (income) lines.push(`Your turn: ${income.text}`);
+  return { seq: rollEvent.seq, turn: rollEvent.turn, roll, lines: lines.filter(Boolean) };
+}
 
 export function GameClient({ initial }: { initial: GamePayload }) {
   const { game, act: rawAct, send, loadOlder, olderDone, busy, error, savedAt, clearError } = useGame(initial);
@@ -159,6 +173,29 @@ export function GameClient({ initial }: { initial: GamePayload }) {
   const [replay, setReplay] = useState<{ list: GameEvent[]; i: number } | null>(null);
   const [replayOffered, setReplayOffered] = useState(false);
 
+  // ---- the chance cubes: your start-of-turn roll, played once the other Kirds' moves have been shown ----
+  const [dice, setDice] = useState<DiceShow | null>(null);
+  const [pendingDice, setPendingDice] = useState<DiceShow | null>(null);
+  const diceKey = `pd-dice-${game.id}`;
+  useEffect(() => {
+    // After mount (so server and client render the same): if your turn's roll hasn't been shown yet, queue it.
+    const t = setTimeout(() => {
+      const mine = myTurn ? diceFor(game.events, view.me) : null;
+      // Only this turn's roll, and only once (it's remembered on this device).
+      if (!mine || mine.turn !== view.turn) return;
+      let shown = 0;
+      try {
+        shown = Number(localStorage.getItem(diceKey) ?? 0);
+      } catch {
+        /* private mode */
+      }
+      if (mine.seq > shown) setPendingDice(mine);
+    });
+    return () => clearTimeout(t);
+    // Only on first load; later turns are handled when the turn changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // When a new turn of yours starts: announce it and open the Plan. Track the turn number, not just whose turn
   // it is: against computer players the turn comes straight back to you in the same request.
   const [seenTurn, setSeenTurn] = useState(view.turn);
@@ -168,6 +205,8 @@ export function GameClient({ initial }: { initial: GamePayload }) {
       setToast("🎲 It's your turn!");
       setReplayOffered(false);
       setTab("plan");
+      const mine = diceFor(game.events, view.me);
+      if (mine && mine.turn === view.turn) setPendingDice(mine);
     }
   }
 
@@ -183,10 +222,25 @@ export function GameClient({ initial }: { initial: GamePayload }) {
     }
   }
 
+  // Show the queued roll once nothing else is playing.
+  useEffect(() => {
+    if (!pendingDice || replay || battle || dice) return;
+    const t = setTimeout(() => {
+      setDice(pendingDice);
+      setPendingDice(null);
+      try {
+        localStorage.setItem(diceKey, String(pendingDice.seq));
+      } catch {
+        /* private mode */
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [pendingDice, replay, battle, dice, diceKey]);
+
   const replayEvent = replay?.list[replay.i] ?? null;
   const nextReplay = () => setReplay((r) => (r && r.i + 1 < r.list.length ? { ...r, i: r.i + 1 } : null));
   useEffect(() => {
-    if (!replay || battle) return;
+    if (!replay || battle || dice) return;
     const e = replay.list[replay.i];
     // Battles get the full re-enactment; the replay carries on when it's closed.
     if (e && canReplay(e)) {
@@ -195,7 +249,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
     }
     const t = setTimeout(nextReplay, FEED_MS);
     return () => clearTimeout(t);
-  }, [replay, battle]);
+  }, [replay, battle, dice]);
 
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -238,6 +292,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
   const onReady = useCallback(() => setReady(true), []);
 
   const ctx: Ctx = { view, myTurn, busy, act, avatars: game.avatars, over };
+  const closeDice = useCallback(() => setDice(null), []);
 
   // Pick an attack: show the source region's panel with the target lined up.
   const planAttack = (from: string, to: string) => {
@@ -315,7 +370,18 @@ export function GameClient({ initial }: { initial: GamePayload }) {
             Round {view.round}
             {view.lastRoll && (
               <>
-                {" "}· 🎲 {view.lastRoll[0]}+{view.lastRoll[1]}={view.lastRoll[0] + view.lastRoll[1]}
+                {" "}·{" "}
+                <button
+                  type="button"
+                  className="roll-link"
+                  title="Watch the last roll again"
+                  onClick={() => {
+                    const last = diceFor(game.events, null);
+                    if (last) setDice(last);
+                  }}
+                >
+                  🎲 {view.lastRoll[0]}+{view.lastRoll[1]}={view.lastRoll[0] + view.lastRoll[1]}
+                </button>
               </>
             )}
             {view.goal ? <> · 🏁 {view.goal}</> : null}
@@ -360,6 +426,13 @@ export function GameClient({ initial }: { initial: GamePayload }) {
 
       <div className="game-goods">
         <GoodsBar goods={me.goods} />
+        {!over && view.threat && view.goal && (
+          <p className={`threat-pill${view.threat === view.me ? " mine" : ""}`} role="status">
+            {view.threat === view.me
+              ? `🏁 Hold ${view.goal} regions until your next turn starts and you win!`
+              : `⚠️ ${playerName(view, view.threat)} holds ${view.players.find((p) => p.id === view.threat)?.regions ?? view.goal} regions. Take some before their next turn, or they win!`}
+          </p>
+        )}
         <Glossary />
       </div>
 
@@ -402,7 +475,17 @@ export function GameClient({ initial }: { initial: GamePayload }) {
         </div>
       )}
 
-      <aside className={`game-panel${panelOpen ? "" : " closed"}`}>
+      {!panelOpen && (
+        <button className="panel-restore" onClick={() => setPanelOpen(true)} aria-label="Show the actions panel">
+          ▴ Actions
+          {pendingOffers + unreadTotal > 0 && <span className="dot-count">{pendingOffers + unreadTotal}</span>}
+        </button>
+      )}
+
+      <aside className={`game-panel${panelOpen ? "" : " closed"}`} hidden={!panelOpen}>
+        <button className="panel-grip" onClick={() => setPanelOpen(false)} aria-label="Minimize the panel to see the map">
+          <span aria-hidden="true" className="grip-bar" />▾ Minimize to see the map
+        </button>
         <nav className="panel-tabs" aria-label="Panels">
           {(
             [
@@ -421,8 +504,8 @@ export function GameClient({ initial }: { initial: GamePayload }) {
               {t === "chat" && unreadTotal > 0 && <span className="dot-count">{unreadTotal}</span>}
             </button>
           ))}
-          <button className="panel-toggle" onClick={() => setPanelOpen(!panelOpen)} aria-label={panelOpen ? "Hide panel" : "Show panel"}>
-            {panelOpen ? "▾" : "▴"}
+          <button className="panel-toggle" onClick={() => setPanelOpen(false)} aria-label="Minimize the panel" title="Minimize to see the map">
+            ▾
           </button>
         </nav>
         {panelOpen && (
@@ -497,6 +580,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
       )}
 
       {help && <HowToPlay onClose={() => setHelp(false)} />}
+      {dice && <DiceRoll key={dice.seq} roll={dice.roll} lines={dice.lines} still={still} onClose={closeDice} />}
       {battle && (
         <BattleView
           key={battle.seq}

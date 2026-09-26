@@ -69,12 +69,12 @@ export function Lobby({ games }: { games: GameSummary[] }) {
             </label>
             <label className="wide">
               How long?
-              <select name="goal" defaultValue="15">
-                <option value="10">Quick: first to 10 regions wins</option>
-                <option value="15">Standard: first to 15 regions wins</option>
-                <option value="20">Long: first to 20 regions wins</option>
+              <select name="goal" defaultValue="25">
+                <option value="25">Standard: hold 25 regions to win (about 40 rounds)</option>
+                <option value="30">Long: hold 30 regions to win (45+ rounds)</option>
                 <option value="endless">Endless: it never ends (the Kirds&rsquo; classic)</option>
               </select>
+              <span className="hint">To win, you must still hold the goal when your next turn starts, so everyone gets one last chance to stop you.</span>
             </label>
             <div className="wide seat-list" role="group" aria-label="Players">
               <p className="seat-head">Players</p>

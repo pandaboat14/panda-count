@@ -104,9 +104,11 @@ export type GameState = {
   rng: number;
   seq: number; // last event number handed out
   nextId: number;
-  // First Kird to hold this many regions wins; null (or missing, in older games) plays forever.
+  // Hold this many regions at the start of your own turn to win; null (or missing, in older games) plays forever.
   goal?: number | null;
   winner?: string | null;
+  // Who has reached the goal and must survive a full round to claim it (so everyone gets a warning).
+  threat?: string | null;
 };
 
 export type GameEvent = {
@@ -392,20 +394,9 @@ export function addPlayer(s: GameState, id: string, name: string, bot?: BotLevel
   };
   s.players.push(p);
   settle(s, p, r);
-  // Every Kird starts with one gondola line toward its softest neighbour, so turn one has a move worth making.
-  const first = NEIGHBORS.get(r.id)!
-    .map((n) => s.regions[n])
-    .filter((n) => !n.owner && !s.lines[lineId(r.id, n.id)])
-    .sort((a, b) => unitTotal(a.units) - unitTotal(b.units) || (a.native === "wild" ? -1 : 1))[0];
-  if (first) s.lines[lineId(r.id, first.id)] = { owner: id, builtTurn: s.turn };
+  // No free gondola: choosing where to build first is the opening move.
   const out: GameEvent[] = [];
-  emit(s, out, {
-    actor: id,
-    type: "join",
-    text: `${bot ? "🤖 " : ""}${p.name} joined the world, landing in ${regionName(r.id)}${first ? ` with a gondola line to ${regionName(first.id)}` : ""}.`,
-    regions: first ? [r.id, first.id] : [r.id],
-    public: true,
-  });
+  emit(s, out, { actor: id, type: "join", text: `${bot ? "🤖 " : ""}${p.name} joined the world, landing in ${regionName(r.id)}.`, regions: [r.id], public: true });
   // The very first Kird starts playing straight away, dice and all.
   if (s.players.length === 1) startTurn(s, out);
   return out;
@@ -671,23 +662,48 @@ function applyActionTo(s: GameState, actorId: string, a: Action, now: number): G
     default:
       fail("Unknown action.");
   }
-  checkVictory(s, out);
+  checkThreat(s, out);
   return out;
 }
 
-// The first Kird to reach the goal wins (only in games that have one).
-function checkVictory(s: GameState, out: GameEvent[]) {
+// Reaching the goal isn't winning yet: everyone is warned, and the next round is their chance to stop it.
+function checkThreat(s: GameState, out: GameEvent[]) {
   if (!s.goal || s.winner) return;
-  const champ = s.players.find((p) => ownedRegions(s, p.id).length >= s.goal!);
-  if (!champ) return;
-  s.winner = champ.id;
+  const current = s.threat ? s.players.find((p) => p.id === s.threat) : undefined;
+  if (s.threat && !current) s.threat = null; // they left the game
+  if (current && ownedRegions(s, current.id).length < s.goal) {
+    s.threat = null;
+    emit(s, out, { actor: null, type: "threatOver", text: `😮‍💨 ${current.name} fell below ${s.goal} regions. The world is safe, for now.`, regions: [], public: true });
+  }
+  if (s.threat) return;
+  const leader = s.players.find((p) => ownedRegions(s, p.id).length >= s.goal!);
+  if (!leader) return;
+  s.threat = leader.id;
   emit(s, out, {
-    actor: champ.id,
-    type: "victory",
-    text: `🏆 ${champ.name} holds ${ownedRegions(s, champ.id).length} regions and wins the world! The game is over.`,
-    regions: [champ.capital],
+    actor: leader.id,
+    type: "threat",
+    text: `⚠️ ${leader.name} holds ${ownedRegions(s, leader.id).length} regions! If they still hold ${s.goal} at the start of their next turn, they win. Stop them!`,
+    regions: [leader.capital],
     public: true,
   });
+}
+
+// Victory is checked when a Kird's turn begins: they must have held the goal for a whole round.
+function checkVictory(s: GameState, out: GameEvent[]) {
+  if (!s.goal || s.winner) return false;
+  const p = activePlayer(s);
+  const held = ownedRegions(s, p.id).length;
+  if (held < s.goal) return false;
+  s.winner = p.id;
+  s.threat = null;
+  emit(s, out, {
+    actor: p.id,
+    type: "victory",
+    text: `🏆 ${p.name} held ${held} regions for a whole round and wins the world! The game is over.`,
+    regions: [p.capital],
+    public: true,
+  });
+  return true;
 }
 
 function breakPact(s: GameState, out: GameEvent[], me: Player, other: Player) {
@@ -975,6 +991,7 @@ function newRound(s: GameState, out: GameEvent[]) {
 
 function startTurn(s: GameState, out: GameEvent[]) {
   const p = activePlayer(s);
+  if (checkVictory(s, out)) return;
 
   // Exiles get a fresh start: Panda Asylum.
   if (!ownedRegions(s, p.id).length) {
@@ -1169,6 +1186,7 @@ export type GameView = {
   prices: { gondola: Cost; units: Record<UnitType, Cost>; heroes: Record<HeroId, Cost>; bankRate: number; buyPrice: number };
   goal: number | null;
   winner: string | null;
+  threat: string | null;
 };
 
 export function viewFor(s: GameState, pid: string): GameView {
@@ -1222,6 +1240,7 @@ export function viewFor(s: GameState, pid: string): GameView {
     },
     goal: s.goal ?? null,
     winner: s.winner ?? null,
+    threat: s.threat ?? null,
   };
 }
 
