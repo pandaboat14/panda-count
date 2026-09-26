@@ -1,6 +1,7 @@
 "use client";
 
-import { GOODS, GOOD_INFO, type Cost, type Good } from "@/game/rules";
+import { useState } from "react";
+import { BUILDINGS, BUILDING_TYPES, GONDOLA_COST, GOODS, GOOD_INFO, GOOD_SOURCE, HEROES, HERO_IDS, UNITS, UNIT_TYPES, type Cost, type Good } from "@/game/rules";
 
 export function CostChips({ cost, have }: { cost: Cost; have?: Partial<Record<Good, number>> }) {
   const parts = GOODS.filter((g) => (cost[g] ?? 0) > 0);
@@ -51,5 +52,43 @@ export function GoodsBar({ goods }: { goods?: Partial<Record<Good, number>> }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+// Everything a good can be spent on, straight from the price tables.
+function usesOf(g: Good) {
+  const out: string[] = [];
+  if ((GONDOLA_COST[g] ?? 0) > 0) out.push("🚡 gondolas");
+  for (const t of UNIT_TYPES) if ((UNITS[t].cost[g] ?? 0) > 0) out.push(`${UNITS[t].icon} ${UNITS[t].plural}`);
+  for (const b of BUILDING_TYPES) if ((BUILDINGS[b].cost[g] ?? 0) > 0) out.push(`${BUILDINGS[b].icon} ${BUILDINGS[b].label}`);
+  for (const h of HERO_IDS) if ((HEROES[h].cost[g] ?? 0) > 0) out.push(`${HEROES[h].icon} ${HEROES[h].name}`);
+  return out;
+}
+
+// A pop-down key to the goods bar: hidden until asked for.
+export function Glossary() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="glossary">
+      <button type="button" className="glossary-toggle" aria-expanded={open} aria-controls="goods-glossary" onClick={() => setOpen(!open)}>
+        {open ? "▴ Hide the key" : "▾ What are these?"}
+      </button>
+      {open && (
+        <dl id="goods-glossary" className="glossary-list">
+          {GOODS.map((g) => (
+            <div key={g}>
+              <dt>
+                <span aria-hidden="true">{GOOD_INFO[g].icon}</span> {GOOD_INFO[g].label}
+                {(g === "coin" || g === "pandaCoin" || g === "camCoin") && <span className="muted small"> · currency</span>}
+              </dt>
+              <dd>
+                <p>{GOOD_SOURCE[g]}</p>
+                <p className="muted small">Used for: {usesOf(g).join(", ") || "trading"}</p>
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </div>
   );
 }

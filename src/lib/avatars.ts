@@ -1,5 +1,5 @@
 // Built-in avatars: a face on a coloured backdrop, stored as "kind:color".
-export const AVATAR_KINDS = ["panda", "redpanda", "ogre", "cam", "viking", "gondola"] as const;
+export const AVATAR_KINDS = ["panda", "redpanda", "ogre", "cam", "viking", "gondola", "robot"] as const;
 export type AvatarKind = (typeof AVATAR_KINDS)[number];
 export const AVATAR_KIND_LABEL: Record<AvatarKind, string> = {
   panda: "Panda",
@@ -8,6 +8,7 @@ export const AVATAR_KIND_LABEL: Record<AvatarKind, string> = {
   cam: "CAM",
   viking: "Norse god",
   gondola: "Gondola",
+  robot: "Robot",
 };
 export const AVATAR_COLORS = ["#e7d7b4", "#cfe0cf", "#ecd3c4", "#c9d8ee", "#e2d5e6", "#f3e3a2", "#2b2a5c", "#1f4b35"];
 

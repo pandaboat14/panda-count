@@ -29,10 +29,24 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
             CAM Gym. NACAM ogres cost 1 🪙 upkeep each or they desert.
           </li>
           <li>
+            <strong>Ogre quarry.</strong> Each NACAM ogre you own has a 1 in 3 chance to haul in 1 🪨 Stone (up to 3 a turn), so the more
+            ogres you keep, the more Stone turns up. Stone also comes from stone regions and from the Bank (4 of any resource for 1).
+          </li>
+          <li>
             <strong>Do anything, in any order:</strong> build gondolas, recruit, build, move, invade, trade, hire heroes, loan pandas.
           </li>
           <li>Hit <strong>End turn</strong>. The next Kird gets a replay of everything they&rsquo;re allowed to see.</li>
         </ol>
+        <p>
+          Not sure what a 🎋 or 💪 is? Tap <strong>▾ What are these?</strong> under your goods for how to earn each one and what it buys.
+        </p>
+        <h3>🤖 Computer players</h3>
+        <p>
+          Play alone or fill empty seats with computer Kirds when you start a world. <strong>Easy</strong> ones are timid,{" "}
+          <strong>Medium</strong> ones build a steady economy and pick good fights, and <strong>Hard</strong> ones simulate every battle
+          before they commit, hire heroes and gang up on people. They play the moment your turn ends, and each of their moves stays on screen
+          for 8 seconds (tap ▶ to move on, or Skip all). They answer your trade, pact and loan offers on their turn.
+        </p>
         <h3>🚡 Urban gondolas</h3>
         <p>
           The <strong>only</strong> way to move troops. Build a line from one of your regions to a neighbour, then send troops along it: into
@@ -86,8 +100,13 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
         <h3>💬 Chat, log and leaving</h3>
         <p>
           Talk to everyone in the Chat tab, or pick one Kird to message privately. The Log tab keeps every event in the world, and you can
-          ▶ watch any battle again. Pick your face under ⋯ → Your avatar. Leaving a world turns your lands wild; the host can end a world for
-          everyone.
+          ▶ watch any battle again. Pick your face under ⋯ → Your avatar. Leaving a world turns your lands wild.
+        </p>
+        <h3>💾 Saving and finishing</h3>
+        <p>
+          Every move saves the moment you make it, so close the tab whenever you like: your worlds wait for you under{" "}
+          <strong>In progress</strong> in the lobby. When the host ends a world it moves to <strong>Complete</strong> with the final standings
+          (most regions wins), and you can still look around it.
         </p>
       </article>
     </dialog>

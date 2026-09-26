@@ -19,6 +19,8 @@ import {
   NATIVE_GARRISON,
   PANDAS_PER_PANDACOIN,
   PLAYER_COLORS,
+  QUARRY_CHANCE,
+  QUARRY_MAX,
   RAID_THRESHOLD,
   RESOURCES,
   SANCTUARY_PANDACOIN,
@@ -50,9 +52,13 @@ export type RegionState = {
   token: number; // Catan-style production number, 2–12 except 7
 };
 
+export type BotLevel = "easy" | "medium" | "hard";
+export const BOT_LEVELS: BotLevel[] = ["easy", "medium", "hard"];
+
 export type Player = {
   id: string;
   name: string;
+  bot?: BotLevel; // played by the computer
   color: string;
   seat: number;
   goods: Goods;
@@ -182,9 +188,9 @@ const regionOf = (s: GameState, id: string) => s.regions[id] ?? fail("No such re
 export const regionName = (id: string) => REGION_BY_ID.get(id)?.name ?? id;
 export const ownedRegions = (s: GameState, pid: string) => Object.values(s.regions).filter((r) => r.owner === pid);
 const heroesOf = (s: GameState, pid: string) => HERO_IDS.filter((h) => s.heroes[h].owner === pid);
-const hasHero = (s: GameState, pid: string, h: HeroId) => s.heroes[h].owner === pid;
+export const hasHero = (s: GameState, pid: string, h: HeroId) => s.heroes[h].owner === pid;
 const hasModifier = (s: GameState, k: ModifierKind) => s.modifiers.some((m) => m.kind === k && m.untilRound >= s.round);
-const inPact = (s: GameState, a: string, b: string) => s.pacts.some((p) => (p.a === a && p.b === b) || (p.a === b && p.b === a));
+export const inPact = (s: GameState, a: string, b: string) => s.pacts.some((p) => (p.a === a && p.b === b) || (p.a === b && p.b === a));
 
 export function costText(c: Cost) {
   return Object.entries(c)
@@ -337,7 +343,7 @@ function settle(s: GameState, p: Player, r: RegionState) {
   p.capital = r.id;
 }
 
-export function addPlayer(s: GameState, id: string, name: string): GameEvent[] {
+export function addPlayer(s: GameState, id: string, name: string, bot?: BotLevel): GameEvent[] {
   if (s.players.some((p) => p.id === id)) fail("You're already in this game.");
   if (s.players.length >= PLAYER_COLORS.length) fail("This game is full (8 Kirds max).");
   const r = spawnRegion(s) ?? fail("There's no room left on the map to join.");
@@ -354,11 +360,12 @@ export function addPlayer(s: GameState, id: string, name: string): GameEvent[] {
     pickpocketTurn: 0,
     oathbreakerUntilRound: 0,
     respawns: 0,
+    ...(bot ? { bot } : {}),
   };
   s.players.push(p);
   settle(s, p, r);
   const out: GameEvent[] = [];
-  emit(s, out, { actor: id, type: "join", text: `${p.name} joined the world, landing in ${regionName(r.id)}.`, regions: [r.id], public: true });
+  emit(s, out, { actor: id, type: "join", text: `${bot ? "🤖 " : ""}${p.name} joined the world, landing in ${regionName(r.id)}.`, regions: [r.id], public: true });
   // The very first Kird starts playing straight away, dice and all.
   if (s.players.length === 1) startTurn(s, out);
   return out;
@@ -960,6 +967,12 @@ function startTurn(s: GameState, out: GameEvent[]) {
     harvest[res] = (harvest[res] ?? 0) + 1;
   }
 
+  // Ogre quarries: the more NACAMs you have, the likelier some Stone turns up.
+  let quarried = 0;
+  const haulers = ownedRegions(s, p.id).reduce((n, r) => n + r.units.nacam, 0);
+  for (let i = 0; i < haulers && quarried < QUARRY_MAX; i++) if (rand(s) < QUARRY_CHANCE) quarried++;
+  p.goods.stone += quarried;
+
   // Income for the active player.
   const mine = ownedRegions(s, p.id);
   const pandas = mine.reduce((n, r) => n + r.units.panda + r.units.armedPanda, 0);
@@ -996,7 +1009,7 @@ function startTurn(s: GameState, out: GameEvent[]) {
   emit(s, out, {
     actor: p.id,
     type: "income",
-    text: `Harvest: ${costText(harvest) || "nothing"}. Income: ${coin >= 0 ? "+" : ""}${coin} 🪙, +${pandaCoin} 🐼, +${camCoin} 💪${ogres && !hasHero(s, p.id, "cockpenis") ? ` (after ${ogres} 🪙 ogre upkeep)` : ""}.${deserted ? ` 👹 ${deserted} unpaid ogre${deserted === 1 ? "" : "s"} deserted!` : ""}`,
+    text: `Harvest: ${costText(harvest) || "nothing"}.${quarried ? ` 👹 Ogre quarry: +${quarried} 🪨.` : ""} Income: ${coin >= 0 ? "+" : ""}${coin} 🪙, +${pandaCoin} 🐼, +${camCoin} 💪${ogres && !hasHero(s, p.id, "cockpenis") ? ` (after ${ogres} 🪙 ogre upkeep)` : ""}.${deserted ? ` 👹 ${deserted} unpaid ogre${deserted === 1 ? "" : "s"} deserted!` : ""}`,
     regions: [],
     only: [p.id],
   });
@@ -1056,6 +1069,7 @@ export type PlayerView = {
   name: string;
   color: string;
   seat: number;
+  bot?: BotLevel;
   regions: number;
   cards: number; // total resources held, like Catan's hand size
   heroes: HeroId[];
@@ -1101,6 +1115,7 @@ export function viewFor(s: GameState, pid: string): GameView {
       name: p.name,
       color: p.color,
       seat: p.seat,
+      ...(p.bot ? { bot: p.bot } : {}),
       regions: ownedRegions(s, p.id).length,
       cards: RESOURCES.reduce((n, g) => n + p.goods[g], 0),
       heroes: heroesOf(s, p.id),

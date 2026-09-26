@@ -36,6 +36,13 @@
       "when": 1790393970873,
       "tag": "0004_chat_avatars",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790398771820,
+      "tag": "0005_game_status",
+      "breakpoints": true
     }
   ]
 }

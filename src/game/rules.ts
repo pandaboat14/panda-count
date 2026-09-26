@@ -20,6 +20,19 @@ export const GOOD_INFO: Record<Good, { label: string; icon: string }> = {
 
 export type Cost = Partial<Record<Good, number>>;
 
+// How each good is earned, for the in-game glossary. (What it's spent on is worked out from the price tables.)
+export const GOOD_SOURCE: Record<Good, string> = {
+  bamboo: "Grows in bamboo regions: each one you hold gives 1 at the start of your turn, and more whenever the dice roll its number.",
+  stone:
+    "Quarried in stone regions (1 a turn each, plus dice rolls). Your NACAM ogres also haul it in: each ogre has a 1 in 3 chance to bring 1 Stone at the start of your turn (up to 3). Or trade 4 of any resource for 1 at the Bank (3 with a Market, 2 with Ping).",
+  iron: "Mined in iron regions: 1 a turn from each one you hold, plus dice rolls.",
+  rice: "Grown in rice regions: 1 a turn from each one you hold, plus dice rolls.",
+  gems: "Dug up in gem regions: 1 a turn from each one you hold, plus dice rolls.",
+  coin: "2 Coin a turn for every region you hold, +2 for each Market. Ogres cost 1 Coin a turn each in wages.",
+  pandaCoin: "1 a turn for every 3 pandas you own, +2 per Panda Sanctuary, +2 with Ping, and +1 per panda on loan (to or from you).",
+  camCoin: "+1 a turn per CAM Gym. Or exchange at the Bank: 6 Coin or 3 PandaCoin for 1 CamCoin.",
+};
+
 // ---- Units ----
 export type UnitType = "panda" | "armedPanda" | "nacam" | "cam";
 export const UNIT_TYPES: UnitType[] = ["panda", "armedPanda", "nacam", "cam"];
@@ -50,7 +63,7 @@ export const UNITS: Record<UnitType, { label: string; plural: string; icon: stri
     attack: 2,
     defense: 0,
     cost: { coin: 3, rice: 1 },
-    blurb: "Not A Classically Attractive Male. Ugly, jacked with rage, hits hard. Mercenaries: 1 coin upkeep each turn or they desert.",
+    blurb: "Not A Classically Attractive Male. Ugly, jacked with rage, hits hard. Each one has a 1 in 3 chance to quarry 1 Stone a turn. Mercenaries: 1 coin upkeep each turn or they desert.",
   },
   cam: {
     label: "CAM",
@@ -133,6 +146,9 @@ export const SANCTUARY_PANDACOIN = 2;
 export const GYM_CAMCOIN = 1;
 export const MARKET_COIN = 2;
 export const NACAM_UPKEEP = 1;
+// Ogres are strong backs: each NACAM you own has this chance to haul in 1 Stone at the start of your turn.
+export const QUARRY_CHANCE = 1 / 3;
+export const QUARRY_MAX = 3;
 export const RAID_THRESHOLD = 9;
 
 // Currency exchange at the World Bank: pay `pay` of one currency, receive `get` of another.

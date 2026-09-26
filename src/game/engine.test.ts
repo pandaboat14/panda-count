@@ -354,3 +354,75 @@ test("determinism: same seed and same actions give the same world", () => {
   };
   assert.equal(run(), run());
 });
+
+// ---------------------------------------------------------------- computer players
+
+import { playBotTurn, runBots } from "./bot";
+
+function botGame(levels: ("easy" | "medium" | "hard")[], seed = 7) {
+  const s = createGame(seed, NOW);
+  const events: GameEvent[] = [];
+  events.push(...addPlayer(s, "human", "Taylor"));
+  levels.forEach((l, i) => events.push(...addPlayer(s, `bot${i}`, `Bot ${i}`, l)));
+  return { s, events };
+}
+
+test("bots: after a person ends their turn, every bot plays and it's the person's turn again", () => {
+  const { s, events } = botGame(["easy", "medium", "hard"]);
+  events.push(...applyAction(s, "human", { type: "endTurn" }, NOW));
+  events.push(...runBots(s, NOW));
+  assert.equal(activePlayer(s).id, "human");
+  for (const id of ["bot0", "bot1", "bot2"]) assert.ok(events.some((e) => e.type === "endTurn" && e.actor === id), `${id} took a turn`);
+  checkInvariants(s, events);
+});
+
+test("bots: hundreds of rounds of bots only never break the world, and hard bots grow", () => {
+  for (const seed of [1, 2, 3]) {
+    const { s, events } = botGame(["easy", "medium", "hard", "hard"], seed);
+    const start = ownedRegions(s, "bot3").length;
+    for (let round = 0; round < 120; round++) {
+      events.push(...applyAction(s, "human", { type: "endTurn" }, NOW));
+      events.push(...runBots(s, NOW));
+      assert.equal(activePlayer(s).id, "human", "the loop always stops at the person");
+      checkInvariants(s, events);
+    }
+    const total = ["bot2", "bot3"].reduce((n, id) => n + ownedRegions(s, id).length, 0);
+    assert.ok(total > start * 2, `hard bots expanded (seed ${seed}: ${total} regions)`);
+  }
+});
+
+test("bots: they answer offers made to them", () => {
+  const { s, events } = botGame(["medium"]);
+  events.push(...applyAction(s, "human", { type: "offerPact", to: "bot0" }, NOW));
+  events.push(...applyAction(s, "human", { type: "endTurn" }, NOW));
+  events.push(...playBotTurn(s, NOW));
+  assert.equal(s.offers.length, 0, "the pact offer was answered");
+  assert.ok(events.some((e) => (e.type === "pact" || e.type === "decline") && e.actor === "bot0"));
+});
+
+test("bots: a game of only bots doesn't spin forever", () => {
+  const { s } = botGame(["easy", "hard"]);
+  removePlayer(s, "human", NOW);
+  assert.deepEqual(runBots(s, NOW), []);
+});
+
+test("stone: NACAM ogres quarry Stone, and more ogres find more", () => {
+  const haul = (ogres: number) => {
+    let total = 0;
+    for (let seed = 1; seed <= 60; seed++) {
+      const { s } = newGame(1, seed);
+      const me = s.players[0];
+      s.regions[me.capital].units.nacam = ogres;
+      me.goods.coin = 100; // pay the ogres
+      const before = me.goods.stone;
+      applyAction(s, me.id, { type: "endTurn" }, NOW);
+      total += s.players[0].goods.stone - before; // actions swap in a fresh copy of the state
+    }
+    return total;
+  };
+  const none = haul(0);
+  const few = haul(1);
+  const many = haul(6);
+  assert.ok(few > none, `1 ogre (${few}) beats none (${none})`);
+  assert.ok(many > few * 1.5, `6 ogres (${many}) beat 1 (${few})`);
+});
