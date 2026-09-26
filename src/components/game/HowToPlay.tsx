@@ -15,17 +15,19 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
         <h2>How to play Panda Diplomacy</h2>
         <p>
           It&rsquo;s Risk meets Catan on a 3D globe. Grow your empire, make friends, betray them, and chase Casey.{" "}
-          <strong>How you win</strong> is picked when the world starts: be the first to hold 10, 15 or 20 regions, or play an{" "}
-          <strong>Endless</strong> world that never stops.
+          <strong>How you win</strong> is picked when the world starts: hold 25, 30 or 35 regions, or play an <strong>Endless</strong>{" "}
+          world that never stops. Reaching the goal sounds the alarm: you win only if you still hold it when your next turn starts, so
+          everyone gets one last round to stop you. Expect a long war, like Risk or Catan.
         </p>
         <p>
           <strong>Stuck?</strong> Open the <strong>💡 Plan</strong> tab and ask Sun Tzu. On your turn he suggests your best next moves
-          (with a saying or two), and one tap does them. You also start with a gondola line to a soft neighbour, so your first invasion is ready on turn one.
+          (with a saying or two), and one tap does them. Your first big choice is where to build your first gondola line.
         </p>
         <h3>Your turn</h3>
         <ol>
           <li>
-            <strong>Dice &amp; harvest.</strong> Every region you hold gives you 1 of its resource. Then the dice roll, Catan-style: every
+            <strong>Dice &amp; harvest.</strong> The chance cubes roll on screen (tap the 🎲 up top to watch the last roll again). Every
+            region you hold gives you 1 of its resource. Then the dice pay out, Catan-style: every
             region with that number pays its owner one more. Roll a 7 and <strong>ogres raid</strong>: anyone holding more than 9 resource
             cards loses half.
           </li>

@@ -9,6 +9,19 @@ export type Release = {
 export const RELEASES: Release[] = [
   {
     date: "2026-09-26",
+    title: "A longer war, and the chance cubes",
+    pr: 9,
+    notes: [
+      "Games last longer, like Risk or Catan: hold 25, 30 or 35 regions to win (or play Endless). The quick 10 and 15 region games are gone.",
+      "Reaching the goal no longer wins on the spot. Everyone is warned, and you win only if you still hold it when your next turn starts, so the others get one last round to stop you.",
+      "No more free gondola at the start: choosing where to build your first line is the opening move. Sun Tzu will still point you somewhere good.",
+      "The dice roll on screen as two 3D chance cubes at the start of your turn, then tell you what they did. Tap the 🎲 up top to watch the last roll again.",
+      "On phones the actions panel sits lower, and you can minimise it to study the map, then bring it back with ▴ Actions.",
+      "Computer players now gang up on whoever is one round from winning.",
+    ],
+  },
+  {
+    date: "2026-09-26",
     title: "Sun Tzu, and a game you can actually win",
     pr: 8,
     notes: [

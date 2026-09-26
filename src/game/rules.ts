@@ -163,9 +163,10 @@ export const NATIVE_CAP: Record<string, Partial<Record<UnitType, number>>> = {
   wild: { panda: 3 },
 };
 
-// Game length: first Kird to hold this many regions wins. null plays forever.
-export const GOAL_CHOICES = [10, 15, 20] as const;
-export const DEFAULT_GOAL = 15;
+// Game length: hold this many regions at the start of your turn to win (null plays forever).
+// Sized from simulated four-player games to the finish: 25 takes about 40 rounds, 30 about 45 or more.
+export const GOAL_CHOICES = [25, 30, 35] as const;
+export const DEFAULT_GOAL = 25;
 
 // Currency exchange at the World Bank: pay `pay` of one currency, receive `get` of another.
 export const EXCHANGE: { from: Currency; to: Currency; pay: number; get: number }[] = [
