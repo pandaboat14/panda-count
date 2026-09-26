@@ -139,6 +139,49 @@ export const HEROES: Record<HeroId, { name: string; title: string; icon: string;
 
 export const THUNDER_COOLDOWN = 3;
 
+// ---- War crimes: the Kirds' Tribunal ----
+// Every attack on another Kird feeds the attacker's Bloodthirst: 1 point, or 2 if the victim holds less than half as
+// many regions. Points count for this round and the two before. Reach TRIAL_AT and everyone else votes on a verdict.
+// Sized from simulated games: at 4 a trial comes up about once every 20 to 50 rounds, so once or twice a war.
+export const BLOODTHIRST_ROUNDS = 3;
+export const TRIAL_AT = 4;
+// A trial needs a jury: the accused plus at least two other Kirds.
+export const TRIAL_MIN_KIRDS = 3;
+export const SENTENCE_TURNS = 3;
+export const REPEAT_OFFENDER_TURNS = 2; // added for every earlier conviction
+
+export type Sanction = "ceasefire" | "arms" | "gondolas" | "trade" | "heroes";
+export const SANCTIONS: Sanction[] = ["ceasefire", "arms", "gondolas", "trade", "heroes"];
+
+// What each punishment takes away. `blurb` is for the jury; `rule` finishes "War criminals can't…" when one is enforced.
+export const SANCTION_INFO: Record<Sanction, { label: string; icon: string; blurb: string; rule: string }> = {
+  ceasefire: {
+    label: "Ceasefire",
+    icon: "🕊️",
+    blurb: "They can't invade other Kirds or strike them with Thunder. The natives are still fair game.",
+    rule: "invade other Kirds or strike them with Thunder",
+  },
+  arms: {
+    label: "Arms embargo",
+    icon: "🚫",
+    blurb: "They can't recruit troops, arm pandas, or buy gear or Bag items at the Bank.",
+    rule: "recruit troops, arm pandas, or buy gear or Bag items",
+  },
+  gondolas: { label: "Gondola ban", icon: "🚧", blurb: "They can't build gondola lines. Their old lines still run.", rule: "build gondola lines" },
+  trade: {
+    label: "Trade sanctions",
+    icon: "🏦",
+    blurb: "Shut out of the World Bank, and nobody can trade with them.",
+    rule: "use the World Bank or trade with other Kirds",
+  },
+  heroes: {
+    label: "Heroes on strike",
+    icon: "🪧",
+    blurb: "Their heroes sit out every battle and won't use Thunder or pickpocket, and no new hero will sign up.",
+    rule: "count on heroes: they add nothing in battle, won't use their powers, and no new hero will sign up",
+  },
+};
+
 // ---- Battles (the rest of the battle numbers live in ./battle/codex.ts) ----
 // Armory gear lasts this many battles: every battle a unit type fights in uses one charge of its gear.
 export const GEAR_BATTLES = 3;

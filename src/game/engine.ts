@@ -2,8 +2,9 @@
 // It never ends: there is no victory check, eliminated Kirds respawn, and new rounds keep
 // drawing world events so there's always something going on.
 
-import { NEIGHBORS, REGIONS, REGION_BY_ID, lineEnds, lineId, type NativeNation, type Resource } from "./regions";
+import { NEIGHBORS, REGIONS, REGION_BY_ID, lineEnds, lineId, placeName, type NativeNation, type Resource } from "./regions";
 import {
+  BLOODTHIRST_ROUNDS,
   BUILDINGS,
   BUY_PRICE,
   BUY_PRICE_MARKET,
@@ -28,10 +29,16 @@ import {
   QUARRY_CHANCE,
   QUARRY_MAX,
   RAID_THRESHOLD,
+  REPEAT_OFFENDER_TURNS,
   RESOURCES,
+  SANCTIONS,
+  SANCTION_INFO,
   SANCTUARY_PANDACOIN,
+  SENTENCE_TURNS,
   START_KIT,
   THUNDER_COOLDOWN,
+  TRIAL_AT,
+  TRIAL_MIN_KIRDS,
   UNITS,
   UNIT_TYPES,
   type BuildingType,
@@ -39,6 +46,7 @@ import {
   type Currency,
   type Good,
   type HeroId,
+  type Sanction,
   type UnitType,
 } from "./rules";
 import { WORLD_EVENTS, type ModifierKind } from "./worldEvents";
@@ -74,6 +82,10 @@ export type RegionState = {
   tired: Units; // units that already moved (or were just recruited) this turn
   buildings: BuildingType[];
   token: number; // Catan-style production number, 2–12 except 7
+  // A new name from a Kird who conquered it (missing: its real-world name). It outlasts their rule.
+  name?: string;
+  // Whoever last took it by force or rode in unopposed: they may rename it while they hold it.
+  conqueror?: string;
   orders?: RegionOrders; // the owner's Standing Orders here (missing in older games: the defaults)
 };
 
@@ -102,6 +114,7 @@ export type LiveBattle = {
   atkBonus: number; // hero aura, as the old battle records put it
   defBonus: number; // Fort plus hero aura
   throwBase: number; // mixes the dice-throw seeds
+  thirst: number; // the Bloodthirst this invasion cost the attacker (booked when it started)
   // Each player's purse and Bag as last written back to them (the battle spends from copies).
   synced: { atk: { goods: Goods; bag: Bag } | null; def: { goods: Goods; bag: Bag } | null };
   b: EngineBattle;
@@ -125,11 +138,24 @@ export type Player = {
   pickpocketTurn: number;
   oathbreakerUntilRound: number;
   respawns: number;
+  // War crimes (missing in older games): the recent attacks that count toward Bloodthirst, the rounds of attacks
+  // this Kird hasn't yet answered, by attacker (each one is a free strike back), and any sentence being served.
+  crimes?: Crime[];
+  grudges?: Record<string, number[]>;
+  sentence?: Sentence | null;
+  convictions?: number;
   // Battles (missing in older games: an empty Bag, no gear, Counterpunch).
   bag?: Bag;
   armory?: Armory;
   doctrine?: PlayerDoctrineId; // the default doctrine for every region's Standing Orders, and Sun Tzu's when he fights for you
 };
+
+// An attack on another Kird that fed the attacker's Bloodthirst.
+export type Crime = { round: number; victim: string; region: string; kind: "invasion" | "thunder"; points: number };
+export type Vote = { guilty: boolean; sanction?: Sanction };
+// Votes are secret: only the voter's own view ever shows theirs.
+export type Trial = { id: string; accused: string; openedRound: number; charges: Crime[]; votes: Record<string, Vote> };
+export type Sentence = { sanctions: Sanction[]; turnsLeft: number };
 
 export type Hero = { owner: string | null; region: string | null; movedTurn: number };
 
@@ -168,6 +194,8 @@ export type GameState = {
   threat?: string | null;
   // The invasion being fought right now, round by round (missing in older games: none).
   battle?: LiveBattle | null;
+  // War crimes trials waiting on a verdict (missing in older games).
+  trials?: Trial[];
 };
 
 export type GameEvent = {
@@ -199,6 +227,7 @@ export type BattleData = {
   defenderName: string;
   from: string;
   to: string;
+  place?: string; // what the region was called when the battle was fought (older battles don't say)
 };
 
 // Battles since Pokémon-style invasions: the legacy fields above (rolls are each round's pairs, bonuses the hero
@@ -256,6 +285,8 @@ export type Action =
   | { type: "respond"; offerId: string; accept: boolean }
   | { type: "cancelOffer"; offerId: string }
   | { type: "breakPact"; with: string }
+  | { type: "rename"; region: string; name: string }
+  | { type: "vote"; trial: string; guilty: boolean; sanction?: Sanction }
   | { type: "endTurn" }
   | { type: "skipTurn" }
   | { type: "autopilot"; on: boolean; level?: BotLevel }
@@ -305,7 +336,7 @@ function shuffle<T>(s: GameState, arr: T[]) {
 export const activePlayer = (s: GameState) => s.players.find((p) => p.seat === s.activeSeat)!;
 const playerById = (s: GameState, id: string) => s.players.find((p) => p.id === id) ?? fail("No such player.");
 const regionOf = (s: GameState, id: string) => s.regions[id] ?? fail("No such region.");
-export const regionName = (id: string) => REGION_BY_ID.get(id)?.name ?? id;
+export const regionName = (s: GameState, id: string) => placeName(id, s.regions[id]?.name);
 export const ownedRegions = (s: GameState, pid: string) => Object.values(s.regions).filter((r) => r.owner === pid);
 const heroesOf = (s: GameState, pid: string) => HERO_IDS.filter((h) => s.heroes[h].owner === pid);
 export const hasHero = (s: GameState, pid: string, h: HeroId) => s.heroes[h].owner === pid;
@@ -472,6 +503,7 @@ export function createGame(seed: number, now: number, goal: number | null = null
     goal,
     winner: null,
     battle: null,
+    trials: [],
   };
   const tokens: number[] = [];
   while (tokens.length < REGIONS.length) tokens.push(...TOKEN_BAG);
@@ -518,6 +550,8 @@ function settle(s: GameState, p: Player, r: RegionState) {
   r.native = null;
   r.units = { ...START_KIT.units };
   r.tired = emptyUnits();
+  // Land you're given isn't land you took: only conquest comes with the right to rename.
+  delete r.conqueror;
   p.capital = r.id;
 }
 
@@ -540,13 +574,17 @@ export function addPlayer(s: GameState, id: string, name: string, bot?: BotLevel
     respawns: 0,
     bag: {},
     armory: { units: {} },
+    crimes: [],
+    grudges: {},
+    sentence: null,
+    convictions: 0,
     ...(bot ? { bot } : {}),
   };
   s.players.push(p);
   settle(s, p, r);
   // No free gondola: choosing where to build first is the opening move.
   const out: GameEvent[] = [];
-  emit(s, out, { actor: id, type: "join", text: `${bot ? "🤖 " : ""}${p.name} joined the world, landing in ${regionName(r.id)}.`, regions: [r.id], public: true });
+  emit(s, out, { actor: id, type: "join", text: `${bot ? "🤖 " : ""}${p.name} joined the world, landing in ${regionName(s, r.id)}.`, regions: [r.id], public: true });
   // The very first Kird starts playing straight away, dice and all.
   if (s.players.length === 1) startTurn(s, out);
   return out;
@@ -568,12 +606,17 @@ export function removePlayer(s: GameState, id: string, now: number): GameEvent[]
     r.native = unitTotal(r.units) > 0 ? "wild" : null;
     r.tired = emptyUnits();
     delete r.orders;
+    delete r.conqueror;
   }
   for (const h of HERO_IDS) if (s.heroes[h].owner === id) s.heroes[h] = { owner: null, region: null, movedTurn: 0 };
   for (const [lid, line] of Object.entries(s.lines)) if (line.owner === id) delete s.lines[lid];
   s.offers = s.offers.filter((o) => o.from !== id && o.to !== id);
   s.pacts = s.pacts.filter((p) => p.a !== id && p.b !== id);
   s.loans = s.loans.filter((l) => l.from !== id && l.to !== id);
+  // The Tribunal drops their trial and tears up their votes.
+  s.trials = trialsOf(s).filter((t) => t.accused !== id);
+  for (const t of s.trials) delete t.votes[id];
+  for (const p of s.players) if (p.grudges) delete p.grudges[id];
   s.players.splice(i, 1);
   s.players.forEach((p, seat) => (p.seat = seat));
   emit(s, out, { actor: id, type: "leave", text: `👋 ${leaving.name} left the world. Their land went back to the wild pandas.`, regions: [], public: true });
@@ -631,24 +674,30 @@ function applyActionTo(s: GameState, actorId: string, a: Action, now: number): G
     endTurn(s, out, now);
     return out;
   }
+  // The jury can vote whenever they like, not just on their own turn.
+  if (a.type === "vote") {
+    castVote(s, out, me, a);
+    return out;
+  }
   if (activePlayer(s).id !== me.id) fail(`It's ${activePlayer(s).name}'s turn.`);
   // While an invasion is being fought, it's all anyone at the table can do (ending the turn lets Sun Tzu finish it).
-  if (s.battle && !BATTLE_ACTIONS.has(a.type) && a.type !== "endTurn") fail(`Finish the battle for ${regionName(s.battle.to)} first, or let Sun Tzu fight it for you.`);
+  if (s.battle && !BATTLE_ACTIONS.has(a.type) && a.type !== "endTurn") fail(`Finish the battle for ${regionName(s, s.battle.to)} first, or let Sun Tzu fight it for you.`);
 
   switch (a.type) {
     case "build": {
       const r = regionOf(s, a.region);
       if (r.owner !== me.id) fail("You can only build in your own regions.");
       const b = BUILDINGS[a.building] ?? fail("Unknown building.");
-      if (r.buildings.includes(a.building)) fail(`${regionName(r.id)} already has a ${b.label}.`);
+      if (r.buildings.includes(a.building)) fail(`${regionName(s, r.id)} already has a ${b.label}.`);
       pay(me, b.cost, `a ${b.label}`);
       r.buildings.push(a.building);
-      emit(s, out, { actor: me.id, type: "build", text: `${me.name} built a ${b.icon} ${b.label} in ${regionName(r.id)}.`, regions: [r.id], data: { building: a.building } });
+      emit(s, out, { actor: me.id, type: "build", text: `${me.name} built a ${b.icon} ${b.label} in ${regionName(s, r.id)}.`, regions: [r.id], data: { building: a.building } });
       break;
     }
     case "recruit": {
       const r = regionOf(s, a.region);
       if (r.owner !== me.id) fail("You can only recruit in your own regions.");
+      enforce(me, "arms");
       if (!["panda", "nacam", "cam"].includes(a.unit)) fail("You can't recruit that.");
       const n = positiveInt(a.count, 20);
       if (a.unit === "cam" && !r.buildings.includes("gym")) fail("CAMs only train at a CAM Gym.");
@@ -656,12 +705,13 @@ function applyActionTo(s: GameState, actorId: string, a: Action, now: number): G
       r.units[a.unit] += n;
       r.tired[a.unit] += n;
       const u = UNITS[a.unit];
-      emit(s, out, { actor: me.id, type: "recruit", text: `${me.name} recruited ${n} ${u.icon} ${n === 1 ? u.label : u.plural} in ${regionName(r.id)}.`, regions: [r.id], data: { unit: a.unit, count: n } });
+      emit(s, out, { actor: me.id, type: "recruit", text: `${me.name} recruited ${n} ${u.icon} ${n === 1 ? u.label : u.plural} in ${regionName(s, r.id)}.`, regions: [r.id], data: { unit: a.unit, count: n } });
       break;
     }
     case "arm": {
       const r = regionOf(s, a.region);
       if (r.owner !== me.id) fail("You can only arm pandas in your own regions.");
+      enforce(me, "arms");
       const n = positiveInt(a.count, 50);
       if (r.units.panda < n) fail(`There ${r.units.panda === 1 ? "is" : "are"} only ${r.units.panda} panda${r.units.panda === 1 ? "" : "s"} there.`);
       pay(me, scaleCost(UNITS.armedPanda.cost, n), `arming ${n} panda${n === 1 ? "" : "s"}`);
@@ -670,25 +720,27 @@ function applyActionTo(s: GameState, actorId: string, a: Action, now: number): G
       r.tired.panda -= tiredPandas;
       r.units.armedPanda += n;
       r.tired.armedPanda += tiredPandas;
-      emit(s, out, { actor: me.id, type: "arm", text: `${me.name} armed ${n} panda${n === 1 ? "" : "s"} in ${regionName(r.id)}. 🛡️`, regions: [r.id], data: { count: n } });
+      emit(s, out, { actor: me.id, type: "arm", text: `${me.name} armed ${n} panda${n === 1 ? "" : "s"} in ${regionName(s, r.id)}. 🛡️`, regions: [r.id], data: { count: n } });
       break;
     }
     case "gondola": {
       const from = regionOf(s, a.from);
       regionOf(s, a.to);
       if (from.owner !== me.id) fail("Gondola lines have to start in one of your regions.");
-      if (!NEIGHBORS.get(a.from)!.includes(a.to)) fail(`${regionName(a.to)} is too far from ${regionName(a.from)} for a gondola.`);
+      enforce(me, "gondolas");
+      if (!NEIGHBORS.get(a.from)!.includes(a.to)) fail(`${regionName(s, a.to)} is too far from ${regionName(s, a.from)} for a gondola.`);
       if (s.lines[lineId(a.from, a.to)]) fail("There's already a gondola line there.");
       if (hasModifier(s, "gondolaStrike")) fail("The gondola workers are on strike this round.");
       pay(me, gondolaCost(s, me.id), "a gondola line");
       s.lines[lineId(a.from, a.to)] = { owner: me.id, builtTurn: s.turn };
-      emit(s, out, { actor: me.id, type: "gondola", text: `${me.name} built an urban gondola 🚡 from ${regionName(a.from)} to ${regionName(a.to)}.`, regions: [a.from, a.to] });
+      emit(s, out, { actor: me.id, type: "gondola", text: `${me.name} built an urban gondola 🚡 from ${regionName(s, a.from)} to ${regionName(s, a.to)}.`, regions: [a.from, a.to] });
       break;
     }
     case "move":
       move(s, out, me, a);
       break;
     case "bankTrade": {
+      enforce(me, "trade");
       if (!RESOURCES.includes(a.give) || !RESOURCES.includes(a.get) || a.give === a.get) fail("Pick two different resources.");
       const rate = bankRate(s, me.id);
       pay(me, { [a.give]: rate }, `a ${rate}:1 trade`);
@@ -697,6 +749,7 @@ function applyActionTo(s: GameState, actorId: string, a: Action, now: number): G
       break;
     }
     case "buy": {
+      enforce(me, "trade");
       if (!RESOURCES.includes(a.good)) fail("The bank only sells resources.");
       const n = positiveInt(a.count, 20);
       const price = buyPrice(s, me.id);
@@ -706,6 +759,7 @@ function applyActionTo(s: GameState, actorId: string, a: Action, now: number): G
       break;
     }
     case "exchange": {
+      enforce(me, "trade");
       const x = EXCHANGE.find((e) => e.from === a.from && e.to === a.to) ?? fail("The bank doesn't do that exchange.");
       pay(me, { [x.from]: x.pay }, "that exchange");
       me.goods[x.to] += x.get;
@@ -715,6 +769,7 @@ function applyActionTo(s: GameState, actorId: string, a: Action, now: number): G
     case "recruitHero": {
       const h = s.heroes[a.hero] ?? fail("No such hero.");
       if (h.owner) fail(`${HEROES[a.hero].name} already fights for ${playerById(s, h.owner).name}.`);
+      enforce(me, "heroes", "no hero will sign up with a war criminal");
       const r = regionOf(s, a.region);
       if (r.owner !== me.id) fail("Heroes have to arrive in one of your regions.");
       pay(me, heroCost(s, a.hero), HEROES[a.hero].name);
@@ -726,8 +781,8 @@ function applyActionTo(s: GameState, actorId: string, a: Action, now: number): G
         actor: me.id,
         type: "hero",
         text: a.hero === "casey"
-          ? `⚡ THE HEAVENS SPLIT. ${me.name} has recruited Casey, the Norse God, in ${regionName(r.id)}. ⚡`
-          : `${me.name} recruited ${info.icon} ${info.name}, ${info.title}, in ${regionName(r.id)}.`,
+          ? `⚡ THE HEAVENS SPLIT. ${me.name} has recruited Casey, the Norse God, in ${regionName(s, r.id)}. ⚡`
+          : `${me.name} recruited ${info.icon} ${info.name}, ${info.title}, in ${regionName(s, r.id)}.`,
         regions: [r.id],
         public: true,
         data: { hero: a.hero },
@@ -744,25 +799,31 @@ function applyActionTo(s: GameState, actorId: string, a: Action, now: number): G
       if (!lineUsable(s, me.id, from, a.to)) fail("Heroes ride gondolas too, and there's no line of yours there.");
       h.region = a.to;
       h.movedTurn = s.turn;
-      emit(s, out, { actor: me.id, type: "heroMove", text: `${HEROES[a.hero].icon} ${HEROES[a.hero].name} rode the gondola from ${regionName(from)} to ${regionName(a.to)}.`, regions: [from, a.to], data: { hero: a.hero } });
+      emit(s, out, { actor: me.id, type: "heroMove", text: `${HEROES[a.hero].icon} ${HEROES[a.hero].name} rode the gondola from ${regionName(s, from)} to ${regionName(s, a.to)}.`, regions: [from, a.to], data: { hero: a.hero } });
       break;
     }
     case "thunder": {
       if (!hasHero(s, me.id, "casey")) fail("Only Casey can call down thunder.");
+      enforce(me, "heroes", "Casey won't throw thunder for a war criminal");
       if (me.thunderReadyTurn > s.turn) fail("Casey's thunder is still recharging.");
       const r = regionOf(s, a.target);
       if (r.owner === me.id) fail("Casey won't smite your own people.");
       if (!visibleRegions(s, me.id).has(r.id)) fail("Casey can only strike somewhere you can see.");
       if (r.owner && inPact(s, me.id, r.owner)) fail("You have a pact with them. Break it first.");
+      const target = r.owner ? playerById(s, r.owner) : null;
+      if (target) enforce(me, "ceasefire");
+      const judged = target ? sizeUpAttack(s, me, target) : null;
       const killed = removeStrongest(r, 3);
       me.thunderReadyTurn = s.turn + THUNDER_COOLDOWN * Math.max(1, s.players.length);
-      const victim = r.owner ? playerById(s, r.owner).name : `the ${r.native ?? "empty"} natives`;
-      emit(s, out, { actor: me.id, type: "thunder", text: `⚡ Casey called down thunder on ${regionName(r.id)}, destroying ${describeUnits(killed) || "nothing but grass"} belonging to ${victim}.`, regions: [r.id], public: true, data: { killed } });
+      const victim = target ? target.name : `the ${r.native ?? "empty"} natives`;
+      emit(s, out, { actor: me.id, type: "thunder", text: `⚡ Casey called down thunder on ${regionName(s, r.id)}, destroying ${describeUnits(killed) || "nothing but grass"} belonging to ${victim}.${thirstNote(judged)}`, regions: [r.id], public: true, data: { killed } });
       if (!r.owner && unitTotal(r.units) === 0) r.native = null;
+      if (target) bookAttack(s, out, me, target, r.id, "thunder", judged!);
       break;
     }
     case "pickpocket": {
       if (!hasHero(s, me.id, "josserkid")) fail("Only the Josserkid picks pockets.");
+      enforce(me, "heroes", "the Josserkid won't pick pockets for a war criminal");
       if (me.pickpocketTurn === s.turn) fail("The Josserkid already struck this turn.");
       const target = playerById(s, a.target);
       if (target.id === me.id) fail("You can't pickpocket yourself.");
@@ -784,6 +845,8 @@ function applyActionTo(s: GameState, actorId: string, a: Action, now: number): G
     case "offerTrade": {
       const to = playerById(s, a.to);
       if (to.id === me.id) fail("Trade with someone else.");
+      enforce(me, "trade");
+      refuseSanctioned(to);
       const give = cleanCost(a.give);
       const get = cleanCost(a.get);
       if (!Object.keys(give).length && !Object.keys(get).length) fail("Put something in the deal.");
@@ -807,7 +870,7 @@ function applyActionTo(s: GameState, actorId: string, a: Action, now: number): G
       const r = regionOf(s, a.region);
       if (r.owner !== me.id) fail("Loaned pandas have to come from your own region.");
       const n = positiveInt(a.count, 10);
-      if (r.units.panda - r.tired.panda < n) fail(`${regionName(r.id)} doesn't have ${n} rested panda${n === 1 ? "" : "s"}.`);
+      if (r.units.panda - r.tired.panda < n) fail(`${regionName(s, r.id)} doesn't have ${n} rested panda${n === 1 ? "" : "s"}.`);
       s.offers.push({ id: `o${s.nextId++}`, kind: "loan", from: me.id, to: to.id, region: r.id, count: n, turn: s.turn });
       emit(s, out, { actor: me.id, type: "offer", text: `🐼 Panda diplomacy! ${me.name} offered to loan ${n} panda${n === 1 ? "" : "s"} to ${to.name}.`, regions: [], public: true });
       break;
@@ -833,6 +896,7 @@ function applyActionTo(s: GameState, actorId: string, a: Action, now: number): G
       battleStep(s, out, me, a);
       break;
     case "buyItem": {
+      enforce(me, "arms");
       const item = Object.hasOwn(ITEMS, a.item) ? ITEMS[a.item] : fail("The Bank doesn't sell that.");
       const n = positiveInt(a.count, 20);
       const cost = scaleCost(item.cost, n);
@@ -843,6 +907,7 @@ function applyActionTo(s: GameState, actorId: string, a: Action, now: number): G
       break;
     }
     case "buyGear": {
+      enforce(me, "arms");
       const gear = Object.hasOwn(WEAPONS, a.item) ? WEAPONS[a.item] : fail("The Armory doesn't make that.");
       const armory = armoryOf(me);
       if (gear.slot === "army") {
@@ -860,6 +925,9 @@ function applyActionTo(s: GameState, actorId: string, a: Action, now: number): G
     }
     case "setOrders":
       setOrders(s, out, me, a);
+      break;
+    case "rename":
+      rename(s, out, me, a);
       break;
     case "endTurn":
       // An invasion still being fought is settled by Sun Tzu before the turn passes.
@@ -943,6 +1011,8 @@ function respond(s: GameState, out: GameEvent[], me: Player, offerId: string, ac
     return;
   }
   if (o.kind === "trade") {
+    enforce(me, "trade");
+    refuseSanctioned(from);
     if (!canAfford(from, o.give)) fail(`${from.name} can't cover their side any more.`);
     if (!canAfford(me, o.get)) fail("You can't cover your side of that deal.");
     pay(from, o.give, "the trade");
@@ -967,11 +1037,77 @@ function respond(s: GameState, out: GameEvent[], me: Player, offerId: string, ac
     emit(s, out, {
       actor: me.id,
       type: "loan",
-      text: `🐼🤝 Panda diplomacy: ${from.name} loaned ${o.count} panda${o.count === 1 ? "" : "s"} to ${me.name}, who welcomed them in ${regionName(dest.id)}. Both earn PandaCoin from the loan, and they're now at peace.`,
+      text: `🐼🤝 Panda diplomacy: ${from.name} loaned ${o.count} panda${o.count === 1 ? "" : "s"} to ${me.name}, who welcomed them in ${regionName(s, dest.id)}. Both earn PandaCoin from the loan, and they're now at peace.`,
       regions: [r.id, dest.id],
       public: true,
     });
   }
+}
+
+// ---------------------------------------------------------------- names
+
+export const NAME_MAX = 24;
+
+// Names that only differ in capitals, spaces or punctuation count as the same name.
+export const nameKey = (n: string) => n.normalize("NFKC").toLowerCase().replace(/[\s\u200d'’".,!?&_-]/gu, "");
+
+// Tidies a name a Kird typed and checks it can go on the map: the rules and the rename box share this, so they
+// always agree. `nameOf` gives any region's current name.
+export function checkRegionName(id: string, raw: unknown, nameOf: (id: string) => string): { name: string; problem?: never } | { problem: string; name?: never } {
+  if (typeof raw !== "string" || raw.length > 200) return { problem: `Give it a name of up to ${NAME_MAX} characters.` };
+  const name = raw
+    .normalize("NFC")
+    .replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, " ")
+    // Keep the joiner that glues emoji together; drop every other invisible or direction-flipping character.
+    .replace(/(?!\u200d)\p{Cf}/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const length = [...name].length;
+  if (length < 2) return { problem: "A name needs at least 2 characters." };
+  if (length > NAME_MAX) return { problem: `Names can be up to ${NAME_MAX} characters.` };
+  if (!/[\p{L}\p{N}]/u.test(name)) return { problem: "A name needs at least one letter or number." };
+  if (/\p{M}{4}/u.test(name)) return { problem: "That's a lot of accents. Try something plainer." };
+  const before = nameOf(id);
+  if (name === before) return { problem: `It's already called ${before}.` };
+  // Two places with the same name would make every order ambiguous, so names are unique, old ones included.
+  const key = nameKey(name);
+  for (const d of REGIONS) {
+    if (d.id === id) continue;
+    const now = nameOf(d.id);
+    if (nameKey(now) === key) return { problem: `${now} is already on the map. Pick another name.` };
+    if (nameKey(d.name) === key) return { problem: `${now} was once called ${d.name}. Pick another name.` };
+  }
+  return { name };
+}
+
+// Conquerors may rename what they took, while they hold it. Regions taken before names existed carry no
+// record of who took them; the only land anyone gets without a fight is their home (where they landed,
+// or were given asylum), so any other region they hold counts as conquered.
+export function mayRename(r: RegionState, p: Player | undefined) {
+  if (!p || r.owner !== p.id) return false;
+  return r.conqueror !== undefined ? r.conqueror === p.id : r.id !== p.capital;
+}
+
+// Conquerors name what they take. The new name is public: everyone sees it, even through the fog.
+function rename(s: GameState, out: GameEvent[], me: Player, a: Extract<Action, { type: "rename" }>) {
+  const r = regionOf(s, a.region);
+  if (r.owner !== me.id) fail("You can only rename land you hold.");
+  if (!mayRename(r, me)) fail("Only conquerors rename: take a region to give it a new name.");
+  const before = regionName(s, r.id);
+  const check = checkRegionName(r.id, a.name, (id) => regionName(s, id));
+  if (check.problem !== undefined) fail(check.problem);
+  const name = check.name!;
+  const original = REGION_BY_ID.get(r.id)!.name;
+  if (name === original) delete r.name;
+  else r.name = name;
+  emit(s, out, {
+    actor: me.id,
+    type: "rename",
+    text: name === original ? `🚩 ${me.name} gave ${before} back its old name, ${name}.` : `🚩 ${me.name} renamed ${before} to ${name}.`,
+    regions: [r.id],
+    public: true,
+    data: { from: before, to: name },
+  });
 }
 
 // ---------------------------------------------------------------- movement & combat
@@ -998,10 +1134,10 @@ function move(s: GameState, out: GameEvent[], me: Player, a: Extract<Action, { t
   const to = regionOf(s, a.to);
   if (from.owner !== me.id) fail("You can only send troops from your own regions.");
   if (a.from === a.to) fail("Pick a different region.");
-  if (!lineUsable(s, me.id, a.from, a.to)) fail(`There's no gondola line of yours between ${regionName(a.from)} and ${regionName(a.to)}. Build one first: urban gondolas are the only way to move troops.`);
+  if (!lineUsable(s, me.id, a.from, a.to)) fail(`There's no gondola line of yours between ${regionName(s, a.from)} and ${regionName(s, a.to)}. Build one first: urban gondolas are the only way to move troops.`);
   const units = readUnits(a.units);
   for (const t of UNIT_TYPES) {
-    if (from.units[t] - from.tired[t] < units[t]) fail(`Not enough rested ${UNITS[t].plural} in ${regionName(from.id)}.`);
+    if (from.units[t] - from.tired[t] < units[t]) fail(`Not enough rested ${UNITS[t].plural} in ${regionName(s, from.id)}.`);
   }
   const piecerHere = s.heroes.piecer.owner === me.id && s.heroes.piecer.region === from.id;
   for (const t of UNIT_TYPES) from.units[t] -= units[t];
@@ -1011,23 +1147,30 @@ function move(s: GameState, out: GameEvent[], me: Player, a: Extract<Action, { t
       to.units[t] += units[t];
       if (!piecerHere) to.tired[t] += units[t];
     }
-    emit(s, out, { actor: me.id, type: "move", text: `${me.name} sent ${describeUnits(units)} by gondola from ${regionName(from.id)} to ${regionName(to.id)}.`, regions: [from.id, to.id], data: { units } });
+    emit(s, out, { actor: me.id, type: "move", text: `${me.name} sent ${describeUnits(units)} by gondola from ${regionName(s, from.id)} to ${regionName(s, to.id)}.`, regions: [from.id, to.id], data: { units } });
     return;
   }
 
   // Everything below is an invasion.
   const defender = to.owner ? playerById(s, to.owner) : null;
   if (defender && inPact(s, me.id, defender.id)) fail(`You have a pact with ${defender.name}. Break it first if you really mean it.`);
+  if (defender) enforce(me, "ceasefire");
+  // Judged before anything changes hands, so "less than half your size" means before they lose the region.
+  const judged = defender ? sizeUpAttack(s, me, defender) : null;
 
   if (unitTotal(to.units) === 0) {
     capture(s, out, me, to, units, defender);
-    emit(s, out, { actor: me.id, type: "capture", text: `${me.name} rode into ${regionName(to.id)} unopposed and claimed it${defender ? ` from ${defender.name}` : ""}.`, regions: [from.id, to.id], public: Boolean(defender), data: { units } });
+    emit(s, out, { actor: me.id, type: "capture", text: `${me.name} rode into ${regionName(s, to.id)} unopposed and claimed it${defender ? ` from ${defender.name}` : ""}.${thirstNote(judged)}`, regions: [from.id, to.id], public: Boolean(defender), data: { units } });
+    if (defender) bookAttack(s, out, me, defender, to.id, "invasion", judged!);
     return;
   }
 
   // A defended region means a battle. A person fights it round by round (it stays open in s.battle until it ends);
   // computer players and Kirds on autopilot have Sun Tzu fight it out at once.
   const lb = openBattle(s, me, from, to, units, defender);
+  lb.thirst = judged?.points ?? 0;
+  // The invasion counts toward Bloodthirst as it starts (during a trial it joins the charges), however it ends.
+  if (defender) bookAttack(s, out, me, defender, to.id, "invasion", judged!);
   if (autoLevel(me)) {
     finishWithAi(lb);
     endBattle(s, out, lb);
@@ -1053,16 +1196,17 @@ function capture(s: GameState, out: GameEvent[], me: Player, to: RegionState, ar
   to.units = { ...arrivals };
   to.tired = { ...arrivals };
   delete to.orders; // the old owner's Standing Orders leave with them
+  to.conqueror = me.id;
   for (const h of HERO_IDS) {
     const hero = s.heroes[h];
     if (hero.region !== to.id || !hero.owner || hero.owner === me.id) continue;
     if (h === "casey") {
       hero.owner = me.id;
-      emit(s, out, { actor: me.id, type: "heroCaptured", text: `⚡ ${me.name} CAPTURED Casey, the Norse God, in ${regionName(to.id)}! He now fights for them.`, regions: [to.id], public: true, data: { hero: h } });
+      emit(s, out, { actor: me.id, type: "heroCaptured", text: `⚡ ${me.name} CAPTURED Casey, the Norse God, in ${regionName(s, to.id)}! He now fights for them.`, regions: [to.id], public: true, data: { hero: h } });
     } else {
       hero.owner = null;
       hero.region = null;
-      emit(s, out, { actor: me.id, type: "heroFled", text: `${HEROES[h].icon} ${HEROES[h].name} fled ${regionName(to.id)} and is back in the Hall of Heroes, ready to be recruited again.`, regions: [to.id], public: true, data: { hero: h } });
+      emit(s, out, { actor: me.id, type: "heroFled", text: `${HEROES[h].icon} ${HEROES[h].name} fled ${regionName(s, to.id)} and is back in the Hall of Heroes, ready to be recruited again.`, regions: [to.id], public: true, data: { hero: h } });
     }
   }
   if (defender) {
@@ -1075,6 +1219,8 @@ function capture(s: GameState, out: GameEvent[], me: Player, to: RegionState, ar
 }
 
 function heroBonus(s: GameState, pid: string, regionId: string) {
+  // Heroes on strike won't lift a finger for a war criminal.
+  if (sanctioned(playerById(s, pid), "heroes")) return 0;
   let b = 0;
   for (const h of HERO_IDS) {
     const hero = s.heroes[h];
@@ -1123,8 +1269,10 @@ function wearGear(p: Player, present: Units, attacking: boolean) {
 function openBattle(s: GameState, me: Player, from: RegionState, to: RegionState, units: Units, defender: Player | null): LiveBattle {
   const seed = 1 + Math.floor(rand(s) * 2147483646);
   const throwBase = Math.floor(rand(s) * 4294967296);
-  const atkHeroes = HERO_IDS.filter((h) => s.heroes[h].owner === me.id && s.heroes[h].region === from.id);
-  const defHeroes = defender ? HERO_IDS.filter((h) => s.heroes[h].owner === defender.id && s.heroes[h].region === to.id) : [];
+  // Heroes fight in the battles fought from or in their region (not while the Tribunal has them on strike).
+  const heroesIn = (p: Player | null, region: string) => (p && !sanctioned(p, "heroes") ? HERO_IDS.filter((h) => s.heroes[h].owner === p.id && s.heroes[h].region === region) : []);
+  const atkHeroes = heroesIn(me, from.id);
+  const defHeroes = heroesIn(defender, to.id);
   const native: NativeNation | null = defender ? null : (to.native ?? "wild");
   const orders = defender ? ordersFor(s, to) : null;
   const defenderStart = { ...to.units };
@@ -1142,7 +1290,7 @@ function openBattle(s: GameState, me: Player, from: RegionState, to: RegionState
     terrain: REGION_BY_ID.get(to.id)!.resource,
     buildings: [...to.buildings],
     events: WORLD_EVENT_IDS.filter((k) => hasModifier(s, k)),
-    place: regionName(to.id),
+    place: regionName(s, to.id),
     atk: {
       name: me.name,
       color: me.color,
@@ -1178,6 +1326,7 @@ function openBattle(s: GameState, me: Player, from: RegionState, to: RegionState
     atkBonus: heroBonus(s, me.id, from.id),
     defBonus: (to.buildings.includes("fort") ? 1 : 0) + (defender ? heroBonus(s, defender.id, to.id) : 0),
     throwBase,
+    thirst: 0,
     synced: { atk: { goods: { ...b.sides.atk.goods }, bag: { ...b.sides.atk.bag } }, def: defender ? { goods: { ...b.sides.def.goods }, bag: { ...b.sides.def.bag } } : null },
     b,
   };
@@ -1281,7 +1430,7 @@ function syncBattle(s: GameState, lb: LiveBattle) {
 
 // A hero knocked out of the battle flees to the Hall of Heroes, except Casey, whom the other side takes if it's a Kird.
 function heroDown(s: GameState, out: GameEvent[], lb: LiveBattle, h: HeroId, taker: Player | null, prefer: string | null) {
-  const place = regionName(lb.to);
+  const place = regionName(s, lb.to);
   const hero = s.heroes[h];
   const was = hero.region;
   const where = h === "casey" && taker ? ([prefer, taker.capital].find((id) => id && s.regions[id]?.owner === taker.id) ?? ownedRegions(s, taker.id)[0]?.id) : undefined;
@@ -1327,7 +1476,7 @@ function endBattle(s: GameState, out: GameEvent[], lb: LiveBattle) {
     }
   }
 
-  const place = regionName(lb.to);
+  const place = regionName(s, lb.to);
   const force = describeForce(lb.units, lb.heroes.atk);
   const fell = describeUnits(defLost);
   const lost = describeUnits(atkLost);
@@ -1352,6 +1501,7 @@ function endBattle(s: GameState, out: GameEvent[], lb: LiveBattle) {
     defenderName: lb.defenderName,
     from: lb.from,
     to: lb.to,
+    place,
     v: 2,
     how: result.how,
     rounds: b.round,
@@ -1359,7 +1509,7 @@ function endBattle(s: GameState, out: GameEvent[], lb: LiveBattle) {
     heroes: lb.heroes,
     ...battleRecord(b, sm),
   };
-  emit(s, out, { actor: me.id, type: "battle", text: text[result.how], regions: [lb.from, lb.to], public: Boolean(lb.defender), data });
+  emit(s, out, { actor: me.id, type: "battle", text: text[result.how] + thirstNote({ points: lb.thirst, excuse: null }), regions: [lb.from, lb.to], public: Boolean(lb.defender), data });
 
   // The region changes hands (the defender's heroes there flee, and Casey is captured, as always).
   if (won) capture(s, out, me, to, atkLeft, defender);
@@ -1423,7 +1573,7 @@ function setOrders(s: GameState, out: GameEvent[], me: Player, a: Extract<Action
   emit(s, out, {
     actor: me.id,
     type: "orders",
-    text: `${d.icon} Standing Orders for ${regionName(r.id)}: ${d.label}, ${f.lead ? `${leadLabel(f.lead)} first, ` : ""}up to ${f.budget} Bag item${f.budget === 1 ? "" : "s"}${f.traps.length ? ", caltrops laid" : ""}.`,
+    text: `${d.icon} Standing Orders for ${regionName(s, r.id)}: ${d.label}, ${f.lead ? `${leadLabel(f.lead)} first, ` : ""}up to ${f.budget} Bag item${f.budget === 1 ? "" : "s"}${f.traps.length ? ", caltrops laid" : ""}.`,
     regions: [r.id],
     only: [me.id],
   });
@@ -1438,6 +1588,19 @@ type BattleResult = {
   rolls: { a: number[]; d: number[] }[];
 };
 
+// Unit types strongest first for each stat (ties keep UNIT_TYPES order).
+const BEST_FIRST = {
+  attack: [...UNIT_TYPES].sort((x, y) => UNITS[y].attack - UNITS[x].attack),
+  defense: [...UNIT_TYPES].sort((x, y) => UNITS[y].defense - UNITS[x].defense),
+};
+
+// The `n` best units for a stat, strongest first. Picked straight from the counts, so huge armies stay cheap to fight.
+function best(u: Units, stat: "attack" | "defense", n: number) {
+  const out: UnitType[] = [];
+  for (const t of BEST_FIRST[stat]) for (let i = 0; i < u[t] && out.length < n; i++) out.push(t);
+  return out;
+}
+
 // Risk-style: up to 3 attacking dice vs 2 defending, highest against highest, ties go to the defender.
 // Each die gets the unit's attack/defence bonus plus heroes and forts. Fought to the last unit.
 export function battle(s: GameState, attacker: Units, atkBonus: number, defender: Units, defBonus: number): BattleResult {
@@ -1446,12 +1609,10 @@ export function battle(s: GameState, attacker: Units, atkBonus: number, defender
   const attackerLost = emptyUnits();
   const defenderLost = emptyUnits();
   const rolls: BattleResult["rolls"] = [];
-  const order = (u: Units, stat: "attack" | "defense") =>
-    UNIT_TYPES.flatMap((t) => Array(u[t]).fill(t) as UnitType[]).sort((x, y) => UNITS[y][stat] - UNITS[x][stat]);
   let guard = 0;
   while (unitTotal(a) > 0 && unitTotal(d) > 0 && guard++ < 1000) {
-    const aUnits = order(a, "attack").slice(0, 3);
-    const dUnits = order(d, "defense").slice(0, 2);
+    const aUnits = best(a, "attack", 3);
+    const dUnits = best(d, "defense", 2);
     const aDice = aUnits.map((t) => d6(s) + UNITS[t].attack + atkBonus).sort((x, y) => y - x);
     const dDice = dUnits.map((t) => d6(s) + UNITS[t].defense + defBonus).sort((x, y) => y - x);
     if (rolls.length < 6) rolls.push({ a: aDice, d: dDice });
@@ -1487,6 +1648,179 @@ function removeStrongest(r: RegionState, n: number): Units {
   return killed;
 }
 
+// ---------------------------------------------------------------- war crimes
+// Attack other Kirds too often and your Bloodthirst builds. At TRIAL_AT the Kirds' Tribunal puts you on trial:
+// everyone else votes, secretly, and each guilty vote picks a punishment. Convicted war criminals lose those
+// abilities for a few turns, and attacking them is no crime until they've served their sentence.
+
+export type Excuse = "threat" | "criminal" | "defence";
+export type Judgement = { points: number; excuse: Excuse | null };
+
+// How much an attack on another Kird weighs: nothing if it's excused, 2 if they hold less than half as many
+// regions as you, otherwise 1. An eye for an eye is no crime: every attack you suffer earns one free strike
+// back at that attacker, but escalating past that counts. Pure, so your own view can preview it.
+export function judgeAttack(
+  attacker: { regions: number; grudges?: Record<string, number[]> },
+  victim: { id: string; regions: number; threat: boolean; criminal: boolean },
+  round: number,
+): Judgement {
+  if (victim.threat) return { points: 0, excuse: "threat" };
+  if (victim.criminal) return { points: 0, excuse: "criminal" };
+  if (grudgeAgainst(attacker, victim.id, round) > 0) return { points: 0, excuse: "defence" };
+  return { points: victim.regions * 2 < attacker.regions ? 2 : 1, excuse: null };
+}
+
+// Unanswered attacks by `from` that still entitle this Kird to strike back.
+export const grudgeAgainst = (p: { grudges?: Record<string, number[]> }, from: string, round: number) =>
+  (p.grudges?.[from] ?? []).filter((r) => r > round - BLOODTHIRST_ROUNDS).length;
+
+export const trialsOf = (s: GameState) => s.trials ?? [];
+export const trialFor = (s: GameState, pid: string) => trialsOf(s).find((t) => t.accused === pid);
+export const sentenceOf = (p: Pick<Player, "sentence">) => (p.sentence && p.sentence.turnsLeft > 0 ? p.sentence : null);
+export const sanctioned = (p: Pick<Player, "sentence">, k: Sanction) => Boolean(sentenceOf(p)?.sanctions.includes(k));
+// Attacks count for this round and the two before.
+export const recentCrimes = (p: Pick<Player, "crimes">, round: number) => (p.crimes ?? []).filter((c) => c.round > round - BLOODTHIRST_ROUNDS);
+export const bloodthirst = (p: Pick<Player, "crimes">, round: number) => recentCrimes(p, round).reduce((n, c) => n + c.points, 0);
+const recentGrudges = (rounds: number[] | undefined, round: number) => (rounds ?? []).filter((r) => r > round - BLOODTHIRST_ROUNDS);
+
+export function sizeUpAttack(s: GameState, attacker: Player, victim: Player): Judgement {
+  return judgeAttack(
+    { regions: ownedRegions(s, attacker.id).length, grudges: attacker.grudges },
+    { id: victim.id, regions: ownedRegions(s, victim.id).length, threat: s.threat === victim.id, criminal: Boolean(sentenceOf(victim)) },
+    s.round,
+  );
+}
+
+const thirstNote = (j: Judgement | null) => (j?.points ? ` 🩸+${j.points}` : "");
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const listNames = (names: string[]) => (names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`);
+const sanctionList = (ks: Sanction[]) => ks.map((k) => `${SANCTION_INFO[k].icon} ${SANCTION_INFO[k].label}`).join(", ");
+
+// Stops a war criminal doing what the Tribunal took away.
+function enforce(p: Player, k: Sanction, why?: string) {
+  const sentence = sentenceOf(p);
+  if (!sentence?.sanctions.includes(k)) return;
+  const info = SANCTION_INFO[k];
+  fail(`${info.icon} ${info.label}: ${why ?? `war criminals can't ${info.rule}`}. Your sentence has ${plural(sentence.turnsLeft, "turn")} left.`);
+}
+
+function refuseSanctioned(other: Player) {
+  if (sanctioned(other, "trade")) fail(`${SANCTION_INFO.trade.icon} ${SANCTION_INFO.trade.label}: nobody can trade with ${other.name}, a convicted war criminal.`);
+}
+
+// Every attack on another Kird gives the victim a free strike back, and unless it's excused it feeds the
+// attacker's Bloodthirst. During an open trial it's added to the charges.
+function bookAttack(s: GameState, out: GameEvent[], me: Player, victim: Player, region: string, kind: Crime["kind"], judged: Judgement) {
+  const grudges = (victim.grudges ??= {});
+  grudges[me.id] = [...(grudges[me.id] ?? []), s.round];
+  // Striking back uses up the oldest grudge.
+  if (judged.excuse === "defence") me.grudges![victim.id] = recentGrudges(me.grudges![victim.id], s.round).slice(1);
+  if (!judged.points) return;
+  const crime: Crime = { round: s.round, victim: victim.id, region, kind, points: judged.points };
+  (me.crimes ??= []).push(crime);
+  const open = trialFor(s, me.id);
+  if (open) open.charges.push({ ...crime });
+  else openTrialIfDue(s, out, me);
+}
+
+function openTrialIfDue(s: GameState, out: GameEvent[], p: Player) {
+  const heat = bloodthirst(p, s.round);
+  if (heat < TRIAL_AT || s.players.length < TRIAL_MIN_KIRDS || trialFor(s, p.id)) return;
+  const charges = recentCrimes(p, s.round).map((c) => ({ ...c }));
+  const trial: Trial = { id: `t${s.nextId++}`, accused: p.id, openedRound: s.round, charges, votes: {} };
+  (s.trials ??= []).push(trial);
+  const victims = [...new Set(charges.map((c) => c.victim))].map((id) => s.players.find((q) => q.id === id)?.name ?? "a Kird who left");
+  emit(s, out, {
+    actor: null,
+    type: "trial",
+    text: `🚨 WAR CRIMES! ${p.name}'s Bloodthirst hit ${heat} after ${plural(charges.length, "attack")} on ${listNames(victims)}. The Kirds' Tribunal puts ${p.name} on trial: everyone else votes Guilty or Not guilty before ${p.name}'s next turn.`,
+    regions: [...new Set(charges.map((c) => c.region))],
+    public: true,
+    data: { accused: p.id, trial: trial.id },
+  });
+}
+
+function castVote(s: GameState, out: GameEvent[], me: Player, a: Extract<Action, { type: "vote" }>) {
+  const trial = trialsOf(s).find((t) => t.id === a.trial) ?? fail("That trial is over.");
+  if (trial.accused === me.id) fail("You can't vote in your own trial. Plead your case in chat instead.");
+  if (typeof a.guilty !== "boolean") fail("Guilty or not guilty?");
+  if (a.guilty && !SANCTIONS.includes(a.sanction as Sanction)) fail("A guilty vote comes with a punishment. Pick one.");
+  const accused = playerById(s, trial.accused);
+  const again = Boolean(trial.votes[me.id]);
+  trial.votes[me.id] = a.guilty ? { guilty: true, sanction: a.sanction } : { guilty: false };
+  const asked = a.guilty ? `, asking for ${sanctionList([a.sanction!])}` : "";
+  emit(s, out, {
+    actor: me.id,
+    type: "vote",
+    text: `⚖️ You ${again ? "changed your vote to" : "voted"} ${a.guilty ? "GUILTY" : "NOT GUILTY"} in ${accused.name}'s war crimes trial${asked}. Only you can see how you voted.`,
+    regions: [],
+    only: [me.id],
+    data: { trial: trial.id },
+  });
+  settleTrials(s, out);
+}
+
+// A trial ends early once the whole jury has voted, but never in the middle of the accused's own turn:
+// then the verdict waits until that turn ends.
+function settleTrials(s: GameState, out: GameEvent[]) {
+  const active = activePlayer(s)?.id;
+  for (const t of [...trialsOf(s)]) {
+    if (t.accused !== active && s.players.every((p) => p.id === t.accused || t.votes[p.id])) closeTrial(s, out, t);
+  }
+}
+
+function closeTrial(s: GameState, out: GameEvent[], t: Trial) {
+  s.trials = trialsOf(s).filter((x) => x !== t);
+  const accused = s.players.find((p) => p.id === t.accused);
+  if (!accused) return;
+  // Whatever the verdict, the slate is wiped: these attacks have been judged.
+  accused.crimes = [];
+  const ballots = Object.entries(t.votes)
+    .filter(([id]) => id !== accused.id && s.players.some((p) => p.id === id))
+    .map(([, v]) => v);
+  const guilty = ballots.filter((v) => v.guilty);
+  const innocent = ballots.length - guilty.length;
+  const data = { accused: accused.id, trial: t.id, guilty: guilty.length > innocent, votes: [guilty.length, innocent] };
+  if (guilty.length <= innocent) {
+    const text = !ballots.length
+      ? `⚖️ Nobody voted, so the Tribunal threw out the case against ${accused.name}. Their Bloodthirst is wiped clean.`
+      : guilty.length === innocent
+        ? `⚖️ NOT GUILTY: the jury split ${guilty.length} to ${innocent}, and a tie goes to the accused. ${accused.name} walks free, Bloodthirst wiped clean.`
+        : `⚖️ NOT GUILTY, ${innocent} to ${guilty.length}. ${accused.name} walks free, Bloodthirst wiped clean.`;
+    emit(s, out, { actor: null, type: "verdict", text, regions: [], public: true, data });
+    return;
+  }
+  // Every punishment a guilty juror asked for is imposed. Repeat offenders serve longer.
+  const sanctions = SANCTIONS.filter((k) => guilty.some((v) => v.sanction === k));
+  const prior = accused.convictions ?? 0;
+  const turns = SENTENCE_TURNS + REPEAT_OFFENDER_TURNS * prior;
+  const serving = sentenceOf(accused);
+  accused.sentence = {
+    sanctions: SANCTIONS.filter((k) => sanctions.includes(k) || serving?.sanctions.includes(k)),
+    turnsLeft: Math.max(turns, serving?.turnsLeft ?? 0),
+  };
+  accused.convictions = prior + 1;
+  if (sanctioned(accused, "trade")) s.offers = s.offers.filter((o) => o.kind !== "trade" || (o.from !== accused.id && o.to !== accused.id));
+  emit(s, out, {
+    actor: null,
+    type: "verdict",
+    text: `⚖️ GUILTY, ${guilty.length} to ${innocent}. ${accused.name} is a convicted war criminal for ${plural(accused.sentence.turnsLeft, "turn")}${prior ? ` (a repeat offender: conviction #${prior + 1})` : ""}. Punishment: ${sanctionList(accused.sentence.sanctions)}. Until it's served, attacking ${accused.name} is no crime.`,
+    regions: [],
+    public: true,
+    data: { ...data, sanctions: accused.sentence.sanctions },
+  });
+}
+
+// A sentence ticks down at the end of each of the war criminal's turns.
+function serveSentence(s: GameState, out: GameEvent[], p: Player) {
+  const sentence = sentenceOf(p);
+  if (!sentence) return;
+  sentence.turnsLeft -= 1;
+  if (sentence.turnsLeft > 0) return;
+  p.sentence = null;
+  emit(s, out, { actor: null, type: "pardon", text: `🕊️ ${p.name} has served their sentence for war crimes. The Tribunal lifts its sanctions.`, regions: [], public: true, data: { player: p.id } });
+}
+
 // ---------------------------------------------------------------- turns
 
 function endTurn(s: GameState, out: GameEvent[], now: number) {
@@ -1495,17 +1829,29 @@ function endTurn(s: GameState, out: GameEvent[], now: number) {
   // Rest everyone who just played.
   const prev = activePlayer(s);
   for (const r of ownedRegions(s, prev.id)) r.tired = emptyUnits();
+  serveSentence(s, out, prev);
   s.turn += 1;
   const nextSeat = (s.activeSeat + 1) % s.players.length;
   if (nextSeat === 0) newRound(s, out);
   s.activeSeat = nextSeat;
   s.turnStartedAt = now;
+  // A jury that finished voting during the accused's turn gives its verdict now that the turn is over.
+  settleTrials(s, out);
   startTurn(s, out);
 }
 
 function newRound(s: GameState, out: GameEvent[]) {
   s.round += 1;
   s.modifiers = s.modifiers.filter((m) => m.untilRound >= s.round);
+  // Old attacks stop counting toward Bloodthirst, and old grudges are forgotten.
+  for (const p of s.players) {
+    if (p.crimes?.length) p.crimes = recentCrimes(p, s.round);
+    for (const [id, rounds] of Object.entries(p.grudges ?? {})) {
+      const left = recentGrudges(rounds, s.round);
+      if (left.length) p.grudges![id] = left;
+      else delete p.grudges![id];
+    }
+  }
   // The natives never stop coming back.
   if (s.round % 3 === 0) {
     for (const r of Object.values(s.regions)) {
@@ -1526,6 +1872,10 @@ function startTurn(s: GameState, out: GameEvent[]) {
   const p = activePlayer(s);
   if (checkVictory(s, out)) return;
 
+  // The Tribunal reads its verdict as the accused's next turn begins.
+  const trial = trialFor(s, p.id);
+  if (trial) closeTrial(s, out, trial);
+
   // Exiles get a fresh start: Panda Asylum.
   if (!ownedRegions(s, p.id).length) {
     const r = spawnRegion(s);
@@ -1533,7 +1883,7 @@ function startTurn(s: GameState, out: GameEvent[]) {
       settle(s, p, r);
       r.units = { ...emptyUnits(), panda: 2 };
       p.respawns += 1;
-      emit(s, out, { actor: p.id, type: "asylum", text: `🕊️ ${p.name} lost everything, and was granted Panda Asylum in ${regionName(r.id)} with 2 pandas.`, regions: [r.id], public: true });
+      emit(s, out, { actor: p.id, type: "asylum", text: `🕊️ ${p.name} lost everything, and was granted Panda Asylum in ${regionName(s, r.id)} with 2 pandas.`, regions: [r.id], public: true });
     }
   }
 
@@ -1701,6 +2051,8 @@ export type RegionView = {
   id: string;
   token: number;
   fog: boolean;
+  name?: string; // a conqueror's new name: public, so it shows through the fog too
+  renamable?: boolean; // you conquered it and still hold it
   owner?: string | null;
   native?: NativeNation | null;
   units?: Units;
@@ -1725,6 +2077,13 @@ export type PlayerView = {
   pickpocketTurn?: number;
   oathbreaker: boolean;
   lastTurnEndSeq?: number;
+  // War crimes are public: every attack between Kirds is announced anyway.
+  bloodthirst: number;
+  sentence: Sentence | null;
+  convictions: number;
+  // Only your own: the attacks still counting against you, and the free strikes back you're owed.
+  crimes?: Crime[];
+  grudges?: Record<string, number[]>;
   // Only your own:
   bag?: Bag;
   armory?: Armory;
@@ -1744,6 +2103,9 @@ export type BattleView = {
   heroes: { atk: HeroId[]; def: HeroId[] };
   b: EngineBattle;
 };
+
+// A trial as one juror sees it: who has voted, but only their own ballot.
+export type TrialView = { id: string; accused: string; openedRound: number; charges: Crime[]; voters: string[]; myVote: Vote | null };
 
 export type GameView = {
   me: string;
@@ -1766,10 +2128,12 @@ export type GameView = {
   winner: string | null;
   threat: string | null;
   battle: BattleView | null; // only the attacker sees a battle in progress
+  trials: TrialView[];
 };
 
 export function viewFor(s: GameState, pid: string): GameView {
   const vis = visibleRegions(s, pid);
+  const viewer = s.players.find((p) => p.id === pid);
   return {
     me: pid,
     turn: s.turn,
@@ -1789,6 +2153,9 @@ export function viewFor(s: GameState, pid: string): GameView {
       cards: RESOURCES.reduce((n, g) => n + p.goods[g], 0),
       heroes: heroesOf(s, p.id),
       oathbreaker: p.oathbreakerUntilRound >= s.round,
+      bloodthirst: bloodthirst(p, s.round),
+      sentence: sentenceOf(p) ? { sanctions: [...p.sentence!.sanctions], turnsLeft: p.sentence!.turnsLeft } : null,
+      convictions: p.convictions ?? 0,
       ...(p.id === pid
         ? {
             goods: { ...p.goods },
@@ -1796,27 +2163,36 @@ export function viewFor(s: GameState, pid: string): GameView {
             thunderReadyTurn: p.thunderReadyTurn,
             pickpocketTurn: p.pickpocketTurn,
             lastTurnEndSeq: p.lastTurnEndSeq,
+            crimes: recentCrimes(p, s.round).map((c) => ({ ...c })),
+            grudges: Object.fromEntries(
+              Object.entries(p.grudges ?? {})
+                .map(([id, r]) => [id, recentGrudges(r, s.round)] as const)
+                .filter(([, r]) => r.length),
+            ),
             bag: { ...bagOf(p) },
             armory: structuredClone(p.armory ?? { units: {} }),
             doctrine: doctrineOf(p),
           }
         : {}),
     })),
-    regions: Object.values(s.regions).map((r) =>
-      vis.has(r.id)
-        ? {
-            id: r.id,
-            token: r.token,
-            fog: false,
-            owner: r.owner,
-            native: r.native,
-            units: { ...r.units },
-            tired: r.owner === pid ? { ...r.tired } : undefined,
-            buildings: [...r.buildings],
-            ...(r.owner === pid ? { orders: ordersFor(s, r) } : {}),
-          }
-        : { id: r.id, token: r.token, fog: true },
-    ),
+    regions: Object.values(s.regions).map((r) => {
+      const named = r.name ? { name: r.name } : {};
+      if (!vis.has(r.id)) return { id: r.id, token: r.token, fog: true, ...named };
+      const mine = r.owner === pid;
+      return {
+        id: r.id,
+        token: r.token,
+        fog: false,
+        ...named,
+        ...(mayRename(r, viewer) ? { renamable: true } : {}),
+        owner: r.owner,
+        native: r.native,
+        units: { ...r.units },
+        tired: mine ? { ...r.tired } : undefined,
+        buildings: [...r.buildings],
+        ...(mine ? { orders: ordersFor(s, r) } : {}),
+      };
+    }),
     lines: Object.entries(s.lines)
       .filter(([id]) => lineEnds(id).some((e) => vis.has(e)))
       .map(([id, l]) => ({ id, owner: l.owner })),
@@ -1841,6 +2217,14 @@ export function viewFor(s: GameState, pid: string): GameView {
     winner: s.winner ?? null,
     threat: s.threat ?? null,
     battle: s.battle && s.battle.attacker === pid ? battleView(s.battle) : null,
+    trials: trialsOf(s).map((t) => ({
+      id: t.id,
+      accused: t.accused,
+      openedRound: t.openedRound,
+      charges: t.charges.map((c) => ({ ...c })),
+      voters: Object.keys(t.votes),
+      myVote: t.votes[pid] ? { ...t.votes[pid] } : null,
+    })),
   };
 }
 

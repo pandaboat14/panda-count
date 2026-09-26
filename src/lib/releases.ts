@@ -9,6 +9,43 @@ export type Release = {
 export const RELEASES: Release[] = [
   {
     date: "2026-09-26",
+    title: "War crimes and the Kirds' Tribunal",
+    notes: [
+      "Attack other Kirds too often and the rest of the world can put you on trial for war crimes. Every Kird has a 🩸 Bloodthirst meter: each invasion of another Kird's land, or Thunder on it, adds 1 (2 if they hold less than half as many regions as you), and it counts for 3 rounds.",
+      "Reach 4 and the Kirds' Tribunal opens a trial. Everyone else votes Guilty or Not guilty in the Kirds tab, in secret, any time before the accused's next turn. Trials need at least 3 Kirds in the world.",
+      "Each guilty vote picks a punishment: a Ceasefire, an Arms embargo, a Gondola ban, Trade sanctions or Heroes on strike. A guilty verdict imposes every one picked for 3 turns (longer for repeat offenders), and attacking a war criminal is no crime until they've served it.",
+      "Fighting back is fair: every attack you suffer earns you one free strike back at the attacker. Attacking the Kird about to win never counts either.",
+      "Before you invade, the game shows what the attack will do to your Bloodthirst and warns you if it will put you on trial. The Army tab shows your meter and when each attack stops counting.",
+      "Computer players, and anyone on autopilot, sit on juries and vote with their interests, and a generous trade can buy their vote. On trial themselves, they may send you a gift. Hard ones count the votes before they cross the line.",
+      "Computer players take their turns faster when armies grow huge.",
+    ],
+  },
+  {
+    date: "2026-09-26",
+    title: "Buildings you can see, troops you can drag",
+    pr: 15,
+    notes: [
+      "Buildings stand on the globe as little 3D models, each with a pin showing its icon: a pagoda with a panda in its bamboo, a gym with a giant barbell on the roof, a striped market stall, and stone walls round the whole region for a fort.",
+      "A new 🏗️ Build tab lists every building with what it does, what it costs and where you already have one. Pick one, tap a glowing region, and watch it rise out of the ground.",
+      "Troops are easy to spot. Zoomed out, each army is one big figure with a badge showing how many are there. Zoom in and you see the squad itself, mixed like the real army: pandas with bamboo, armed pandas in tin helmets, club-swinging ogres and flexing CAMs.",
+      "Drag your troops to move them: on your turn, grab an army and drop it on a glowing region it can reach by gondola. The move bar opens ready to choose who goes, with your chance to win if it's an invasion.",
+      "The camera leans in as you zoom, so you see everything from the side. Each hex's number now sits at its front tip, where nothing can hide it, flags fly from the back of the hex, and gondola cables leave from a mast so they pass over the buildings.",
+      "Battle replays use the new figures.",
+    ],
+  },
+  {
+    date: "2026-09-26",
+    title: "Plant your flag",
+    notes: [
+      "Your land is unmistakable now: every region you hold flies your flag (your colour with a white star) and glows with a thick border in your colour. Other Kirds' flags carry their initial.",
+      "Tap \"Your land\" under your goods to fly around your regions one by one.",
+      "Conquerors rename what they take. When you capture a region, give it a new name or keep the old one, and rename it again from its panel while you hold it. Everyone sees the new name, and the old one is shown underneath.",
+      "Moving troops has a clear start and finish: tap 🚡 Move troops next to End turn, pick one of your regions, pick where to send them, choose who goes, and send. ✕ Stop moving (or Esc) ends it.",
+      "While you move, the map rings every choice: gold for your regions with troops ready, blue for your own land, red for invasions with your chance to win, and a dashed ring where you'd need a gondola first, one tap away.",
+    ],
+  },
+  {
+    date: "2026-09-26",
     title: "Throw your dice onto the map",
     pr: 14,
     notes: [

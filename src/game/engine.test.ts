@@ -10,6 +10,7 @@ import {
   emptyUnits,
   eventVisible,
   lineUsable,
+  nameKey,
   ownedRegions,
   removePlayer,
   unitTotal,
@@ -54,6 +55,13 @@ test("map: neighbours are valid, symmetric and the world is connected", () => {
 });
 
 // ---------------------------------------------------------------- setup
+
+// A person's invasion of a defended region opens a battle: this has Sun Tzu fight it to the end at once.
+function invade(s: GameState, pid: string, a: Extract<Action, { type: "move" }>, now = NOW) {
+  const events = applyAction(s, pid, a, now);
+  if (s.battle) events.push(...applyAction(s, pid, { type: "battleAuto" }, now));
+  return events;
+}
 
 function newGame(players: number, seed = 42) {
   const s = createGame(seed, NOW);
@@ -306,8 +314,18 @@ function randomAction(s: GameState, rnd: () => number): Action {
     if (mineOffers.length) return { type: "respond", offerId: pickFrom(mineOffers).id, accept: rnd() < 0.7 };
   }
   if (roll < 0.96 && others.length) return { type: "breakPact", with: pickFrom(others).id };
+  if (roll < 0.98) return { type: "rename", region, name: pickFrom(FUZZ_NAMES) };
+  if (roll < 0.995 && s.trials?.length) {
+    const guilty = rnd() < 0.6;
+    return { type: "vote", trial: pickFrom(s.trials).id, guilty, ...(guilty ? { sanction: pickFrom(SANCTION_LIST) } : {}) };
+  }
   return { type: "endTurn" };
 }
+
+// Good names, bad names, real names and near-duplicates.
+const FUZZ_NAMES = ["Pandaland", "Fort Bamboo", "  Bao   Town ", "Kirdistan", "pandaland!", "x", "Texas", "Sichuan", "🐼🐼", "A".repeat(30)];
+
+import { SANCTIONS as SANCTION_LIST } from "./rules";
 
 function checkInvariants(s: GameState, events: GameEvent[]) {
   const ids = new Set(s.players.map((p) => p.id));
@@ -345,6 +363,38 @@ function checkInvariants(s: GameState, events: GameEvent[]) {
     assert.equal(s.regions[s.battle.from].owner, s.battle.attacker);
     assert.equal(JSON.stringify(JSON.parse(JSON.stringify(s.battle))), JSON.stringify(s.battle), "the battle is plain JSON");
   }
+  // Only a conqueror who still holds a region may rename it; names on the map are tidy and never clash,
+  // and a renamed region's old name stays reserved for it.
+  const taken = new Map<string, string>();
+  for (const d of REGIONS) {
+    const r = s.regions[d.id];
+    if (r.conqueror !== undefined) assert.equal(r.conqueror, r.owner, `${r.id}'s conqueror holds it`);
+    if (r.name !== undefined) {
+      assert.notEqual(r.name, d.name, `${r.id} forgets a new name rather than storing its real one`);
+      assert.ok(r.name === r.name.trim() && [...r.name].length >= 2 && [...r.name].length <= 24, `"${r.name}" is tidy`);
+    }
+    for (const n of r.name ? [r.name, d.name] : [d.name]) {
+      const k = nameKey(n);
+      assert.ok((taken.get(k) ?? d.id) === d.id, `"${n}" clashes with ${taken.get(k)}`);
+      taken.set(k, d.id);
+    }
+  }
+  // The Tribunal: one trial per accused, only real jurors vote, guilty votes carry a punishment, sentences run down.
+  const trials = s.trials ?? [];
+  assert.equal(new Set(trials.map((t) => t.accused)).size, trials.length, "one trial per accused");
+  for (const t of trials) {
+    assert.ok(ids.has(t.accused), "the accused is still in the world");
+    assert.ok(t.charges.length > 0, "a trial has charges");
+    assert.equal(t.votes[t.accused], undefined, "nobody votes in their own trial");
+    for (const [voter, v] of Object.entries(t.votes)) {
+      assert.ok(ids.has(voter), "only Kirds in the world vote");
+      if (v.guilty) assert.ok(SANCTION_LIST.includes(v.sanction!), "a guilty vote names a punishment");
+    }
+  }
+  for (const p of s.players) {
+    if (p.sentence) assert.ok(p.sentence.turnsLeft > 0 && p.sentence.sanctions.length > 0, `${p.name} serves a real sentence`);
+    for (const c of p.crimes ?? []) assert.ok(c.points === 1 || c.points === 2);
+  }
   for (let i = 1; i < events.length; i++) assert.equal(events[i].seq, events[i - 1].seq + 1, "event seq is contiguous");
   assert.equal(s.seq, events.at(-1)?.seq ?? 0);
   assert.ok(s.activeSeat >= 0 && s.activeSeat < s.players.length);
@@ -358,6 +408,8 @@ function lcg(seed: number) {
 test("fuzz: thousands of random actions never break the world", () => {
   let applied = 0;
   let rejected = 0;
+  let renamed = 0;
+  const tribunal = { vote: 0, verdict: 0, pardon: 0 };
   for (const [seed, players] of [[1, 2], [2, 3], [3, 4], [4, 6], [5, 8], [6, 1]] as const) {
     const { s, events } = newGame(players, seed);
     const rnd = lcg(seed * 7919);
@@ -366,8 +418,19 @@ test("fuzz: thousands of random actions never break the world", () => {
       if (step === 1500 && s.players.length < 8) events.push(...addPlayer(s, "late", "Late Kird"));
       // …and Kirds sometimes leave.
       if (step === 2500 && s.players.length > 1) events.push(...removePlayer(s, s.players[Math.floor(rnd() * s.players.length)].id, NOW));
-      const actor = rnd() < 0.02 ? s.players[Math.floor(rnd() * s.players.length)].id : activePlayer(s).id;
+      // Random armies rarely go on a rampage, so now and then someone is put on trial and someone else is
+      // one attack from it: that way juries, verdicts and sentences all meet random play.
+      if (step % 250 === 125 && s.players.length >= 3) {
+        const [accused, primed, victim] = [...s.players].sort(() => rnd() - 0.5);
+        if (!s.trials!.some((t) => t.accused === accused.id)) {
+          const charge = { round: s.round, victim: victim.id, region: victim.capital, kind: "invasion" as const, points: 2 };
+          s.trials!.push({ id: `fuzz${step}`, accused: accused.id, openedRound: s.round, charges: [charge], votes: {} });
+        }
+        primed.crimes = Array.from({ length: TRIAL_AT - 1 }, () => ({ round: s.round, victim: victim.id, region: victim.capital, kind: "invasion" as const, points: 1 }));
+      }
       const a = randomAction(s, rnd);
+      // Juries vote on anyone's turn, so half the ballots come from someone other than the active Kird.
+      const actor = rnd() < (a.type === "vote" ? 0.5 : 0.02) ? s.players[Math.floor(rnd() * s.players.length)].id : activePlayer(s).id;
       const snapshot = JSON.stringify(s);
       try {
         events.push(...applyAction(s, actor, a, NOW + step * 1000));
@@ -381,13 +444,18 @@ test("fuzz: thousands of random actions never break the world", () => {
       checkInvariants(s, events);
     }
     assert.ok(s.round > 5, `seed ${seed}: the game kept going (round ${s.round})`);
+    renamed += events.filter((e) => e.type === "rename").length;
     // Every player can always load their view, and event filtering never throws.
     for (const p of s.players) {
       viewFor(s, p.id);
       events.forEach((e) => eventVisible(s, e, p.id));
     }
+    for (const e of events) if (e.type in tribunal) tribunal[e.type as keyof typeof tribunal]++;
   }
   assert.ok(applied > 5000, `applied ${applied}, rejected ${rejected}`);
+  assert.ok(renamed > 10, `conquerors renamed ${renamed} regions`);
+  // Juries vote, trials reach verdicts, and sentences get served.
+  assert.ok(tribunal.vote > 0 && tribunal.verdict > 0 && tribunal.pardon > 0, JSON.stringify(tribunal));
 });
 
 test("determinism: same seed and same actions give the same world", () => {
@@ -683,6 +751,7 @@ test("bot chat: replies fit what was said and the bot's personality", () => {
   assert.match(botReply("hard", "I'm going to invade you", r), /simulated|Casey/);
   assert.ok(botReply("medium", "hello there", r).length > 0);
   assert.ok(botReply("hard", "🐼", r).length > 0);
+  assert.match(botReply("medium", "vote not guilty at my war crimes trial?", r), /Justice/, "war crimes talk isn't a threat");
 });
 
 import { canReplay } from "./battleScript";
@@ -992,4 +1061,624 @@ test("dice physics: a seed throws the same tumble every time, and it lands on th
     assert.deepEqual(throwIt(), record, `seed ${seed}: replays tumble the same way`);
     assert.deepEqual(restingValues(record), values, `seed ${seed}: lands on the roll`);
   }
+});
+
+// ---------------------------------------------------------------- names
+
+import { checkRegionName, regionName, type BattleData } from "./engine";
+
+// Kird 0 rides into an empty neighbour and claims it.
+function conquest(seed = 3) {
+  const { s } = newGame(2, seed);
+  const [a, b] = s.players;
+  const from = a.capital;
+  const to = NEIGHBORS.get(from)!.find((n) => !s.regions[n].owner)!;
+  Object.assign(s.regions[to], { units: emptyUnits(), native: null });
+  s.lines[lineId(from, to)] = { owner: a.id, builtTurn: 0 };
+  applyAction(s, a.id, { type: "move", from, to, units: { panda: 1 } }, NOW);
+  assert.equal(s.regions[to].owner, a.id);
+  return { s, a, b, to };
+}
+
+test("names: conquerors rename what they take, and everyone sees the new name", () => {
+  const { s, a, b, to } = conquest();
+  const old = REGION_BY_ID.get(to)!.name;
+  const [e] = applyAction(s, a.id, { type: "rename", region: to, name: "  Fort   Bamboo " }, NOW);
+  assert.equal(s.regions[to].name, "Fort Bamboo");
+  assert.equal(e.text, `🚩 Kird 0 renamed ${old} to Fort Bamboo.`);
+  assert.ok(eventVisible(s, e, b.id), "renaming is public news");
+  // The name shows through the fog, but only the conqueror may change it.
+  const seen = [a.id, b.id].map((id) => viewFor(s, id).regions.find((r) => r.id === to)!);
+  assert.deepEqual(seen.map((r) => [r.fog, r.name, r.renamable]), [[false, "Fort Bamboo", true], [true, "Fort Bamboo", undefined]]);
+  // Everything that happens there from now on uses the new name…
+  Object.assign(s.players[0].goods, { bamboo: 5, rice: 5 });
+  const [recruit] = applyAction(s, a.id, { type: "recruit", region: to, unit: "panda", count: 1 }, NOW);
+  assert.match(recruit.text, /in Fort Bamboo\.$/);
+  // …until the old name is given back.
+  const [back] = applyAction(s, a.id, { type: "rename", region: to, name: old }, NOW);
+  assert.equal(s.regions[to].name, undefined);
+  assert.equal(back.text, `🚩 Kird 0 gave Fort Bamboo back its old name, ${old}.`);
+});
+
+test("names: only a conqueror renames, only while they hold it, and only on their turn", () => {
+  const { s, a, b, to } = conquest();
+  assert.throws(() => applyAction(s, a.id, { type: "rename", region: a.capital, name: "Homeland" }, NOW), /conquerors/, "land you were given wasn't conquered");
+  assert.throws(() => applyAction(s, b.id, { type: "rename", region: to, name: "Mine Now" }, NOW), /turn/);
+  applyAction(s, a.id, { type: "endTurn" }, NOW);
+  assert.throws(() => applyAction(s, b.id, { type: "rename", region: to, name: "Mine Now" }, NOW), /hold/);
+});
+
+test("names: tidy, sensible, and never another region's name, now or once", () => {
+  const { s, a, to } = conquest();
+  const rename = (name: unknown) => applyAction(s, a.id, { type: "rename", region: to, name } as Action, NOW);
+  assert.throws(() => rename("x"), /at least 2/);
+  assert.throws(() => rename("x".repeat(25)), /up to 24/);
+  assert.throws(() => rename("!!"), /letter or number/);
+  assert.throws(() => rename(42), GameError);
+  const other = REGIONS.find((r) => r.id !== to)!;
+  assert.throws(() => rename(` ${other.name.toUpperCase()}!`), /already on the map/, "capitals and punctuation don't make a new name");
+  // Invisible and right-to-left characters can't disguise a name.
+  rename("Pan\u202Eda\u200Bland");
+  assert.equal(s.regions[to].name, "Pandaland");
+  assert.throws(() => rename("Pandaland"), /already called/);
+  // A renamed region's real name stays taken, so nobody can pose as it.
+  s.regions[other.id].name = "Kirdistan";
+  assert.throws(() => rename(other.name), /once called/);
+  assert.throws(() => rename("KIRDISTAN"), /Kirdistan is already on the map/);
+  assert.equal(s.regions[to].name, "Pandaland", "failed renames change nothing");
+  // The rename box runs the very same check.
+  assert.deepEqual(checkRegionName(to, "  Bao  Town ", (id) => regionName(s, id)), { name: "Bao Town" });
+});
+
+test("names: a name outlasts its namer, and the right to rename passes to whoever takes it next", () => {
+  const { s, b, to } = conquest();
+  applyAction(s, s.players[0].id, { type: "rename", region: to, name: "Pandaland" }, NOW);
+  applyAction(s, s.players[0].id, { type: "endTurn" }, NOW);
+  const from = NEIGHBORS.get(to)!.find((n) => s.regions[n].owner !== s.players[0].id)!;
+  Object.assign(s.regions[from], { owner: b.id, native: null, units: { ...emptyUnits(), cam: 12 }, tired: emptyUnits() });
+  s.lines[lineId(from, to)] = { owner: b.id, builtTurn: 0 };
+  const fight = invade(s, b.id, { type: "move", from, to, units: { cam: 12 } }).find((e) => e.type === "battle")!;
+  assert.equal((fight.data as unknown as BattleData).place, "Pandaland", "the battle remembers what the place was called");
+  assert.equal(s.regions[to].owner, b.id);
+  assert.equal(s.regions[to].name, "Pandaland", "a new owner keeps the name until they change it");
+  applyAction(s, b.id, { type: "rename", region: to, name: "Bo's Bay" }, NOW);
+  assert.equal(s.regions[to].name, "Bo's Bay");
+  // When a conqueror leaves, their land goes wild but its name stays on the map.
+  removePlayer(s, b.id, NOW);
+  assert.equal(s.regions[to].name, "Bo's Bay");
+  assert.equal(s.regions[to].conqueror, undefined);
+});
+
+test("names: in games from before renaming, any region you hold except your home counts as conquered", () => {
+  const { s } = newGame(2, 3);
+  const [a] = s.players;
+  const old = NEIGHBORS.get(a.capital)!.find((n) => !s.regions[n].owner)!;
+  // An old save: a region taken long ago, with no record of who took it.
+  Object.assign(s.regions[old], { owner: a.id, native: null });
+  assert.equal(s.regions[old].conqueror, undefined);
+  const view = viewFor(s, a.id);
+  assert.equal(view.regions.find((r) => r.id === old)!.renamable, true);
+  assert.equal(view.regions.find((r) => r.id === a.capital)!.renamable, undefined);
+  applyAction(s, a.id, { type: "rename", region: old, name: "Old Conquest" }, NOW);
+  assert.equal(s.regions[old].name, "Old Conquest");
+  assert.throws(() => applyAction(s, a.id, { type: "rename", region: a.capital, name: "Homeland" }, NOW), /conquerors/);
+});
+
+test("names: land your autopilot conquers while you're away is yours to rename when you're back", () => {
+  const s = newWorld(31, NOW);
+  addPlayer(s, "taylor", "Taylor");
+  addPlayer(s, "alex", "Alex");
+  applyAction(s, "alex", { type: "autopilot", on: true, level: "hard" }, NOW);
+  const taken = () => ownedRegions(s, "alex").find((r) => r.conqueror === "alex");
+  for (let round = 0; round < 40 && !taken(); round++) {
+    applyAction(s, "taylor", { type: "endTurn" }, NOW);
+    runBots(s, NOW);
+  }
+  const won = taken();
+  assert.ok(won, "autopilot conquered something");
+  applyAction(s, "alex", { type: "autopilot", on: false }, NOW);
+  applyAction(s, "taylor", { type: "endTurn" }, NOW);
+  assert.equal(activePlayer(s).id, "alex", "back in command, it's Alex's turn");
+  assert.equal(viewFor(s, "alex").regions.find((r) => r.id === won.id)!.renamable, true);
+  applyAction(s, "alex", { type: "rename", region: won.id, name: "Alexandria" }, NOW);
+  assert.equal(s.regions[won.id].name, "Alexandria");
+});
+
+// ---------------------------------------------------------------- war crimes
+
+import { bloodthirst, grudgeAgainst, sanctioned, trialFor } from "./engine";
+import { SANCTIONS, TRIAL_AT, type Sanction } from "./rules";
+
+// Hands `attacker` a big rested army next to a fresh region held by `owner` (or by wild pandas when null),
+// joined by the attacker's own gondola line.
+function stage(s: GameState, attacker: string, owner: string | null, defenders: Partial<Record<(typeof UNIT_TYPES)[number], number>> = {}) {
+  for (const r of Object.values(s.regions)) {
+    if (r.owner) continue;
+    const n = NEIGHBORS.get(r.id)!.find((x) => !s.regions[x].owner);
+    if (!n) continue;
+    Object.assign(r, { owner: attacker, native: null, units: { ...emptyUnits(), cam: 20 }, tired: emptyUnits() });
+    Object.assign(s.regions[n], { owner, native: owner ? null : "wild", units: { ...emptyUnits(), ...defenders }, tired: emptyUnits() });
+    s.lines[lineId(r.id, n)] = { owner: attacker, builtTurn: 0 };
+    return { from: r.id, to: n };
+  }
+  throw new Error("no room left to stage an attack");
+}
+
+// `attacker` (made the active Kird if need be) invades a fresh region of `owner`'s with one CAM.
+function strike(s: GameState, attacker: string, owner: string | null, defenders?: Partial<Record<(typeof UNIT_TYPES)[number], number>>) {
+  s.activeSeat = s.players.find((p) => p.id === attacker)!.seat;
+  const { from, to } = stage(s, attacker, owner, defenders);
+  return invade(s, attacker, { type: "move", from, to, units: { cam: 1 } });
+}
+
+function give(s: GameState, pid: string, n: number) {
+  for (const r of Object.values(s.regions).filter((x) => !x.owner).slice(-n)) Object.assign(r, { owner: pid, native: null });
+}
+
+const P = (s: GameState, id: string) => s.players.find((p) => p.id === id)!;
+const endTurns = (s: GameState, n: number) => {
+  for (let i = 0; i < n; i++) applyAction(s, activePlayer(s).id, { type: "endTurn" }, NOW);
+};
+// Plays turns until it's `id`'s turn again.
+const untilTurnOf = (s: GameState, id: string) => {
+  do endTurns(s, 1);
+  while (activePlayer(s).id !== id);
+};
+
+test("war crimes: attacking other Kirds builds Bloodthirst, picking on the small counts double, natives never count", () => {
+  const { s } = newGame(3);
+  strike(s, "p0", null, { panda: 1 });
+  assert.equal(bloodthirst(P(s, "p0"), s.round), 0, "invading natives is no crime");
+  const events = strike(s, "p0", "p1");
+  assert.equal(bloodthirst(P(s, "p0"), s.round), 1);
+  assert.match(events.find((e) => e.type === "capture")!.text, /🩸\+1/);
+  // p1 now holds less than half as many regions as p0: picking on them counts double.
+  give(s, "p0", 6);
+  strike(s, "p0", "p1");
+  assert.equal(bloodthirst(P(s, "p0"), s.round), 3);
+  assert.equal(viewFor(s, "p2").players.find((p) => p.id === "p0")!.bloodthirst, 3, "everyone can see it");
+  assert.deepEqual(viewFor(s, "p0").players.find((p) => p.id === "p0")!.crimes!.map((c) => c.points), [1, 2]);
+  assert.equal(viewFor(s, "p2").players.find((p) => p.id === "p0")!.crimes, undefined, "the details are yours alone");
+});
+
+test("war crimes: an eye for an eye, stopping the Kird about to win and hitting a war criminal are no crime", () => {
+  const { s } = newGame(4);
+  // p1 attacks p0 once, so p0 may strike back once for free.
+  strike(s, "p1", "p0");
+  assert.equal(bloodthirst(P(s, "p1"), s.round), 1);
+  const back = strike(s, "p0", "p1");
+  assert.doesNotMatch(back.find((e) => e.type === "capture")!.text, /🩸/);
+  assert.equal(bloodthirst(P(s, "p0"), s.round), 0);
+  // Escalating past that counts, and every attack earns the victim a strike back of their own.
+  strike(s, "p0", "p1");
+  assert.equal(bloodthirst(P(s, "p0"), s.round), 1);
+  assert.equal(grudgeAgainst(P(s, "p1"), "p0", s.round), 2);
+  assert.equal(grudgeAgainst(P(s, "p0"), "p1", s.round), 0, "p0 used up theirs");
+  // p2 is one round from winning.
+  s.goal = 10;
+  give(s, "p2", 12);
+  s.threat = "p2";
+  strike(s, "p0", "p2");
+  // p3 is a convicted war criminal.
+  P(s, "p3").sentence = { sanctions: ["arms"], turnsLeft: 2 };
+  strike(s, "p0", "p3");
+  assert.equal(bloodthirst(P(s, "p0"), s.round), 1, "neither of those counted");
+  assert.equal(grudgeAgainst(P(s, "p3"), "p0", s.round), 1, "even an excused attack can be answered");
+  // Grudges fade with the three-round window. (First call off the race, or p2 would simply win.)
+  s.goal = null;
+  s.threat = null;
+  s.activeSeat = 0;
+  endTurns(s, 4 * 3);
+  assert.equal(grudgeAgainst(P(s, "p1"), "p0", s.round), 0);
+  assert.deepEqual(viewFor(s, "p1").players.find((p) => p.id === "p1")!.grudges, {});
+});
+
+test("war crimes: Bloodthirst cools off after three rounds", () => {
+  const { s } = newGame(3);
+  strike(s, "p0", "p1");
+  s.activeSeat = 0;
+  endTurns(s, 3 * 2); // to the start of round 3
+  assert.equal(s.round, 3);
+  assert.equal(bloodthirst(P(s, "p0"), s.round), 1, "still counts in round 3");
+  endTurns(s, 3);
+  assert.equal(bloodthirst(P(s, "p0"), s.round), 0, "forgotten in round 4");
+  assert.equal(P(s, "p0").crimes!.length, 0, "and pruned from the save");
+});
+
+// p0 goes on a rampage against p1 (who is big enough that nothing counts double) until the Tribunal steps in.
+function rampage(players: number) {
+  const { s } = newGame(players);
+  give(s, "p1", 8);
+  const events: GameEvent[] = [];
+  for (let i = 0; i < TRIAL_AT; i++) events.push(...strike(s, "p0", "p1"));
+  s.activeSeat = 0;
+  return { s, events };
+}
+
+test("war crimes: at the threshold the Tribunal opens a trial, and the jury votes in secret, even out of turn", () => {
+  const { s, events } = rampage(4);
+  const opened = events.filter((e) => e.type === "trial");
+  assert.equal(opened.length, 1);
+  assert.ok(opened[0].public);
+  assert.match(opened[0].text, /on trial/);
+  const trial = trialFor(s, "p0")!;
+  assert.equal(trial.charges.length, TRIAL_AT);
+  // Attacks during the trial are added to the charges, not a second trial.
+  strike(s, "p0", "p1");
+  assert.equal(s.trials!.length, 1);
+  assert.equal(trialFor(s, "p0")!.charges.length, TRIAL_AT + 1);
+
+  const id = trial.id;
+  assert.throws(() => applyAction(s, "p0", { type: "vote", trial: id, guilty: false }, NOW), /own trial/);
+  assert.throws(() => applyAction(s, "p1", { type: "vote", trial: id, guilty: true }, NOW), /punishment/);
+  assert.throws(() => applyAction(s, "p1", { type: "vote", trial: "nope", guilty: false }, NOW), /over/);
+  // p0 is the active Kird, but the jury votes whenever it likes.
+  assert.equal(activePlayer(s).id, "p0");
+  const vote = applyAction(s, "p1", { type: "vote", trial: id, guilty: true, sanction: "ceasefire" }, NOW);
+  assert.deepEqual(vote.map((e) => e.only), [["p1"]], "only the voter hears about their vote");
+  applyAction(s, "p2", { type: "vote", trial: id, guilty: false }, NOW);
+  applyAction(s, "p2", { type: "vote", trial: id, guilty: true, sanction: "arms" }, NOW);
+
+  const seen = viewFor(s, "p3").trials[0];
+  assert.deepEqual(seen.voters.sort(), ["p1", "p2"]);
+  assert.equal(seen.myVote, null);
+  assert.equal(JSON.stringify(viewFor(s, "p3")).includes("ceasefire"), false, "nobody else's ballot leaks");
+  assert.deepEqual(viewFor(s, "p2").trials[0].myVote, { guilty: true, sanction: "arms" }, "you can change your vote");
+  assert.equal(viewFor(s, "p0").trials[0].myVote, null);
+
+  // p3 never votes. The verdict comes when p0's next turn starts.
+  endTurns(s, 1);
+  assert.ok(trialFor(s, "p0"), "still open while the jury is out");
+  const verdict = (() => {
+    const out: GameEvent[] = [];
+    while (activePlayer(s).id !== "p0") out.push(...applyAction(s, activePlayer(s).id, { type: "endTurn" }, NOW));
+    return out.find((e) => e.type === "verdict")!;
+  })();
+  assert.ok(verdict.public);
+  assert.equal(verdict.actor, null, "the Tribunal speaks, so the accused sees it in their replay too");
+  assert.match(verdict.text, /GUILTY, 2 to 0/);
+  assert.equal(trialFor(s, "p0"), undefined);
+  assert.deepEqual(P(s, "p0").sentence, { sanctions: ["ceasefire", "arms"], turnsLeft: 3 });
+  assert.equal(P(s, "p0").convictions, 1);
+  assert.equal(bloodthirst(P(s, "p0"), s.round), 0, "the verdict wipes the slate");
+  assert.deepEqual(viewFor(s, "p3").players.find((p) => p.id === "p0")!.sentence, { sanctions: ["ceasefire", "arms"], turnsLeft: 3 });
+});
+
+test("war crimes: a split jury or an empty one acquits, and either way the slate is wiped", () => {
+  const split = rampage(3);
+  const id = trialFor(split.s, "p0")!.id;
+  applyAction(split.s, "p1", { type: "vote", trial: id, guilty: true, sanction: "trade" }, NOW);
+  applyAction(split.s, "p2", { type: "vote", trial: id, guilty: false }, NOW);
+  const out: GameEvent[] = [];
+  do out.push(...applyAction(split.s, activePlayer(split.s).id, { type: "endTurn" }, NOW));
+  while (activePlayer(split.s).id !== "p0");
+  assert.match(out.find((e) => e.type === "verdict")!.text, /NOT GUILTY: the jury split 1 to 1/);
+  assert.equal(P(split.s, "p0").sentence ?? null, null);
+  assert.equal(bloodthirst(P(split.s, "p0"), split.s.round), 0);
+
+  const empty = rampage(3);
+  const out2: GameEvent[] = [];
+  do out2.push(...applyAction(empty.s, activePlayer(empty.s).id, { type: "endTurn" }, NOW));
+  while (activePlayer(empty.s).id !== "p0");
+  assert.match(out2.find((e) => e.type === "verdict")!.text, /Nobody voted/);
+  assert.equal(P(empty.s, "p0").convictions, 0);
+});
+
+test("war crimes: once the whole jury has voted the verdict comes at once, but never in the middle of the accused's turn", () => {
+  const { s } = rampage(3);
+  const id = trialFor(s, "p0")!.id;
+  applyAction(s, "p1", { type: "vote", trial: id, guilty: true, sanction: "gondolas" }, NOW);
+  applyAction(s, "p2", { type: "vote", trial: id, guilty: true, sanction: "gondolas" }, NOW);
+  assert.ok(trialFor(s, "p0"), "p0 is still mid-turn");
+  const out = applyAction(s, "p0", { type: "endTurn" }, NOW);
+  assert.match(out.find((e) => e.type === "verdict")!.text, /GUILTY, 2 to 0/);
+  // The sentence covers p0's next three turns in full.
+  assert.deepEqual(P(s, "p0").sentence, { sanctions: ["gondolas"], turnsLeft: 3 });
+
+  // Out of turn, the last juror's vote brings the verdict straight away.
+  const other = rampage(3);
+  const tid = trialFor(other.s, "p0")!.id;
+  endTurns(other.s, 1); // now it's p1's turn
+  applyAction(other.s, "p2", { type: "vote", trial: tid, guilty: false }, NOW);
+  const last = applyAction(other.s, "p1", { type: "vote", trial: tid, guilty: false }, NOW);
+  assert.match(last.find((e) => e.type === "verdict")!.text, /NOT GUILTY, 2 to 0/);
+});
+
+// A convicted p0 serving `sanctions`, with everyone rested and plenty to spend.
+function convicted(sanctions: Sanction[]) {
+  const { s } = newGame(3);
+  const me = P(s, "p0");
+  me.sentence = { sanctions, turnsLeft: 3 };
+  me.convictions = 1;
+  for (const g of GOODS) me.goods[g] = 50;
+  P(s, "p1").goods.coin = 50;
+  return s;
+}
+
+test("war crimes: each punishment takes away exactly what it says", () => {
+  const cap = (s: GameState) => P(s, "p0").capital;
+  // Ceasefire: no invading or thundering Kirds, but the natives are fair game.
+  let s = convicted(["ceasefire"]);
+  assert.throws(() => strike(s, "p0", "p1"), /Ceasefire/);
+  strike(s, "p0", null);
+  s.heroes.casey = { owner: "p0", region: cap(s), movedTurn: 0 };
+  const near = NEIGHBORS.get(cap(s))!.find((n) => !s.regions[n].owner)!;
+  Object.assign(s.regions[near], { owner: "p1", native: null });
+  assert.throws(() => applyAction(s, "p0", { type: "thunder", target: near }, NOW), /Ceasefire/);
+
+  // Arms embargo: no recruiting or arming.
+  s = convicted(["arms"]);
+  assert.throws(() => applyAction(s, "p0", { type: "recruit", region: cap(s), unit: "panda", count: 1 }, NOW), /Arms embargo/);
+  assert.throws(() => applyAction(s, "p0", { type: "arm", region: cap(s), count: 1 }, NOW), /Arms embargo/);
+  strike(s, "p0", "p1"); // but they can still fight
+
+  // Gondola ban.
+  s = convicted(["gondolas"]);
+  assert.throws(() => applyAction(s, "p0", { type: "gondola", from: cap(s), to: NEIGHBORS.get(cap(s))![0] }, NOW), /Gondola ban/);
+  applyAction(s, "p0", { type: "recruit", region: cap(s), unit: "panda", count: 1 }, NOW);
+
+  // Trade sanctions: no Bank, and nobody trades with them either way.
+  s = convicted(["trade"]);
+  assert.throws(() => applyAction(s, "p0", { type: "buy", good: "iron", count: 1 }, NOW), /Trade sanctions/);
+  assert.throws(() => applyAction(s, "p0", { type: "bankTrade", give: "bamboo", get: "iron" }, NOW), /Trade sanctions/);
+  assert.throws(() => applyAction(s, "p0", { type: "exchange", from: "coin", to: "pandaCoin" }, NOW), /Trade sanctions/);
+  assert.throws(() => applyAction(s, "p0", { type: "offerTrade", to: "p1", give: { bamboo: 1 }, get: {} }, NOW), /Trade sanctions/);
+  s.activeSeat = 1;
+  assert.throws(() => applyAction(s, "p1", { type: "offerTrade", to: "p0", give: { coin: 1 }, get: {} }, NOW), /nobody can trade with Kird 0/);
+  applyAction(s, "p1", { type: "offerPact", to: "p0" }, NOW); // diplomacy is still open
+
+  // Heroes on strike: no hero bonus, no Thunder, no pickpocketing, no new heroes.
+  s = convicted(["heroes"]);
+  s.heroes.casey = { owner: "p0", region: cap(s), movedTurn: 0 };
+  assert.throws(() => applyAction(s, "p0", { type: "thunder", target: NEIGHBORS.get(cap(s))![0] }, NOW), /Casey won't throw thunder/);
+  assert.throws(() => applyAction(s, "p0", { type: "recruitHero", hero: "ping", region: cap(s) }, NOW), /no hero will sign up/);
+  s.heroes.josserkid = { owner: "p0", region: cap(s), movedTurn: 0 };
+  assert.throws(() => applyAction(s, "p0", { type: "pickpocket", target: "p1" }, NOW), /pick pockets/);
+  const { from, to } = stage(s, "p0", "p1", { panda: 3 });
+  s.heroes.casey.region = from;
+  const fight = invade(s, "p0", { type: "move", from, to, units: { cam: 5 } }).find((e) => e.type === "battle")!;
+  assert.equal((fight.data as unknown as import("./engine").BattleData).atkBonus, 0, "Casey sat that one out");
+});
+
+test("war crimes: a sentence runs for the criminal's turns, then the sanctions lift", () => {
+  const s = convicted(["arms"]);
+  const log: GameEvent[] = [];
+  for (let served = 1; served <= 3; served++) {
+    assert.ok(sanctioned(P(s, "p0"), "arms"), `still serving before turn ${served} ends`);
+    log.push(...applyAction(s, "p0", { type: "endTurn" }, NOW));
+    while (activePlayer(s).id !== "p0") log.push(...applyAction(s, activePlayer(s).id, { type: "endTurn" }, NOW));
+  }
+  assert.equal(P(s, "p0").sentence, null);
+  assert.ok(log.some((e) => e.type === "pardon" && e.public));
+  applyAction(s, "p0", { type: "recruit", region: P(s, "p0").capital, unit: "panda", count: 1 }, NOW);
+});
+
+test("war crimes: repeat offenders serve longer, and punishments stack on a sentence still being served", () => {
+  const { s } = rampage(3);
+  const me = P(s, "p0");
+  me.convictions = 2;
+  me.sentence = { sanctions: ["trade"], turnsLeft: 2 }; // one turn is served as this one ends
+  const id = trialFor(s, "p0")!.id;
+  s.offers.push({ id: "o99", kind: "trade", from: "p1", to: "p0", give: { coin: 1 }, get: {}, turn: s.turn });
+  applyAction(s, "p1", { type: "vote", trial: id, guilty: true, sanction: "ceasefire" }, NOW);
+  applyAction(s, "p2", { type: "vote", trial: id, guilty: true, sanction: "ceasefire" }, NOW);
+  applyAction(s, "p0", { type: "endTurn" }, NOW);
+  assert.deepEqual(P(s, "p0").sentence, { sanctions: ["ceasefire", "trade"], turnsLeft: 3 + 2 * 2 });
+  assert.equal(P(s, "p0").convictions, 3);
+  assert.equal(s.offers.length, 0, "open trades with a sanctioned Kird are called off");
+});
+
+test("war crimes: it takes three Kirds to hold a trial", () => {
+  const { s } = newGame(2);
+  for (let i = 0; i < TRIAL_AT + 2; i++) strike(s, "p0", "p1");
+  assert.ok(bloodthirst(P(s, "p0"), s.round) >= TRIAL_AT);
+  assert.equal(s.trials!.length, 0);
+});
+
+test("war crimes: leaving drops your trial and tears up your votes", () => {
+  const { s } = rampage(4);
+  const id = trialFor(s, "p0")!.id;
+  applyAction(s, "p1", { type: "vote", trial: id, guilty: true, sanction: "arms" }, NOW);
+  removePlayer(s, "p1", NOW);
+  assert.deepEqual(trialFor(s, "p0")!.votes, {});
+  removePlayer(s, "p0", NOW);
+  assert.equal(s.trials!.length, 0);
+});
+
+test("war crimes: worlds saved before the Tribunal existed carry on", () => {
+  const { s } = newGame(3);
+  delete s.trials;
+  for (const p of s.players) {
+    delete p.crimes;
+    delete p.grudges;
+    delete p.sentence;
+    delete p.convictions;
+  }
+  const old = JSON.parse(JSON.stringify(s)) as GameState;
+  for (const p of old.players) viewFor(old, p.id);
+  give(old, "p1", 8);
+  for (let i = 0; i < TRIAL_AT; i++) strike(old, "p0", "p1");
+  assert.ok(trialFor(old, "p0"), "a trial opens in an old world too");
+  applyAction(old, "p1", { type: "vote", trial: trialFor(old, "p0")!.id, guilty: true, sanction: SANCTIONS[0] }, NOW);
+  untilTurnOf(old, "p0");
+  assert.equal(P(old, "p0").convictions, 1);
+});
+
+// ---------------------------------------------------------------- the Tribunal and computer players
+
+// A world with a person ("human") and the given seats, each a computer player at `level` or a person when null.
+function tribunalWorld(seed: number, seats: [string, "easy" | "medium" | "hard" | null][]) {
+  const s = newWorld(seed, NOW);
+  addPlayer(s, "human", "Taylor");
+  for (const [id, level] of seats) addPlayer(s, id, id, level ?? undefined);
+  return s;
+}
+
+test("bots: computer jurors vote in every trial, and victims want a Ceasefire", () => {
+  const s = tribunalWorld(11, [["robo", "medium"], ["bao", "hard"]]);
+  give(s, "robo", 8);
+  for (let i = 0; i < TRIAL_AT; i++) strike(s, "human", "robo");
+  s.activeSeat = 0;
+  const events = applyAction(s, "human", { type: "endTurn" }, NOW);
+  events.push(...runBots(s, NOW));
+  const ballots = events.filter((e) => e.type === "vote");
+  assert.deepEqual(ballots.map((e) => e.only), [["robo"], ["bao"]], "each juror voted once, in secret");
+  const verdict = events.find((e) => e.type === "verdict")!;
+  assert.ok(verdict, "the whole jury voted, so the verdict came straight away");
+  assert.match(verdict.text, /GUILTY, 2 to 0/);
+  assert.ok(P(s, "human").sentence!.sanctions.includes("ceasefire"), "the victim asked for a Ceasefire");
+  assert.equal(activePlayer(s).id, "human");
+});
+
+test("bots: a generous enough trade buys a hard juror's vote", () => {
+  const verdictWith = (bribe: boolean) => {
+    const s = tribunalWorld(12, [["robo", "medium"], ["bao", "hard"]]);
+    give(s, "robo", 8);
+    for (let i = 0; i < TRIAL_AT; i++) strike(s, "human", "robo");
+    s.activeSeat = 0;
+    P(s, "human").goods.camCoin = 3;
+    if (bribe) applyAction(s, "human", { type: "offerTrade", to: "bao", give: { camCoin: 3 }, get: {} }, NOW);
+    const events = applyAction(s, "human", { type: "endTurn" }, NOW);
+    events.push(...runBots(s, NOW));
+    return events.find((e) => e.type === "vote" && e.only?.[0] === "bao")!.text;
+  };
+  assert.match(verdictWith(false), /voted GUILTY/, "hard bots are tough on people");
+  assert.match(verdictWith(true), /voted NOT GUILTY/, "…until the price is right");
+});
+
+test("bots: hard bots count the jury before they cross the line, medium bots don't bother", () => {
+  // `robo` is one point from trial (for past attacks on Taylor), with a big army next to a lone region of Taylor's
+  // and nothing else to hit. Do they attack?
+  const attacks = (level: "medium" | "hard", jurors: "people" | "machines") => {
+    const juror = jurors === "people" ? null : ("hard" as const);
+    const s = tribunalWorld(13, [["robo", level], ["j1", juror], ["j2", juror]]);
+    const home = P(s, "robo").capital;
+    const target = NEIGHBORS.get(home)!.find((n) => !s.regions[n].owner)!;
+    for (const n of NEIGHBORS.get(home)!) if (n !== target) Object.assign(s.regions[n], { owner: "robo", native: null, units: emptyUnits(), tired: emptyUnits() });
+    Object.assign(s.regions[target], { owner: "human", native: null, units: { ...emptyUnits(), panda: 1 }, tired: emptyUnits() });
+    Object.assign(s.regions[home], { units: { ...emptyUnits(), cam: 12 }, tired: emptyUnits() });
+    s.lines[lineId(home, target)] = { owner: "robo", builtTurn: 0 };
+    P(s, "robo").crimes = Array.from({ length: TRIAL_AT - 1 }, () => ({ round: s.round, victim: "human", region: target, kind: "invasion" as const, points: 1 }));
+    s.activeSeat = P(s, "robo").seat;
+    playBotTurn(s, NOW);
+    return Boolean(trialFor(s, "robo"));
+  };
+  assert.equal(attacks("hard", "people"), false, "people would convict, so the hard bot holds back");
+  assert.equal(attacks("hard", "machines"), true, "fellow machines would acquit, so it strikes");
+  assert.equal(attacks("medium", "people"), true, "medium bots are too hot-headed to care");
+});
+
+test("bots: a convicted bot serves its sentence, and a bot on trial sends a human juror a gift", () => {
+  const s = tribunalWorld(14, [["robo", "hard"], ["bao", "medium"]]);
+  const robo = P(s, "robo");
+  robo.sentence = { sanctions: [...SANCTION_LIST], turnsLeft: 3 };
+  for (const g of GOODS) robo.goods[g] = 30;
+  s.heroes.casey = { owner: "robo", region: robo.capital, movedTurn: 0 };
+  const events: GameEvent[] = [];
+  for (let round = 0; round < 4; round++) {
+    events.push(...applyAction(s, "human", { type: "endTurn" }, NOW));
+    events.push(...runBots(s, NOW));
+  }
+  const served = events.findIndex((e) => e.type === "pardon");
+  assert.ok(served > 0, "the sentence ran out");
+  const during = events.slice(0, served).filter((e) => e.actor === "robo");
+  for (const banned of ["recruit", "arm", "gondola", "bank", "thunder", "pickpocket", "hero"]) {
+    assert.ok(!during.some((e) => e.type === banned), `no ${banned} while sanctioned`);
+  }
+  assert.ok(!during.some((e) => (e.type === "battle" || e.type === "capture") && e.public), "no attacks on Kirds under a Ceasefire");
+
+  // On trial, a cunning bot tries to sweeten the one person on the jury.
+  const t = tribunalWorld(15, [["robo", "hard"], ["bao", "medium"]]);
+  const rival = P(t, "robo");
+  rival.goods.bamboo = 9;
+  t.trials!.push({ id: "t1", accused: "robo", openedRound: t.round, charges: [{ round: t.round, victim: "bao", region: rival.capital, kind: "invasion", points: 2 }], votes: {} });
+  t.activeSeat = rival.seat;
+  playBotTurn(t, NOW);
+  assert.ok(
+    t.offers.some((o) => o.kind === "trade" && o.from === "robo" && o.to === "human" && !Object.keys(o.get).length),
+    "a gift for the human juror",
+  );
+});
+
+test("bots: in long computer games the Tribunal sits, convicts and acquits, and the world never breaks", () => {
+  const outcome = { trial: 0, guilty: 0, acquitted: 0 };
+  for (const seed of [1, 2, 3]) {
+    const s = createGame(seed * 977, NOW);
+    const events: GameEvent[] = [];
+    events.push(...addPlayer(s, "human", "Taylor"));
+    (["easy", "medium", "hard", "hard"] as const).forEach((l, i) => events.push(...addPlayer(s, `bot${i}`, `Bot ${i}`, l)));
+    for (let round = 0; round < 70; round++) {
+      events.push(...applyAction(s, "human", { type: "endTurn" }, NOW));
+      events.push(...runBots(s, NOW));
+      checkInvariants(s, events);
+    }
+    for (const e of events) {
+      if (e.type === "trial") outcome.trial++;
+      if (e.type === "verdict") outcome[(e.data as { guilty: boolean }).guilty ? "guilty" : "acquitted"]++;
+    }
+  }
+  assert.ok(outcome.trial >= 3 && outcome.guilty >= 1 && outcome.acquitted >= 1, JSON.stringify(outcome));
+});
+
+// ---------------------------------------------------------------- the Tribunal in each player's view
+
+import { attackCost } from "./tribunal";
+
+test("tribunal view: the Bloodthirst preview always matches what the engine books", () => {
+  const { s } = newGame(4, 31);
+  const pairs = [["p0", "p1"], ["p1", "p0"], ["p0", "p1"], ["p0", "p1"], ["p2", "p3"], ["p0", "p2"], ["p0", "p3"], ["p0", "p1"], ["p3", "p0"], ["p0", "p3"], ["p0", "p2"]];
+  let doubles = 0;
+  for (const [i, [a, v]] of pairs.entries()) {
+    if (i === 5) give(s, "p0", 7); // from here on, p0 towers over everyone
+    s.activeSeat = P(s, a).seat;
+    const { from, to } = stage(s, a, v);
+    const cost = attackCost(viewFor(s, a), v)!;
+    const before = bloodthirst(P(s, a), s.round);
+    const events = invade(s, a, { type: "move", from, to, units: { cam: 1 } });
+    assert.equal(bloodthirst(P(s, a), s.round) - before, cost.points, `${a} → ${v}: points`);
+    assert.equal(events.some((e) => e.type === "trial"), cost.trial, `${a} → ${v}: trial`);
+    if (cost.points === 2) doubles++;
+  }
+  assert.ok(doubles > 0, "some attacks picked on the small");
+  assert.ok(trialFor(s, "p0"), "and p0 ended up on trial");
+});
+
+test("advisor and army: Sun Tzu knows about the Tribunal, and a Ceasefire makes a neighbour harmless", () => {
+  const { s } = newGame(3, 8);
+  // A trial with p0 on the jury: Sun Tzu reminds them to vote.
+  s.trials!.push({ id: "tx", accused: "p1", openedRound: 1, charges: [{ round: 1, victim: "p0", region: P(s, "p0").capital, kind: "invasion", points: 2 }], votes: {} });
+  assert.ok(advise(viewFor(s, "p0")).some((t) => t.id === "vote-tx" && t.tab === "diplomacy"));
+  // Under an arms embargo and a gondola ban he stops suggesting what can't be done.
+  assert.ok(advise(viewFor(s, "p0")).some((t) => t.action?.type === "gondola"), "normally the first line is suggested");
+  P(s, "p0").sentence = { sanctions: ["arms", "gondolas"], turnsLeft: 2 };
+  for (const t of advise(viewFor(s, "p0"))) assert.ok(t.action?.type !== "recruit" && t.action?.type !== "gondola", t.title);
+  P(s, "p0").sentence = null;
+
+  // One attack from a trial, an easy fight is still suggested, but flagged and explained.
+  const { to } = stage(s, "p0", "p1");
+  P(s, "p0").crimes = Array.from({ length: TRIAL_AT - 1 }, () => ({ round: s.round, victim: "p2", region: to, kind: "invasion" as const, points: 1 }));
+  const warned = advise(viewFor(s, "p0")).find((t) => t.plan?.to === to)!;
+  assert.ok(warned.warCrime && /on trial/.test(warned.detail!), JSON.stringify(warned));
+
+  // A big army next door is a danger, unless its owner is under a Ceasefire.
+  const home = P(s, "p0").capital;
+  const n = NEIGHBORS.get(home)!.find((x) => !s.regions[x].owner)!;
+  Object.assign(s.regions[n], { owner: "p2", native: null, units: { ...emptyUnits(), nacam: 9, cam: 3 } });
+  s.regions[home].units = { ...emptyUnits(), panda: 1 };
+  const danger = () => regionReports(viewFor(s, "p0")).find((r) => r.region.id === home)!.danger;
+  assert.equal(danger()?.owner, "p2");
+  P(s, "p2").sentence = { sanctions: ["ceasefire"], turnsLeft: 2 };
+  assert.equal(danger(), null);
+});
+
+test("autopilot: a person on autopilot sits on juries too, and the recap says how it voted", () => {
+  const s = tribunalWorld(16, [["alex", null], ["robo", "hard"]]);
+  applyAction(s, "alex", { type: "autopilot", on: true, level: "medium" }, NOW);
+  s.trials!.push({ id: "t9", accused: "robo", openedRound: s.round, charges: [{ round: s.round, victim: "alex", region: P(s, "alex").capital, kind: "invasion", points: 2 }], votes: {} });
+  const events = applyAction(s, "human", { type: "endTurn" }, NOW);
+  events.push(...runBots(s, NOW));
+  assert.ok(events.some((e) => e.type === "vote" && e.only?.[0] === "alex"), "the autopilot voted");
+  const recap = events.find((e) => e.type === "autopilotRecap" && e.only?.[0] === "alex")!;
+  assert.match(recap.text, /voted GUILTY in robo's war crimes trial/, "the victim's autopilot wants justice, and says so");
+  assert.ok(events.some((e) => e.type === "verdict"), "the verdict came when Robo's turn began");
 });

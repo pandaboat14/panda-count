@@ -1,7 +1,7 @@
 // A world event is drawn at the start of every round. Future seasons ("updates") add cards here:
 // give them a higher `season` and bump the game's season to put them in the deck.
 import type { GameState, Units } from "./engine";
-import { REGION_BY_ID } from "./regions";
+import { placeName } from "./regions";
 import { NATIVE_CAP } from "./rules";
 
 export type ModifierKind = "blight" | "gondolaStrike" | "mercMarket" | "caseySale";
@@ -15,7 +15,7 @@ export type WorldEvent = {
   apply: (s: GameState, h: Helpers) => string;
 };
 
-const name = (id: string) => REGION_BY_ID.get(id)?.name ?? id;
+const name = (s: GameState, id: string) => placeName(id, s.regions[id]?.name);
 const pickOne = <T>(h: Helpers, arr: T[]) => arr[Math.floor(h.rand() * arr.length)];
 // Room left under a native nation's cap for one unit type.
 const room = (native: string, unit: keyof Units, have: number) => Math.max(0, (NATIVE_CAP[native]?.[unit] ?? 0) - have);
@@ -30,7 +30,7 @@ export const WORLD_EVENTS: WorldEvent[] = [
       for (const r of Object.values(s.regions)) {
         if (r.owner && r.buildings.includes("sanctuary")) {
           r.units.panda += 1;
-          lucky.push(name(r.id));
+          lucky.push(name(s, r.id));
         }
       }
       return lucky.length ? `a cub was born in every Kird-held sanctuary (${lucky.join(", ")}).` : "wild cubs everywhere, but no Kird has a sanctuary to take them in.";
@@ -127,7 +127,7 @@ export const WORLD_EVENTS: WorldEvent[] = [
       if (!boom || !rich.length) return "prospectors searched everywhere and found nothing new.";
       const bust = pickOne(h, rich);
       [boom.token, bust.token] = [bust.token, boom.token];
-      return `prospectors struck it rich in ${name(boom.id)} (now ${boom.token}), while ${name(bust.id)} dried up (now ${bust.token}).`;
+      return `prospectors struck it rich in ${name(s, boom.id)} (now ${boom.token}), while ${name(s, bust.id)} dried up (now ${bust.token}).`;
     },
   },
   {
@@ -141,7 +141,7 @@ export const WORLD_EVENTS: WorldEvent[] = [
       const add = Math.min(2, room("wild", "panda", r.units.panda));
       r.native = "wild";
       r.units.panda += add;
-      return `${add} wild panda${add === 1 ? "" : "s"} wandered into ${name(r.id)}.`;
+      return `${add} wild panda${add === 1 ? "" : "s"} wandered into ${name(s, r.id)}.`;
     },
   },
   {
@@ -163,7 +163,7 @@ export const WORLD_EVENTS: WorldEvent[] = [
       const r = pickOne(h, beaches);
       const add = Math.min(2, room("cams", "cam", r.units.cam));
       r.units.cam += add;
-      return `${add} more CAM${add === 1 ? "" : "s"} showed up to flex in ${name(r.id)}.`;
+      return `${add} more CAM${add === 1 ? "" : "s"} showed up to flex in ${name(s, r.id)}.`;
     },
   },
   {

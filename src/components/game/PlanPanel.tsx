@@ -98,7 +98,7 @@ function TipButton({
   if (tip.tab) {
     return (
       <button className="btn ghost small" onClick={() => openTab(tip.tab!)}>
-        {tip.tab === "bank" ? "Open the Bank" : "See the offers"}
+        {tip.button ?? (tip.tab === "bank" ? "Open the Bank" : "See the offers")}
       </button>
     );
   }

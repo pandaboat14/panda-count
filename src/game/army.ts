@@ -2,8 +2,9 @@
 // Everything is worked out from the player's own view, so nothing hidden by the fog leaks.
 import { emptyUnits, unitTotal, type BattleData, type GameEvent, type GameView, type RegionView, type Units } from "./engine";
 import { defenseOdds } from "./odds";
-import { NEIGHBORS, REGION_BY_ID, lineId } from "./regions";
+import { NEIGHBORS, lineId, placeName } from "./regions";
 import { HEROES, HERO_IDS, NACAM_UPKEEP, PANDAS_PER_PANDACOIN, UNITS, UNIT_TYPES, type HeroId } from "./rules";
+import { sanctionedIn } from "./tribunal";
 
 export type ArmySummary = {
   total: Units;
@@ -76,8 +77,8 @@ export function regionReports(view: GameView): RegionReport[] {
       let danger: RegionReport["danger"] = null;
       for (const n of around) {
         const nb = byId.get(n);
-        // Natives never attack; only other Kirds' armies you can see count.
-        if (!nb || nb.fog || !nb.owner || nb.owner === view.me || pact(nb.owner) || !nb.units) continue;
+        // Natives never attack; only other Kirds' armies you can see count, and not those under a Ceasefire.
+        if (!nb || nb.fog || !nb.owner || nb.owner === view.me || pact(nb.owner) || !nb.units || sanctionedIn(view, nb.owner, "ceasefire")) continue;
         const send = { ...nb.units };
         const keep = (["panda", "armedPanda", "nacam", "cam"] as const).find((t) => send[t] > 0);
         if (!keep || unitTotal(send) < 2) continue;
@@ -117,7 +118,7 @@ export function battleRecord(view: GameView, events: GameEvent[]): BattleRecord[
     if (e.type !== "battle" || !e.data) continue;
     const d = e.data as unknown as BattleData;
     if (!d.attacker || !d.attackerLost || !d.defenderLost) continue;
-    const place = REGION_BY_ID.get(d.to)?.name ?? d.to;
+    const place = d.place ?? placeName(d.to, view.regions.find((r) => r.id === d.to)?.name);
     if (e.actor === view.me) {
       out.push({ event: e, role: "attack", won: d.won, place, opponent: name(d.defender, d.defenderName), lost: d.attackerLost, killed: d.defenderLost });
     } else if (d.defender === view.me) {

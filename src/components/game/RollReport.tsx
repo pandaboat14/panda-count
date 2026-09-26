@@ -2,12 +2,13 @@
 
 import type { CSSProperties, ReactNode } from "react";
 import type { GameView, PlayerView } from "@/game/engine";
-import { REGION_BY_ID } from "@/game/regions";
+import { placeName } from "@/game/regions";
 import { GOODS, GOOD_INFO, RAID_THRESHOLD, type Cost, type Good } from "@/game/rules";
 import { cardCount, type Payout, type RollShow } from "@/game/rollReport";
 import { GOOD_COLORS, inkOn } from "./colors";
 
-const regionName = (id: string) => REGION_BY_ID.get(id)?.name ?? id;
+// What a region is called now: a conqueror may have renamed it.
+const regionName = (view: GameView, id: string) => placeName(id, view.regions.find((r) => r.id === id)?.name);
 const an = (n: number) => (n === 8 || n === 11 ? "an" : "a");
 
 function andList(items: ReactNode[]) {
@@ -46,14 +47,15 @@ function Who({ p, me }: { p: PlayerView; me: string }) {
 }
 
 // Where a player's gains came from: the regions the viewer can see, or the fog.
-function sources(pays: Payout[]) {
-  const named = pays.filter((p) => p.region).map((p) => regionName(p.region!));
+function sources(view: GameView, pays: Payout[]) {
+  const named = pays.filter((p) => p.region).map((p) => regionName(view, p.region!));
   if (pays.some((p) => !p.region)) named.push("from the fog");
   return named.join(", ");
 }
 
 // What the dice did to one player, for their row (and yours).
-function Outcome({ show, pid, me, pays }: { show: RollShow; pid: string; me: string; pays: Payout[] }) {
+function Outcome({ show, pid, view, pays }: { show: RollShow; pid: string; view: GameView; pays: Payout[] }) {
+  const me = view.me;
   if (show.total === 7) {
     const lost = show.raided?.[pid] ?? 0;
     if (!lost) return <span className="safe">Safe</span>;
@@ -81,7 +83,7 @@ function Outcome({ show, pid, me, pays }: { show: RollShow; pid: string; me: str
   return (
     <>
       <Chips cost={got} />
-      <span className="r-src">{sources(pays.filter((p) => p.player === pid))}</span>
+      <span className="r-src">{sources(view, pays.filter((p) => p.player === pid))}</span>
     </>
   );
 }
@@ -102,7 +104,7 @@ function Where({ show, view, pays }: { show: RollShow; view: GameView; pays: Pay
           {andList(
             paid.map((p) => (
               <>
-                {regionName(p.region!)}{" "}
+                {regionName(view, p.region!)}{" "}
                 <span className="own" style={{ "--c": byId.get(p.player)?.color } as CSSProperties}>
                   ({owner(p.player)})
                 </span>
@@ -117,7 +119,7 @@ function Where({ show, view, pays }: { show: RollShow; view: GameView; pays: Pay
       {open.length > 0 && (
         <span className="muted">
           {open.length <= 2
-            ? `${open.map((r) => regionName(r.id)).join(" and ")} ${open.length > 1 ? "show" : "shows"} ${show.total} too, but nobody holds ${open.length > 1 ? "them" : "it"} yet.`
+            ? `${open.map((r) => regionName(view, r.id)).join(" and ")} ${open.length > 1 ? "show" : "shows"} ${show.total} too, but nobody holds ${open.length > 1 ? "them" : "it"} yet.`
             : `${open.length} unclaimed regions show ${show.total} too; nobody collects there.`}{" "}
         </span>
       )}
@@ -172,14 +174,14 @@ export function RollReport({ show, view, payouts }: { show: RollShow; view: Game
           {known && (
             <div className="r-line">
               <span className="r-label">From the dice</span>
-              <div className="r-val">{seven ? <span className="none">nothing on a 7</span> : <Outcome show={show} pid={view.me} me={view.me} pays={payouts} />}</div>
+              <div className="r-val">{seven ? <span className="none">nothing on a 7</span> : <Outcome show={show} pid={view.me} view={view} pays={payouts} />}</div>
             </div>
           )}
           {known && seven && (
             <div className="r-line">
               <span className="r-label">Ogre raid</span>
               <div className="r-val">
-                <Outcome show={show} pid={view.me} me={view.me} pays={payouts} />
+                <Outcome show={show} pid={view.me} view={view} pays={payouts} />
               </div>
             </div>
           )}
@@ -222,7 +224,7 @@ export function RollReport({ show, view, payouts }: { show: RollShow; view: Game
               <li key={p.id}>
                 <Who p={p} me={view.me} />
                 <div className="r-val">
-                  <Outcome show={show} pid={p.id} me={view.me} pays={payouts} />
+                  <Outcome show={show} pid={p.id} view={view} pays={payouts} />
                 </div>
               </li>
             ))}

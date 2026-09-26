@@ -7,6 +7,7 @@ import { REGION_BY_ID, type NativeNation } from "./regions";
 import { HEROES, HERO_IDS, UNIT_TYPES, type BuildingType, type HeroId, type UnitType } from "./rules";
 import * as BE from "./battle/engine";
 import type { Battle, BattleAction, BattleConfig, PlayerDoctrineId, SideKey, SquadSpec, TerrainId, WeaponId, WorldEventId } from "./battle/types";
+import { sanctionedIn } from "./tribunal";
 
 export type Odds = { win: number; attackerLoss: number; defenderLoss: number };
 
@@ -29,9 +30,9 @@ export function battleOdds(attacker: Units, atkBonus: number, defender: Units, d
   return { win: wins / sims, attackerLoss: aLoss / sims, defenderLoss: dLoss / sims };
 }
 
-// Hero bonus a player gets for battles in a region, from what the view shows.
+// Hero bonus a player gets for battles in a region, from what the view shows. (None while their heroes are on strike.)
 export function viewHeroBonus(view: GameView, pid: string | null | undefined, regionId: string) {
-  if (!pid) return 0;
+  if (!pid || sanctionedIn(view, pid, "heroes")) return 0;
   return HERO_IDS.reduce((n, h) => n + (view.heroes[h].owner === pid && view.heroes[h].region === regionId ? HEROES[h].combatBonus : 0), 0);
 }
 
@@ -109,7 +110,9 @@ export function simulateOdds(setup: OddsSetup, sims = BATTLE_SIMS): Odds {
   return odds;
 }
 
-const heroesIn = (view: GameView, owner: string | null | undefined, region: string) => (owner ? HERO_IDS.filter((h) => view.heroes[h].owner === owner && view.heroes[h].region === region) : []);
+// The heroes who'd take the field (none while that Kird's heroes are on strike).
+const heroesIn = (view: GameView, owner: string | null | undefined, region: string) =>
+  owner && !sanctionedIn(view, owner, "heroes") ? HERO_IDS.filter((h) => view.heroes[h].owner === owner && view.heroes[h].region === region) : [];
 const activeEvents = (view: GameView) => [...new Set(view.modifiers.filter((m) => m.untilRound >= view.round).map((m) => m.kind))] as WorldEventId[];
 
 // The gear each unit type carries, from an Armory (the viewer only knows their own).

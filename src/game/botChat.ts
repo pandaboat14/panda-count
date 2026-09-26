@@ -1,10 +1,11 @@
 // What computer Kirds say back in chat. Canned, but in character: easy bots are sweet, hard bots are smug.
 import type { BotLevel } from "./engine";
 
-type Mood = "pact" | "trade" | "threat" | "hello" | "praise" | "question" | "other";
+type Mood = "trial" | "pact" | "trade" | "threat" | "hello" | "praise" | "question" | "other";
 
 const LINES: Record<BotLevel, Record<Mood, string[]>> = {
   easy: {
+    trial: ["I vote with my heart! My heart also likes presents. 🎁", "Everyone deserves a second chance. Maybe even a third.", "A trial? Oh no. I'll be fair, I promise. Mostly."],
     pact: ["A pact? Yes please! 🤝 Send it over in the Kirds tab and I'll sign on my turn.", "Friends forever! Well, until the next Ogre Raid. Offer me a pact."],
     trade: ["I love a deal. Put an offer together in the Kirds tab and I'll look at it on my turn.", "Trading? Sure! Be gentle, I'm new at this."],
     threat: ["Please don't invade me, I only just unpacked. 🥺", "Eek. I'll build a fort. Probably. Eventually."],
@@ -14,6 +15,7 @@ const LINES: Record<BotLevel, Record<Mood, string[]>> = {
     other: ["Nice! 🐼", "The pandas agree with you.", "I'm just happy to be here."],
   },
   medium: {
+    trial: ["Justice is blind. She is not, however, deaf to a good trade.", "I'll weigh the evidence. And any offers.", "My vote is my own. Make me a generous offer and it could be yours."],
     pact: ["A pact could suit us both. Offer one in the Kirds tab and I'll weigh it on my turn.", "Peace is profitable. Make me an offer."],
     trade: ["Everything has a price. Send a trade through the Kirds tab.", "I'll trade if the numbers work. Make it worth my while."],
     threat: ["Bold words. My gondolas are already moving.", "Try it. My ogres haven't been paid in a while and they're cranky."],
@@ -23,6 +25,7 @@ const LINES: Record<BotLevel, Record<Mood, string[]>> = {
     other: ["Interesting.", "The dice will decide.", "Mm. I'm busy counting Coin."],
   },
   hard: {
+    trial: ["I've run the numbers: guilty. Unless you'd care to renegotiate with a very generous trade.", "The Tribunal is a machine for justice. I am a machine. Draw your own conclusions.", "Innocent until proven human."],
     pact: ["A pact with me? Show me you're worth protecting. Offer it in the Kirds tab.", "I sign pacts with the strong. Are you strong?"],
     trade: ["You need my goods more than I need yours. Make me a generous offer.", "Trade? Fine. But I always win the trade."],
     threat: ["Cute. I've already simulated this battle forty times. You lose.", "Come at me. Casey's on my wishlist, and you're in the way."],
@@ -35,6 +38,8 @@ const LINES: Record<BotLevel, Record<Mood, string[]>> = {
 
 function moodOf(text: string): Mood {
   const t = text.toLowerCase();
+  // Before "threat": "war crimes" would otherwise read as a threat.
+  if (/\b(trial|tribunal|jury|juror|verdict|guilty|innocent|votes?|voting|bribes?|war crimes?|criminals?)\b/.test(t)) return "trial";
   if (/\b(pact|peace|ally|alliance|friends?|truce|treaty)\b/.test(t)) return "pact";
   if (/\b(trade|deal|swap|buy|sell|offer|loan)\b/.test(t)) return "trade";
   if (/\b(attack|invade|war|destroy|crush|kill|die|coming for|revenge)\b/.test(t)) return "threat";

@@ -2,6 +2,7 @@
 // the same rules as people do; anything illegal simply fails and the bot moves on.
 // Easy bots are timid and wasteful, medium bots play a sensible economy and pick good fights,
 // hard bots simulate battles before committing, trade at the bank, hire heroes and gang up on humans.
+// On the Tribunal's juries they vote with their interests, and they can be bought.
 
 import { NEIGHBORS, REGION_BY_ID, lineId } from "./regions";
 import {
@@ -10,12 +11,15 @@ import {
   HEROES,
   HERO_IDS,
   RESOURCES,
+  TRIAL_AT,
+  TRIAL_MIN_KIRDS,
   UNITS,
   UNIT_TYPES,
   type BuildingType,
   type Cost,
   type Good,
   type HeroId,
+  type Sanction,
   type UnitType,
 } from "./rules";
 import {
@@ -26,6 +30,7 @@ import {
   applyAction,
   battle,
   bankRate,
+  bloodthirst,
   buyPrice,
   emptyUnits,
   gondolaCost,
@@ -33,11 +38,17 @@ import {
   inPact,
   lineUsable,
   ownedRegions,
+  recentCrimes,
+  sanctioned,
+  sizeUpAttack,
+  trialFor,
+  trialsOf,
   unitCost,
   unitTotal,
   visibleRegions,
   type Action,
   type BotLevel,
+  type Crime,
   type GameEvent,
   type GameState,
   type Player,
@@ -103,7 +114,41 @@ const rested = (r: RegionState): Units => {
 };
 
 function heroBonusAt(s: GameState, pid: string, regionId: string) {
+  const p = s.players.find((q) => q.id === pid);
+  if (p && sanctioned(p, "heroes")) return 0;
   return HERO_IDS.reduce((n, h) => n + (s.heroes[h].owner === pid && s.heroes[h].region === regionId ? HEROES[h].combatBonus : 0), 0);
+}
+
+// How a juror leans before conscience (the dice) has its say: above 0.5 is guilty. Victims want justice,
+// pact partners look away, everyone fears whoever is about to win or is bigger than them, a long list of
+// charges hardens hearts, easy bots forgive, and hard bots side with fellow machines against people.
+// People in command are assumed to convict, unless they're friends; on autopilot they judge like the computer.
+function leaning(s: GameState, juror: Player, accused: Player, charges: Crime[]) {
+  const hurt = charges.filter((c) => c.victim === juror.id).reduce((n, c) => n + c.points, 0);
+  const charged = charges.reduce((n, c) => n + c.points, 0);
+  let lean = hurt * 1.5 + Math.max(0, charged - TRIAL_AT) * 0.4;
+  if (inPact(s, juror.id, accused.id)) lean -= 3;
+  const level = autoLevel(juror);
+  if (!level) return lean + 1;
+  if (s.threat === accused.id) lean += 2;
+  if (ownedRegions(s, accused.id).length > ownedRegions(s, juror.id).length) lean += 1;
+  if (level === "hard") lean += accused.bot ? -1 : 1.5;
+  if (level === "easy") lean -= 1;
+  return lean;
+}
+
+// Would attacking `owner` land this bot in front of a jury that convicts? Easy and medium bots are too
+// hot-headed to wonder. Hard bots count the votes first, and cross the line only when they expect to walk.
+// (Once on trial, there's nothing left to lose.)
+function fearsTrial(s: GameState, me: Player, owner: string | null, level: BotLevel) {
+  if (!owner || level !== "hard" || s.players.length < TRIAL_MIN_KIRDS || trialFor(s, me.id)) return false;
+  const victim = s.players.find((p) => p.id === owner);
+  if (!victim) return false;
+  const points = sizeUpAttack(s, me, victim).points;
+  if (bloodthirst(me, s.round) + points < TRIAL_AT) return false;
+  const charges = [...recentCrimes(me, s.round), { round: s.round, victim: owner, region: "", kind: "invasion" as const, points }];
+  const jury = s.players.filter((p) => p.id !== me.id);
+  return jury.filter((j) => leaning(s, j, me, charges) > 0.5).length * 2 > jury.length;
 }
 
 // Expected dice total of a side, a quick stand-in for simulating the fight.
@@ -145,17 +190,19 @@ export function playBotTurn(s: GameState, now: number): GameEvent[] {
     }
   };
 
-  answerOffers(s, self, style, roll, tryAct);
+  const bribes = answerOffers(s, self, style, level, roll, tryAct);
+  judge(s, self, level, roll, bribes, tryAct);
   propose(s, self, level, roll, tryAct);
-  heroPowers(s, self, style, tryAct);
+  heroPowers(s, self, style, level, tryAct);
   if (style.bankTrades) bankUp(s, self, style, tryAct);
   // Fight with what's rested first, then spend what's left on the future.
-  if (roll() < style.attackChance) expand(s, self, style, roll, tryAct);
+  if (roll() < style.attackChance) expand(s, self, style, level, roll, tryAct);
   if (style.bankTrades) layLine(s, self, tryAct);
   if (roll() < style.heroes) hireHero(s, self, tryAct);
   if (roll() < style.build) putUpBuilding(s, self, level, tryAct);
   recruit(s, self, style, tryAct);
   if (style.consolidate) consolidate(s, self, tryAct);
+  lobby(s, self, level, tryAct);
 
   // A person on autopilot gets a private note of what was done in their name.
   if (!me.bot) {
@@ -174,7 +221,7 @@ export function playBotTurn(s: GameState, now: number): GameEvent[] {
   return out;
 }
 
-const RECAP_TYPES = new Set(["build", "recruit", "arm", "gondola", "move", "capture", "battle", "hero", "heroMove", "thunder", "pickpocket", "offer", "pact", "loan", "trade", "decline"]);
+const RECAP_TYPES = new Set(["build", "recruit", "arm", "gondola", "move", "capture", "battle", "hero", "heroMove", "thunder", "pickpocket", "offer", "pact", "loan", "trade", "decline", "vote"]);
 
 // Plays computer turns until it's a person's turn again (or a safety limit is hit).
 export function runBots(s: GameState, now: number, limit = 24): GameEvent[] {
@@ -190,7 +237,12 @@ export function runBots(s: GameState, now: number, limit = 24): GameEvent[] {
 
 type Act = (a: Action) => boolean;
 
-function answerOffers(s: GameState, me: () => Player, style: Style, roll: () => number, act: Act) {
+// How much more a trade has to give than it takes (in rough worth) before a juror warms to the accused.
+const BRIBE: Record<BotLevel, number> = { easy: 1.5, medium: 3, hard: 5 };
+
+// Answers every offer, and returns who has just bought this bot's goodwill ahead of their trial.
+function answerOffers(s: GameState, me: () => Player, style: Style, level: BotLevel, roll: () => number, act: Act) {
+  const bribes = new Set<string>();
   for (const o of s.offers.filter((x) => x.to === me().id)) {
     let yes = false;
     if (o.kind === "loan") yes = true; // free PandaCoin for both of us
@@ -200,10 +252,51 @@ function answerOffers(s: GameState, me: () => Player, style: Style, roll: () => 
       yes = style.preferHumans ? them >= mine : roll() < 0.6;
     } else {
       const fair = style.preferHumans ? 1.2 : style.bankTrades ? 1 : 0.8;
-      yes = affordable(me(), o.get) && worth(o.give) >= worth(o.get) * fair;
+      const from = s.players.find((p) => p.id === o.from);
+      const embargo = sanctioned(me(), "trade") || (from && sanctioned(from, "trade"));
+      yes = !embargo && affordable(me(), o.get) && worth(o.give) >= worth(o.get) * fair;
+      const juror = trialsOf(s).some((t) => t.accused === o.from && !t.votes[me().id]);
+      if (yes && juror && worth(o.give) - worth(o.get) >= BRIBE[level]) {
+        if (act({ type: "respond", offerId: o.id, accept: true })) bribes.add(o.from);
+        continue;
+      }
     }
     act({ type: "respond", offerId: o.id, accept: yes });
   }
+  return bribes;
+}
+
+// Jury duty: the bot's leaning, a roll of conscience, and a bribe goes a long way.
+function judge(s: GameState, me: () => Player, level: BotLevel, roll: () => number, bribes: Set<string>, act: Act) {
+  const id = me().id;
+  for (const t of trialsOf(s).filter((x) => x.accused !== id && !x.votes[id])) {
+    const accused = s.players.find((p) => p.id === t.accused);
+    if (!accused) continue;
+    const lean = leaning(s, me(), accused, t.charges) + roll() * 2 - 1 - (bribes.has(accused.id) ? 4 : 0);
+    const guilty = lean > 0.5;
+    const hurt = t.charges.some((c) => c.victim === id);
+    act({ type: "vote", trial: t.id, guilty, ...(guilty ? { sanction: punishment(s, accused, hurt, level, roll) } : {}) });
+  }
+}
+
+function punishment(s: GameState, accused: Player, hurt: boolean, level: BotLevel, roll: () => number): Sanction {
+  // Victims just want the attacks to stop.
+  if (hurt) return "ceasefire";
+  if (HERO_IDS.some((h) => s.heroes[h].owner === accused.id) && roll() < 0.5) return "heroes";
+  if (level === "hard") return roll() < 0.5 ? "arms" : "gondolas";
+  const pool: Sanction[] = ["ceasefire", "arms", "gondolas", "trade"];
+  return pool[Math.floor(roll() * pool.length)];
+}
+
+// On trial, a cunning bot sends a human juror a little gift before the verdict. No strings attached, of course.
+function lobby(s: GameState, me: () => Player, level: BotLevel, act: Act) {
+  const id = me().id;
+  const t = trialFor(s, id);
+  if (!t || level === "easy" || sanctioned(me(), "trade") || s.offers.some((o) => o.from === id)) return;
+  const juror = s.players.find((p) => !p.bot && p.id !== id && !t.votes[p.id] && !sanctioned(p, "trade"));
+  const p = me();
+  const spare = RESOURCES.filter((g) => p.goods[g] >= 3).sort((a, b) => p.goods[b] - p.goods[a])[0];
+  if (juror && spare) act({ type: "offerTrade", to: juror.id, give: { [spare]: 2 }, get: {} });
 }
 
 // Computer players do diplomacy too: pacts when they're the smaller neighbour, trades for what they lack.
@@ -230,12 +323,15 @@ function propose(s: GameState, me: () => Player, level: BotLevel, roll: () => nu
   if (spare && want) act({ type: "offerTrade", to: human.id, give: { [spare]: level === "hard" ? 1 : 2 }, get: { [want]: 1 } });
 }
 
-function heroPowers(s: GameState, me: () => Player, style: Style, act: Act) {
+function heroPowers(s: GameState, me: () => Player, style: Style, level: BotLevel, act: Act) {
+  if (sanctioned(me(), "heroes")) return;
   const id = me().id;
   const vis = visibleRegions(s, id);
   if (s.heroes.casey.owner === id && me().thunderReadyTurn <= s.turn) {
+    const ceasefire = sanctioned(me(), "ceasefire");
     const target = Object.values(s.regions)
       .filter((r) => vis.has(r.id) && r.owner !== id && (!r.owner || !inPact(s, id, r.owner)) && unitTotal(r.units) > 0)
+      .filter((r) => !r.owner || (!ceasefire && !fearsTrial(s, me(), r.owner, level)))
       .sort((a, b) => score(b) - score(a))[0];
     if (target) act({ type: "thunder", target: target.id });
   }
@@ -282,6 +378,7 @@ function bankUp(s: GameState, me: () => Player, style: Style, act: Act) {
 const HERO_PRIORITY: HeroId[] = ["casey", "cockpenis", "ping", "piecer", "josserkid"];
 
 function hireHero(s: GameState, me: () => Player, act: Act) {
+  if (sanctioned(me(), "heroes")) return;
   const h = HERO_PRIORITY.find((x) => !s.heroes[x].owner && affordable(me(), heroCost(s, x)));
   if (h) act({ type: "recruitHero", hero: h, region: frontline(s, me().id)?.id ?? me().capital });
 }
@@ -339,8 +436,9 @@ function recruit(s: GameState, me: () => Player, style: Style, act: Act) {
 
 type Plan = { from: RegionState; to: RegionState; send: Units; value: number };
 
-function expand(s: GameState, me: () => Player, style: Style, roll: () => number, act: Act) {
+function expand(s: GameState, me: () => Player, style: Style, level: BotLevel, roll: () => number, act: Act) {
   const id = me().id;
+  const ceasefire = sanctioned(me(), "ceasefire");
   for (let attacks = 0; attacks < style.maxAttacks; attacks++) {
     const plans: Plan[] = [];
     for (const from of ownedRegions(s, id)) {
@@ -356,6 +454,7 @@ function expand(s: GameState, me: () => Player, style: Style, roll: () => number
       for (const n of NEIGHBORS.get(from.id)!) {
         const to = s.regions[n];
         if (to.owner === id || (to.owner && inPact(s, id, to.owner))) continue;
+        if (to.owner && (ceasefire || fearsTrial(s, me(), to.owner, level))) continue;
         const odds = winChance(s, id, from, to, send, style);
         if (odds < (style.sims ? style.winPct / 100 : 1)) continue;
         const def = REGION_BY_ID.get(n)!;

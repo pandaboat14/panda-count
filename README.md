@@ -52,7 +52,8 @@ Its data lives in the `world_places` and `wild_ranges` tables. The starting data
   - `regions.ts`: the ~60-region map and its gondola neighbours.
   - `rules.ts`: every cost and number, the units, buildings and heroes.
   - `worldEvents.ts`: the round-by-round event deck.
-  - `engine.ts`: the pure rules engine, including fog of war.
+  - `engine.ts`: the pure rules engine, including fog of war and the war crimes Tribunal (Bloodthirst, trials, secret ballots, sentences).
+  - `tribunal.ts`: the Tribunal as one player sees it: attack previews, votes owed, sanctions.
 - **Where it runs:** the engine runs only on the server (`src/lib/game/store.ts`, `src/app/api/game/[id]`). Browsers get a fog-filtered view, and every move is validated and saved atomically with optimistic locking.
 - **Tests:** `npm test` runs the engine tests, including a fuzzer that plays thousands of random actions and checks the world never breaks.
 - **Turn emails:** when a turn passes, the next player gets an email with a "since your last turn" summary, sent through [Resend](https://resend.com). Set `RESEND_API_KEY` (and optionally `EMAIL_FROM`, default `Panda Diplomacy <turns@pandacount.net>`) in Vercel, and verify pandacount.net in Resend. Without the key, emails are simply skipped. Players can switch emails off with the 🔔 button in a game.

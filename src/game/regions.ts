@@ -146,6 +146,9 @@ function buildNeighbors() {
 export const NEIGHBORS: Map<string, string[]> = buildNeighbors();
 export const REGION_BY_ID = new Map(REGIONS.map((r) => [r.id, r]));
 
+// What a region is called now: the name its conqueror gave it, or its real-world name.
+export const placeName = (id: string, renamed?: string | null) => renamed || REGION_BY_ID.get(id)?.name || id;
+
 export const areNeighbors = (a: string, b: string) => NEIGHBORS.get(a)?.includes(b) ?? false;
 
 // A gondola line is identified by its two endpoints in alphabetical order.

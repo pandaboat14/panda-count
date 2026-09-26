@@ -2,8 +2,9 @@
 // from what that player can see (their GameView), so it never leaks anything hidden by the fog.
 import { emptyUnits, unitTotal, type Action, type GameView, type RegionView, type Units } from "./engine";
 import { attackOdds } from "./odds";
-import { NEIGHBORS, REGION_BY_ID, lineId } from "./regions";
-import { BUILDINGS, GOODS, GOOD_INFO, RAID_THRESHOLD, RESOURCES, UNIT_TYPES, type Cost, type Good } from "./rules";
+import { NEIGHBORS, REGION_BY_ID, lineId, placeName } from "./regions";
+import { BUILDINGS, GOODS, GOOD_INFO, RAID_THRESHOLD, RESOURCES, UNIT_TYPES, type Cost, type Good, type Sanction } from "./rules";
+import { attackCost, ballotsDue, onTrial, sanctionedIn, tribunalSits } from "./tribunal";
 
 export type Suggestion = {
   id: string;
@@ -17,9 +18,9 @@ export type Suggestion = {
   focus?: string;
   plan?: { from: string; to: string };
   tab?: "diplomacy" | "bank";
+  button?: string; // label for the `tab` button
+  warCrime?: boolean; // this attack would put you on trial
 };
-
-const name = (id: string) => REGION_BY_ID.get(id)?.name ?? id;
 
 function restedOf(r: RegionView): Units {
   const u = emptyUnits();
@@ -69,12 +70,16 @@ export function advise(view: GameView): Suggestion[] {
   const price = view.prices.buyPrice;
   const mine = view.regions.filter((r) => r.owner === view.me);
   const byId = new Map(view.regions.map((r) => [r.id, r]));
+  const name = (id: string) => placeName(id, byId.get(id)?.name);
   const pact = (pid?: string | null) => Boolean(pid) && view.pacts.some((p) => (p.a === view.me && p.b === pid) || (p.b === view.me && p.a === pid));
   const lineOk = (a: string, b: string) => {
     const l = view.lines.find((x) => x.id === lineId(a, b));
     return Boolean(l) && (l!.owner === view.me || (byId.get(a)?.owner === view.me && byId.get(b)?.owner === view.me));
   };
   const strike = view.modifiers.some((m) => m.kind === "gondolaStrike");
+  // What a war crimes sentence has taken away, and whether the Bank will sell what's missing.
+  const barred = (k: Sanction) => sanctionedIn(view, view.me, k);
+  const obtainable = (c: Cost) => has(goods, c) || (!barred("trade") && Boolean(fillCost(goods, c, price)));
   const out: Suggestion[] = [];
 
   const offers = view.offers.filter((o) => o.to === view.me);
@@ -82,21 +87,34 @@ export function advise(view: GameView): Suggestion[] {
     out.push({ id: "offers", icon: "📨", title: `${offers.length} offer${offers.length === 1 ? "" : "s"} waiting for your answer`, detail: "Trades, pacts and panda loans from other Kirds.", tab: "diplomacy" });
   }
 
-  // Fights worth picking, best first.
-  type Fight = { from: string; to: string; send: Units; win: number; lose: number; value: number; line: boolean };
+  // The Tribunal: a vote owed, or your own trial to fight.
+  const ballot = ballotsDue(view)[0];
+  if (ballot) {
+    const who = view.players.find((p) => p.id === ballot.accused)?.name ?? "someone";
+    out.push({ id: `vote-${ballot.id}`, icon: "⚖️", title: `Vote in ${who}'s war crimes trial`, detail: "Guilty or not guilty, in secret. A guilty vote picks their punishment.", tab: "diplomacy", button: "Go to the Tribunal" });
+  }
+  if (onTrial(view, view.me)) {
+    out.push({ id: "trial", icon: "⚖️", title: "You're on trial for war crimes", detail: "The verdict comes when your next turn starts. Plead your case in chat, or sweeten a juror with a generous trade.", tab: "diplomacy", button: "See the charges" });
+  }
+
+  // Fights worth picking, best first. One that would land you in front of the Tribunal ranks lower.
+  type Fight = { from: string; to: string; send: Units; win: number; lose: number; value: number; line: boolean; warCrime: boolean };
   const fights: Fight[] = [];
+  const justice = tribunalSits(view);
   for (const r of mine) {
     const send = sendable(r);
     if (!unitTotal(send)) continue;
     for (const n of NEIGHBORS.get(r.id) ?? []) {
       const t = byId.get(n);
       if (!t || t.owner === view.me || t.fog || pact(t.owner)) continue;
+      if (t.owner && barred("ceasefire")) continue;
       // Fewer simulations than the attack preview: enough to rank options, cheap on phones.
       const odds = attackOdds(view, r.id, n, send, 120);
       if (!odds) continue;
       const hot = t.token === 6 || t.token === 8 ? 1 : t.token === 5 || t.token === 9 ? 0.5 : 0;
       const needed = RESOURCES.includes(REGION_BY_ID.get(n)!.resource) && !mine.some((m) => REGION_BY_ID.get(m.id)!.resource === REGION_BY_ID.get(n)!.resource) ? 0.6 : 0;
-      fights.push({ from: r.id, to: n, send, win: odds.win, lose: odds.attackerLoss, value: odds.win * 3 + hot + needed + (t.owner ? 0.4 : 0), line: lineOk(r.id, n) });
+      const warCrime = Boolean(justice && t.owner && attackCost(view, t.owner)?.trial);
+      fights.push({ from: r.id, to: n, send, win: odds.win, lose: odds.attackerLoss, value: odds.win * 3 + hot + needed + (t.owner ? 0.4 : 0) - (warCrime ? 2 : 0), line: lineOk(r.id, n), warCrime });
     }
   }
   fights.sort((a, b) => b.value - a.value);
@@ -107,18 +125,18 @@ export function advise(view: GameView): Suggestion[] {
       id: `attack-${f.from}-${f.to}`,
       icon: "⚔️",
       title: `Invade ${name(f.to)} from ${name(f.from)}`,
-      detail: `${Math.round(f.win * 100)}% chance to win${f.lose >= 0.5 ? `, losing about ${Math.round(f.lose)} unit${Math.round(f.lose) === 1 ? "" : "s"}` : ""}.`,
+      detail: `${Math.round(f.win * 100)}% chance to win${f.lose >= 0.5 ? `, losing about ${Math.round(f.lose)} unit${Math.round(f.lose) === 1 ? "" : "s"}` : ""}.${f.warCrime ? " ⚖️ But it would put you on trial for war crimes." : ""}`,
       plan: { from: f.from, to: f.to },
+      warCrime: f.warCrime,
     });
   }
 
   // Next best: lay a gondola toward a fight we'd win, so the army can go (now or next turn).
-  if (!strike) {
+  if (!strike && !barred("gondolas")) {
     const lineable = fights.find((f) => !f.line && f.win >= 0.6 && !view.lines.some((l) => l.id === lineId(f.from, f.to)));
     if (lineable) {
       const cost = view.prices.gondola;
-      const affordable = has(goods, cost) || fillCost(goods, cost, price);
-      if (affordable) {
+      if (obtainable(cost)) {
         out.push({
           id: `line-${lineable.from}-${lineable.to}`,
           icon: "🚡",
@@ -136,7 +154,7 @@ export function advise(view: GameView): Suggestion[] {
     (a, b) =>
       (NEIGHBORS.get(b.id) ?? []).filter((n) => byId.get(n)?.owner !== view.me).length - (NEIGHBORS.get(a.id) ?? []).filter((n) => byId.get(n)?.owner !== view.me).length,
   )[0];
-  if (front) {
+  if (front && !barred("arms")) {
     const one = view.prices.units.panda;
     let n = 0;
     while (n < 4 && has(goods, Object.fromEntries(Object.entries(one).map(([g, v]) => [g, (v ?? 0) * (n + 1)])) as Cost)) n++;
@@ -156,7 +174,7 @@ export function advise(view: GameView): Suggestion[] {
 
   // A Market pays for itself fast and makes the bank cheaper.
   const capital = mine.find((r) => r.id === me.capital) ?? mine[0];
-  if (capital && !mine.some((r) => r.buildings?.includes("market")) && (has(goods, BUILDINGS.market.cost) || fillCost(goods, BUILDINGS.market.cost, price))) {
+  if (capital && !mine.some((r) => r.buildings?.includes("market")) && obtainable(BUILDINGS.market.cost)) {
     out.push({
       id: "market",
       icon: "🏪",
@@ -169,7 +187,7 @@ export function advise(view: GameView): Suggestion[] {
 
   const cards = RESOURCES.reduce((n, g) => n + (goods[g] ?? 0), 0);
   if (cards > RAID_THRESHOLD) {
-    out.push({ id: "raid", icon: "🎲", title: `You're holding ${cards} resource cards`, detail: "If anyone rolls a 7, ogres raid everyone holding more than 9 and take half. Spend some.", tab: "bank" });
+    out.push({ id: "raid", icon: "🎲", title: `You're holding ${cards} resource cards`, detail: "If anyone rolls a 7, ogres raid everyone holding more than 9 and take half. Spend some.", tab: barred("trade") ? undefined : "bank" });
   }
 
   if (!out.length || (!ready.length && out.every((s) => s.id === "raid"))) {
