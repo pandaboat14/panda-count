@@ -10,6 +10,7 @@ export const RELEASES: Release[] = [
   {
     date: "2026-09-26",
     title: "Throw your dice onto the map",
+    pr: 14,
     notes: [
       "At the start of your turn your two dice hover over a tabletop world map in your colour. Tap them, or press and drag to flick them, and they bounce across the map before landing on your roll.",
       "The regions with the number you rolled light up, and their resources fly into each Kird's purse at the edge of the table.",
