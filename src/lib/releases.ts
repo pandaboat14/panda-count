@@ -10,6 +10,7 @@ export const RELEASES: Release[] = [
   {
     date: "2026-09-26",
     title: "Release notes",
+    pr: 6,
     notes: ["This page. Every update to Panda Count now gets a note here, linked from the bottom of each page."],
   },
   {
