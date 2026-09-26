@@ -50,7 +50,7 @@ export type OddsSetup = {
 
 // Real battles cost far more to play out than the old Risk sums, so previews play at most this many (enough to
 // rank fights and show a percentage, cheap enough for a phone), whatever a caller asks for.
-const PREVIEW_SIMS = 60;
+export const PREVIEW_SIMS = 60;
 const MAX_CACHE = 500;
 const cache = new Map<string, Odds>();
 

@@ -1177,3 +1177,51 @@ i.heat { background: radial-gradient(circle, #d64828 0%, #e97846 55%, #e9b8a8 10
 .log-trial button, .log-verdict button { color: #3d2f6b; font-weight: 700; }
 .log-pardon button { color: var(--forest); }
 @media (prefers-reduced-motion: reduce) { .tribunal-pill.mine { animation: none; } }
+
+/* Battles: the Bank's Bag and Armory, and Standing Orders */
+.chip.on .n { color: inherit; opacity: .8; }
+.chip .n { margin-left: 2px; }
+.kit h4 { margin: 14px 0 6px; font: 800 .72rem var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--forest-deep); }
+.kit h4 .muted { display: block; font: 400 .8rem var(--sans); letter-spacing: 0; text-transform: none; }
+.kit-item .stepper { background: var(--paper); }
+.kit-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.kit-item { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 8px; padding: 8px 10px; border-radius: 12px; background: var(--cream); }
+.kit-item.on { box-shadow: inset 0 0 0 2px var(--forest); }
+.kit-icon { font-size: 1.4rem; line-height: 1.25; text-align: center; }
+.kit-main { min-width: 0; }
+.kit-main p { margin: 2px 0; }
+.kit-name { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
+.kit-buy { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 6px; }
+.badge.have { background: #d9efdc; color: #1d5b2c; }
+.kit-unit { margin: 8px 0 2px; padding: 8px 10px; border-radius: 12px; background: var(--paper); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bamboo-deep) 45%, transparent); }
+.kit-unit .kit-name { margin: 0; }
+.kit-slots { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; margin: 6px 0 0; font-size: .82rem; }
+.kit-slots div { display: contents; }
+.kit-slots dt { font-weight: 800; color: var(--forest-deep); }
+.kit-slots dd { margin: 0; }
+.doctrine-pick { border: 0; margin: 8px 0 4px; padding: 0; display: grid; gap: 4px; min-width: 0; }
+.doctrine-pick legend { padding: 0; margin-bottom: 4px; }
+.doctrine-opt {
+  display: grid; grid-template-columns: auto 24px minmax(0, 1fr); align-items: start; gap: 6px; cursor: pointer;
+  padding: 6px 8px; border-radius: 10px; background: var(--cream); border: 1px solid transparent;
+}
+.doctrine-opt input { margin: 3px 0 0; accent-color: var(--forest); }
+.doctrine-opt.on { border-color: var(--forest); background: #e3eee6; }
+.doctrine-opt strong { font-size: .9rem; }
+.doctrine-opt .badge { margin-left: 6px; vertical-align: 1px; background: var(--paper); color: var(--forest); box-shadow: inset 0 0 0 1px var(--forest); }
+.badge.type-tag { white-space: nowrap; vertical-align: 2px; }
+.doctrine-opt .muted { display: block; margin-top: 1px; }
+.doctrine-pick:disabled .doctrine-opt { cursor: default; }
+.doctrine-pick:disabled .doctrine-opt:not(.on) { opacity: .7; }
+.doctrine-icon { font-size: 1.1rem; line-height: 1.3; text-align: center; }
+.orders > summary { cursor: pointer; padding: 2px 0; }
+.orders > summary strong { color: var(--forest); }
+.orders[open] > summary { margin-bottom: 4px; }
+.orders-part { margin-top: 12px; }
+.orders-part > p { margin: 0 0 4px; }
+.orders-own { list-style: none; margin: 4px 0; padding: 0; display: grid; gap: 4px; }
+.army-calc-hero { margin-top: 4px; max-width: 100%; font: 600 .8rem var(--sans); padding: 3px; border-radius: 8px; }
+.army-calc-mods p { margin: 0; }
+.army-calc-mods select { max-width: 100%; }
+.army-calc-out { transition: opacity .15s; }
+.army-calc-out.stale { opacity: .55; }

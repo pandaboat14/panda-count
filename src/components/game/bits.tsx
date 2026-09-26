@@ -44,14 +44,28 @@ export function times(cost: Cost, n: number): Cost {
   return Object.fromEntries(Object.entries(cost).map(([g, v]) => [g, (v ?? 0) * n])) as Cost;
 }
 
-export function Stepper({ value, min = 0, max, onChange, label }: { value: number; min?: number; max: number; onChange: (n: number) => void; label: string }) {
+export function Stepper({
+  value,
+  min = 0,
+  max,
+  onChange,
+  label,
+  disabled,
+}: {
+  value: number;
+  min?: number;
+  max: number;
+  onChange: (n: number) => void;
+  label: string;
+  disabled?: boolean;
+}) {
   return (
     <span className="stepper" aria-label={label}>
-      <button type="button" onClick={() => onChange(Math.max(min, value - 1))} disabled={value <= min} aria-label={`Fewer ${label}`}>
+      <button type="button" onClick={() => onChange(Math.max(min, value - 1))} disabled={disabled || value <= min} aria-label={`Fewer ${label}`}>
         −
       </button>
       <output>{value}</output>
-      <button type="button" onClick={() => onChange(Math.min(max, value + 1))} disabled={value >= max} aria-label={`More ${label}`}>
+      <button type="button" onClick={() => onChange(Math.min(max, value + 1))} disabled={disabled || value >= max} aria-label={`More ${label}`}>
         +
       </button>
     </span>

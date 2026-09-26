@@ -1,13 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { armySummary, battleRecord, heroBonusText, regionReports } from "@/game/army";
+import { DOCTRINES, TERRAIN, TYPES, UNITS as FIGHTERS, RULES as BATTLE_RULES } from "@/game/battle/codex";
+import type { PlayerDoctrineId, TerrainId } from "@/game/battle/types";
 import { canReplay } from "@/game/battleScript";
-import { emptyUnits, unitTotal, type GameEvent, type Units } from "@/game/engine";
-import { battleOdds } from "@/game/odds";
-import { BLOODTHIRST_ROUNDS, BUILDINGS, HEROES, NACAM_UPKEEP, TRIAL_AT, UNITS, UNIT_TYPES, type UnitType } from "@/game/rules";
+import { DEFAULT_DOCTRINE, PLAYER_DOCTRINES, emptyUnits, unitTotal, type GameEvent, type Units } from "@/game/engine";
+import { catapultOf } from "@/game/loadout";
+import { PREVIEW_SIMS, armoryGear, simulateOdds, type OddsSetup } from "@/game/odds";
+import { BLOODTHIRST_ROUNDS, BUILDINGS, HEROES, HERO_IDS, NACAM_UPKEEP, TRIAL_AT, UNITS, UNIT_TYPES, type HeroId, type UnitType } from "@/game/rules";
 import { onTrial, sanctionLabels, tribunalSits } from "@/game/tribunal";
 import { CostChips, Stepper } from "./bits";
+import { DefaultOrders } from "./Orders";
 import { OddsLine, meOf, playerName, regionName, type Ctx } from "./panels";
 
 const unitLine = (u: Partial<Units>) =>
@@ -68,7 +72,10 @@ export function ArmyPanel({
               <div>
                 <strong>
                   {sum.total[t]} {sum.total[t] === 1 ? UNITS[t].label : UNITS[t].plural}
-                </strong>
+                </strong>{" "}
+                <span className="badge type-tag" title={TYPES[FIGHTERS[t].type].why}>
+                  {TYPES[FIGHTERS[t].type].icon} {TYPES[FIGHTERS[t].type].label}
+                </span>
                 <span className="muted small">
                   {" "}
                   · {sum.ready[t]} ready · attack +{UNITS[t].attack} · defence +{UNITS[t].defense}
@@ -146,19 +153,42 @@ export function ArmyPanel({
         </ul>
       </section>
 
+      <DefaultOrders ctx={ctx} onManage={onManage} />
+
       <section className="act">
         <h3>⚔️ How battles are won</h3>
         <ol className="small army-rules">
-          <li>The attacker rolls one die for each of up to 3 units; the defender rolls for up to 2.</li>
           <li>
-            Each die adds its unit&rsquo;s bonus: 🐼 +0 attack / +1 defence, 🛡️ +1 / +2, 👹 +2 / +0, 💪 +2 / +2. Heroes add their bonus to every die,
-            and a 🏰 Fort adds +1 to every defending die.
+            <strong>Both sides pick a move each round</strong>: a Strike, a Guard, a Tactic, a Bag item, or a switch to another squad. One squad
+            fights at a time while the rest wait behind it.
           </li>
-          <li>Highest die against highest, then second against second. The higher die wins; <strong>ties go to the defender</strong>.</li>
-          <li>Each lost pairing kills that side&rsquo;s weakest unit. Rounds repeat until one side is wiped out.</li>
-          <li>Win and you take the region with everyone who survived. Lose and every attacker is gone.</li>
+          <li>
+            <strong>The dice pair off, highest against highest.</strong> The move says how many dice you throw (defenders throw one fewer on
+            Strikes). Attackers add their attack to every die and defenders their defence, plus hero auras and a 🏰 Fort&rsquo;s +1. The
+            higher total wins the pair, and <strong>ties go to the defender</strong>.
+          </li>
+          <li>
+            <strong>Every pair you win hurts</strong> their squad: each {FIGHTERS.panda.hp} damage fells a unit. A winning{" "}
+            {BATTLE_RULES.critOn} is a <strong>crit</strong> and hits half as hard again.
+          </li>
+          <li>
+            <strong>Types:</strong> Fluff 🐼 beats Glam 💪, Glam beats Brute 👹, Brute beats Steel 🛡️, and Steel beats Fluff, for 1.5× the damage
+            (and 0.75× the other way round). Heroes are <strong>Legends</strong>: they shrug off a quarter of every blow and hit every type evenly.
+          </li>
+          <li>
+            <strong>Momentum:</strong> every pair you win adds 1. At {BATTLE_RULES.momentumMax}, your squad can unleash its{" "}
+            <strong>Signature</strong> move.
+          </li>
+          <li>
+            <strong>Standing Orders fight for you while you&rsquo;re away</strong>, so nobody waits for the defender to wake up.
+          </li>
+          <li>
+            <strong>Retreat</strong> if it goes badly (they get a parting shot), or let <strong>Sun Tzu</strong> fight the rest for you. It ends
+            when one side has nobody left standing, or after {BATTLE_RULES.roundLimit} rounds, when the invasion stalls. Win, and your survivors
+            move in.
+          </li>
         </ol>
-        <Calculator />
+        <Calculator ctx={ctx} />
       </section>
 
       <section className="act">
@@ -252,54 +282,103 @@ function Stat({ label, value, note, warn }: { label: string; value: number; note
   );
 }
 
-// Try any matchup: the same dice rules the game uses, played out a couple of hundred times.
-function Calculator() {
+const TERRAIN_IDS = Object.keys(TERRAIN) as TerrainId[];
+
+// Try any matchup: the real battle rules, played out with fixed dice (so the same fight always shows the same number),
+// each side making its likely move every round. It only plays while it's open, and a busy phone keeps up because the
+// sums wait for your taps.
+function Calculator({ ctx }: { ctx: Ctx }) {
+  const armory = meOf(ctx.view).armory;
+  const hasKit = Object.keys(armoryGear(armory)).length > 0 || Boolean(catapultOf(armory));
+  const [open, setOpen] = useState(false);
   const [atk, setAtk] = useState<Units>({ ...emptyUnits(), panda: 3, nacam: 1 });
   const [def, setDef] = useState<Units>({ ...emptyUnits(), panda: 2 });
+  const [atkHero, setAtkHero] = useState<HeroId | "">("");
+  const [defHero, setDefHero] = useState<HeroId | "">("");
   const [fort, setFort] = useState(false);
-  const [atkHero, setAtkHero] = useState(0);
-  const [defHero, setDefHero] = useState(0);
-  const odds = useMemo(() => battleOdds(atk, atkHero, def, defHero + (fort ? 1 : 0)), [atk, def, fort, atkHero, defHero]);
-  const side = (u: Units, set: (u: Units) => void, label: string) => (
+  const [terrain, setTerrain] = useState<TerrainId>("bamboo");
+  const [doctrine, setDoctrine] = useState<PlayerDoctrineId>(DEFAULT_DOCTRINE);
+  const [kit, setKit] = useState(false);
+  const setup = useMemo<OddsSetup>(
+    () => ({
+      atk: {
+        units: atk,
+        heroes: atkHero ? [atkHero] : [],
+        ...(kit && hasKit ? { gear: armoryGear(armory), catapult: Boolean(catapultOf(armory)) } : {}),
+      },
+      def: { units: def, heroes: defHero ? [defHero] : [], doctrine },
+      terrain,
+      buildings: fort ? ["fort"] : [],
+    }),
+    [atk, def, atkHero, defHero, fort, terrain, doctrine, kit, hasKit, armory],
+  );
+  const shown = useDeferredValue(setup);
+  // Heroes only ride along with troops, and a region nobody holds is simply taken.
+  const ready = unitTotal(shown.atk.units) > 0 && unitTotal(shown.def.units) > 0;
+  const odds = useMemo(() => (open && ready ? simulateOdds(shown) : null), [open, ready, shown]);
+  const side = (u: Units, set: (u: Units) => void, hero: HeroId | "", setHero: (h: HeroId | "") => void, label: string) => (
     <div>
-      <p className="small"><strong>{label}</strong></p>
+      <p className="small">
+        <strong>{label}</strong>
+      </p>
       {UNIT_TYPES.map((t) => (
         <label key={t} className="trade-line">
           <span>{UNITS[t].icon}</span>
           <Stepper value={u[t]} max={30} onChange={(n) => set({ ...u, [t]: n })} label={`${label} ${UNITS[t].plural}`} />
         </label>
       ))}
+      <select className="army-calc-hero" value={hero} onChange={(e) => setHero(e.target.value as HeroId | "")} aria-label={`${label}' hero`}>
+        <option value="">No hero</option>
+        {HERO_IDS.map((h) => (
+          <option key={h} value={h}>
+            {HEROES[h].icon} {HEROES[h].name}
+          </option>
+        ))}
+      </select>
     </div>
   );
   return (
-    <details className="army-calc">
+    <details className="army-calc" onToggle={(e) => setOpen(e.currentTarget.open)}>
       <summary>🧮 Try a battle</summary>
       <div className="trade-cols">
-        {side(atk, setAtk, "Attackers")}
-        {side(def, setDef, "Defenders")}
+        {side(atk, setAtk, atkHero, setAtkHero, "Attackers")}
+        {side(def, setDef, defHero, setDefHero, "Defenders")}
       </div>
       <div className="army-calc-mods small">
+        <label>
+          Where{" "}
+          <select value={terrain} onChange={(e) => setTerrain(e.target.value as TerrainId)}>
+            {TERRAIN_IDS.map((t) => (
+              <option key={t} value={t}>
+                {TERRAIN[t].icon} {TERRAIN[t].label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="muted">{TERRAIN[terrain].text}</p>
         <label>
           <input type="checkbox" checked={fort} onChange={(e) => setFort(e.target.checked)} /> 🏰 Defenders have a Fort
         </label>
         <label>
-          Attacking hero bonus{" "}
-          <select value={atkHero} onChange={(e) => setAtkHero(Number(e.target.value))}>
-            <option value={0}>none</option>
-            <option value={1}>+1</option>
-            <option value={3}>+3 (Casey)</option>
+          Defenders&rsquo; orders{" "}
+          <select value={doctrine} onChange={(e) => setDoctrine(e.target.value as PlayerDoctrineId)}>
+            {PLAYER_DOCTRINES.map((d) => (
+              <option key={d} value={d}>
+                {DOCTRINES[d].icon} {DOCTRINES[d].label}
+              </option>
+            ))}
           </select>
         </label>
-        <label>
-          Defending hero bonus{" "}
-          <select value={defHero} onChange={(e) => setDefHero(Number(e.target.value))}>
-            <option value={0}>none</option>
-            <option value={1}>+1</option>
-            <option value={3}>+3 (Casey)</option>
-          </select>
-        </label>
+        {hasKit && (
+          <label>
+            <input type="checkbox" checked={kit} onChange={(e) => setKit(e.target.checked)} /> 🛡️ Attackers carry your Armory gear
+          </label>
+        )}
       </div>
-      {unitTotal(atk) > 0 && unitTotal(def) > 0 ? <OddsLine odds={odds} /> : <p className="muted small">Put someone on each side.</p>}
+      <div className={shown !== setup ? "army-calc-out stale" : "army-calc-out"} aria-live="polite">
+        {ready ? <OddsLine odds={odds} /> : <p className="muted small">Put someone on each side.</p>}
+      </div>
+      <p className="muted small">Played out {PREVIEW_SIMS} times by the real battle rules, each side making its likely move every round.</p>
     </details>
   );
 }

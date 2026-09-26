@@ -27,7 +27,10 @@ import { costLabel, fillCost } from "@/game/advisor";
 import { canReplay } from "@/game/battleScript";
 import { attackOdds, type Odds } from "@/game/odds";
 import { onTrial, sanctionIcons, sanctionLabels, sanctionedIn, tribunalSits } from "@/game/tribunal";
+import { bagCount } from "@/game/loadout";
 import { Avatar } from "../Avatar";
+import { ArmoryShop, BagShop } from "./Armory";
+import { StandingOrders } from "./Orders";
 import { Race } from "./Race";
 import { CostChips, Stepper, affordable, times } from "./bits";
 import { inkOn } from "./colors";
@@ -40,7 +43,24 @@ export type Ctx = {
   act: (a: Action) => Promise<GameEvent[] | false>;
   avatars: Record<string, string>;
   over?: boolean; // the game has ended: look, don't touch
+  toast?: (text: string) => void; // a short note along the bottom of the screen
 };
+
+// The same Ctx, but once a Bag item, a piece of gear or new Standing Orders go through, a toast says so in the
+// log's own words. (Resources bought on the way, to cover what was missing, don't get one of their own.)
+export function withToasts(ctx: Ctx): Ctx {
+  const { toast } = ctx;
+  if (!toast) return ctx;
+  return {
+    ...ctx,
+    act: async (a) => {
+      const evs = await ctx.act(a);
+      const done = evs && evs.findLast((e) => e.actor === ctx.view.me && (e.type === "orders" || (e.type === "bank" && e.data?.item)));
+      if (done) toast(done.text);
+      return evs;
+    },
+  };
+}
 
 // What a region is called now: a conqueror may have renamed it.
 export const regionName = (view: GameView, id: string) => placeName(id, view.regions.find((r) => r.id === id)?.name);
@@ -322,9 +342,10 @@ export function RegionPanel({
         )}
       </header>
 
+      {mine && myTurn && <SendTroops ctx={ctx} from={r} startMove={startMove} />}
+      {mine && !ctx.over && <StandingOrders ctx={ctx} region={r} />}
       {mine && myTurn && (
         <>
-          <SendTroops ctx={ctx} from={r} startMove={startMove} />
           <Gondolas ctx={ctx} from={r} />
           <Recruit ctx={ctx} region={r} />
           <Build ctx={ctx} region={r} />
@@ -788,7 +809,37 @@ function TradeBuilder({ ctx, to, onDone }: { ctx: Ctx; to: string; onDone: () =>
 
 // ---------------------------------------------------------------- bank
 
+// What the Bank has on offer: resources and currencies, the Bag's power-ups, and the Armory's gear.
+type Shelf = "trade" | "bag" | "armory";
+const SHELVES: [Shelf, string][] = [
+  ["trade", "💱 Resources"],
+  ["bag", "🎒 Bag"],
+  ["armory", "🛡️ Armory"],
+];
+
 export function BankPanel({ ctx }: { ctx: Ctx }) {
+  const { view } = ctx;
+  const [shelf, setShelf] = useState<Shelf>("trade");
+  const held = bagCount(meOf(view).bag);
+  return (
+    <div className="panel-body">
+      <h2>World Bank</h2>
+      <div className="dest-list" role="group" aria-label="What to buy">
+        {SHELVES.map(([k, label]) => (
+          <button key={k} type="button" aria-pressed={shelf === k} className={`chip${shelf === k ? " on" : ""}`} onClick={() => setShelf(k)}>
+            {label}
+            {k === "bag" && held > 0 && <span className="n">{held}</span>}
+          </button>
+        ))}
+      </div>
+      {shelf === "trade" && <TradeShelf ctx={ctx} />}
+      {shelf === "bag" && <BagShop ctx={ctx} />}
+      {shelf === "armory" && <ArmoryShop ctx={ctx} />}
+    </div>
+  );
+}
+
+function TradeShelf({ ctx }: { ctx: Ctx }) {
   const { view, myTurn, busy, act } = ctx;
   const me = meOf(view);
   const [give, setGive] = useState<Resource>("bamboo");
@@ -800,8 +851,7 @@ export function BankPanel({ ctx }: { ctx: Ctx }) {
   const maxBuy = Math.max(1, Math.min(20, Math.floor((me.goods?.coin ?? 0) / price)));
   const shut = !myTurn || busy || sanctionedIn(view, view.me, "trade");
   return (
-    <div className="panel-body">
-      <h2>World Bank</h2>
+    <>
       <SanctionNote view={view} sanction="trade">the World Bank won&rsquo;t serve a convicted war criminal</SanctionNote>
       <section className="act">
         <h3>🛒 Buy resources with Coin ({price} 🪙 each)</h3>
@@ -871,8 +921,9 @@ export function BankPanel({ ctx }: { ctx: Ctx }) {
             </li>
           ))}
         </ul>
+        <p className="muted small">Bag items and Armory gear have their own shelves above.</p>
       </section>
-    </div>
+    </>
   );
 }
 

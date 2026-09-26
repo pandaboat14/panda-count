@@ -434,7 +434,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
   );
   const onReady = useCallback(() => setReady(true), []);
 
-  const ctx: Ctx = { view, myTurn, busy, act, avatars: game.avatars, over };
+  const ctx: Ctx = { view, myTurn, busy, act, avatars: game.avatars, over, toast: setToast };
   const closeDice = useCallback(() => setDice(null), []);
 
   // Pick an attack (Sun Tzu's, or from a region's panel): straight into move mode, ready to choose who goes.

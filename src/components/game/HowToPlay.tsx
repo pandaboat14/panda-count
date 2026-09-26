@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { DOCTRINES, TYPES, UNITS as FIGHTERS, RULES as BATTLE_RULES } from "@/game/battle/codex";
+import { PLAYER_DOCTRINES } from "@/game/engine";
 import {
   BLOODTHIRST_ROUNDS,
   BUILDINGS,
   BUILDING_TYPES,
+  GEAR_BATTLES,
   HEROES,
   HERO_IDS,
   REPEAT_OFFENDER_TURNS,
@@ -16,6 +19,9 @@ import {
   UNITS,
   UNIT_TYPES,
 } from "@/game/rules";
+
+// "a, b, c or d"
+const listOr = (xs: string[]) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} or ${xs.at(-1)}`);
 
 export function HowToPlay({ onClose }: { onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -56,11 +62,12 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
           </li>
           <li>
             <strong>The World Bank</strong> sells any resource for 3 🪙 (2 🪙 once you own a Market), swaps resources 4 for 1 (3 with a
-            Market, 2 with Ping), and changes currencies. Any button you&rsquo;re short for offers to buy what&rsquo;s missing first.
+            Market, 2 with Ping), and changes currencies. Its 🎒 Bag and 🛡️ Armory shelves sell power-ups and gear for battle. Any button
+            you&rsquo;re short for offers to buy what&rsquo;s missing first.
           </li>
           <li>
             <strong>Do anything, in any order:</strong> build gondolas, recruit, build, move troops and invade (tap 🚡 Move troops), trade,
-            hire heroes, loan pandas.
+            hire heroes, loan pandas, stock your Bag, kit out your troops, and give your regions Standing Orders.
           </li>
           <li>Hit <strong>End turn</strong>. The next Kird gets a replay of everything they&rsquo;re allowed to see.</li>
         </ol>
@@ -118,20 +125,58 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
         </p>
         <h3>⚔️ Battles</h3>
         <p>
-          Open the <strong>⚔️ Army</strong> tab to see all your troops, where they are and which regions are at risk, your battle record,
-          and a calculator to try any fight before you pick it.
+          Invade a region with defenders and a battle starts, fought round by round like a Pokémon duel. Before you invade, the game shows
+          your <strong>chance to win</strong> and the losses to expect.
         </p>
+        <ul>
+          <li>
+            <strong>Each round</strong> both sides pick a move: a Strike, a Guard, a Tactic, a Bag item, or a switch to another squad. One
+            squad fights at a time while the rest wait behind it.
+          </li>
+          <li>
+            <strong>The dice pair off, highest against highest.</strong> Attackers add their attack to every die and defenders their defence;
+            heroes and Forts add more. The higher total wins the pair, and <strong>ties go to the defender</strong>. Every pair you win hurts
+            their squad, and a winning {BATTLE_RULES.critOn} is a crit that hits harder still.
+          </li>
+          <li>
+            <strong>Types:</strong> Fluff 🐼 beats Glam 💪, Glam beats Brute 👹, Brute beats Steel 🛡️, and Steel beats Fluff. Heroes are
+            Legends, tough against everything.
+          </li>
+          <li>
+            <strong>Momentum:</strong> every pair you win builds it. At {BATTLE_RULES.momentumMax}, your squad&rsquo;s Signature move is ready.
+          </li>
+          <li>
+            <strong>Retreat</strong> if it goes badly, or let <strong>Sun Tzu</strong> fight the rest for you (ending your turn mid-battle
+            does too). Win and the region, its buildings and any heroes there are yours (heroes flee, but Casey gets captured).
+          </li>
+        </ul>
         <p>
-          Risk rules: up to 3 attacking dice against 2 defending dice, highest against highest, ties to the defender, fought to the last
-          unit. Each die adds the unit&rsquo;s bonus. Forts add +1 to defenders; heroes add their bonus to battles fought from or in their
-          region. Win and the region, its buildings and any heroes there are yours (heroes flee, but Casey gets captured). Before you
-          invade, the game shows your <strong>chance to win</strong> and the losses to expect.
+          Open the <strong>⚔️ Army</strong> tab to see all your troops, where they are and which regions are at risk, your battle record, how
+          battles work in full, and a calculator to try any fight before you pick it.
         </p>
+        <h3>🎒 The Bag, 🛡️ the Armory and 📜 Standing Orders</h3>
+        <ul>
+          <li>
+            <strong>The Bag</strong> (🏦 Bank → 🎒 Bag) holds power-ups you buy with resources, like Rice Balls, Smoke Bombs and Lucky Gems.
+            Some take your squad&rsquo;s turn; others are free, before or after the dice.
+          </li>
+          <li>
+            <strong>The Armory</strong> (🏦 Bank → 🛡️ Armory) gives every unit of one type a weapon and a piece of armour, wherever they
+            are. Gear lasts {GEAR_BATTLES} battles. A Siege Catapult rolls out with your invasions and ignores Forts.
+          </li>
+          <li>
+            <strong>Standing Orders:</strong> you&rsquo;re rarely online when someone invades, so your troops fight by your orders. Pick a
+            default doctrine in the ⚔️ Army tab ({listOr(PLAYER_DOCTRINES.map((d) => `${DOCTRINES[d].icon} ${DOCTRINES[d].label}`))}), then
+            fine-tune any region in its panel: a doctrine of its own, who meets invaders first, how many Bag items they may use, and caltrops
+            laid in advance.
+          </li>
+        </ul>
         <h3>Units</h3>
         <ul>
           {UNIT_TYPES.map((t) => (
             <li key={t}>
-              {UNITS[t].icon} <strong>{UNITS[t].label}</strong> (atk +{UNITS[t].attack}, def +{UNITS[t].defense}): {UNITS[t].blurb}
+              {UNITS[t].icon} <strong>{UNITS[t].label}</strong> ({TYPES[FIGHTERS[t].type].label}, atk +{UNITS[t].attack}, def +{UNITS[t].defense}):{" "}
+              {UNITS[t].blurb}
             </li>
           ))}
         </ul>
