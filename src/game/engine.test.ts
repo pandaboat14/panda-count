@@ -792,3 +792,144 @@ test("autopilot: computer players can't switch it off", () => {
   const { s } = botGame(["easy"]);
   assert.throws(() => applyAction(s, "bot0", { type: "autopilot", on: false }, NOW), /always/);
 });
+
+// ---------------------------------------------------------------- the start-of-turn roll
+
+import type { IncomeData, RaidData, RollData } from "./engine";
+import { REGION_BY_ID } from "./regions";
+import { cardCount, payouts, rollShow } from "./rollReport";
+
+test("dice: a roll's data says exactly what each Kird collected, and nothing about who holds what", () => {
+  let checked = 0;
+  for (let seed = 1; seed <= 200 && checked < 12; seed++) {
+    const { s } = newGame(3, seed);
+    // Hand out plenty of land so most numbers pay somebody.
+    Object.values(s.regions)
+      .filter((r) => !r.owner)
+      .slice(0, 24)
+      .forEach((r, i) => Object.assign(r, { owner: s.players[i % 3].id, native: null }));
+    const before = s.players.map((p) => ({ ...p.goods }));
+    const events = applyAction(s, "p0", { type: "endTurn" }, NOW); // p1's turn starts with the roll
+    const roll = events.find((e) => e.type === "roll")!;
+    const data = roll.data as RollData;
+    const total = data.roll[0] + data.roll[1];
+    if (total === 7) continue;
+    checked++;
+    assert.ok(roll.public);
+    // Fog of war: the public data names players and goods, never regions.
+    assert.deepEqual(Object.keys(data).filter((k) => !["roll", "got", "blight"].includes(k)), []);
+    const json = JSON.stringify(data);
+    for (const r of REGIONS) assert.ok(!json.includes(`"${r.id}"`), `${r.id} stays out of the roll data`);
+    // It adds up: one card per paying region.
+    const paying = Object.values(s.regions).filter((r) => r.owner && r.token === total && !(data.blight && REGION_BY_ID.get(r.id)!.resource === "bamboo"));
+    assert.equal(Object.values(data.got!).reduce((n, c) => n + cardCount(c), 0), paying.length);
+    // …and it matches every purse. p1 also gets their turn's harvest and income, which their private event spells out.
+    const inc = events.find((e) => e.type === "income")!.data as IncomeData;
+    assert.deepEqual(events.find((e) => e.type === "income")!.only, ["p1"]);
+    s.players.forEach((p, i) => {
+      const expect: Partial<Record<string, number>> = { ...data.got![p.id] };
+      if (p.id === "p1") {
+        for (const [g, n] of Object.entries(inc.harvest)) expect[g] = (expect[g] ?? 0) + (n ?? 0);
+        expect.stone = (expect.stone ?? 0) + inc.quarried;
+        Object.assign(expect, { coin: inc.coin, pandaCoin: inc.pandaCoin, camCoin: inc.camCoin });
+      }
+      for (const g of GOODS) assert.equal(p.goods[g] - before[i][g], expect[g] ?? 0, `seed ${seed}: ${p.id} ${g}`);
+    });
+  }
+  assert.ok(checked >= 8, `checked ${checked} rolls`);
+});
+
+test("dice: on a 7 everyone learns who the ogres raided, and only the raided Kird learns what they took", () => {
+  let checked = 0;
+  for (let seed = 1; seed <= 400 && checked < 5; seed++) {
+    const { s } = newGame(3, seed);
+    Object.assign(s.players[0].goods, { bamboo: 5, stone: 4, iron: 3, rice: 2, gems: 1 }); // 15 cards
+    Object.assign(s.players[1].goods, { bamboo: 1, stone: 6, iron: 1, rice: 4, gems: 0 }); // 12 cards
+    Object.assign(s.players[2].goods, { bamboo: 2, stone: 2, iron: 2, rice: 2, gems: 1 }); // 9: safe
+    const before = s.players.map((p) => ({ ...p.goods }));
+    const events = applyAction(s, "p0", { type: "endTurn" }, NOW);
+    const roll = events.find((e) => e.type === "roll")!;
+    const data = roll.data as RollData;
+    if (data.roll[0] + data.roll[1] !== 7) continue;
+    checked++;
+    assert.deepEqual(data.raided, { p0: 7, p1: 6 }, "who was raided, and how many cards they lost");
+    assert.deepEqual(Object.keys(data).sort(), ["raided", "roll"], "no word on what anyone lost");
+    const raids = events.filter((e) => e.type === "raid");
+    assert.deepEqual(raids.map((e) => e.only), [["p0"], ["p1"]]);
+    for (const e of raids) {
+      const id = e.only![0];
+      const { lost, held } = e.data as RaidData;
+      assert.equal(held, id === "p0" ? 15 : 12);
+      assert.equal(cardCount(lost), Math.floor(held / 2));
+      for (const other of s.players) if (other.id !== id) assert.equal(eventVisible(s, e, other.id), false, `${other.id} can't see ${id}'s losses`);
+    }
+    // p0 is between turns, so the raid is the only change to their purse.
+    const p0Lost = (raids[0].data as RaidData).lost;
+    for (const g of RESOURCES) assert.equal(before[0][g] - s.players[0].goods[g], p0Lost[g] ?? 0, g);
+    // p1's turn starts right after: what the ogres took, then their harvest.
+    const inc = events.find((e) => e.type === "income")!.data as IncomeData;
+    const p1Lost = (raids[1].data as RaidData).lost;
+    for (const g of RESOURCES) {
+      const quarry = g === "stone" ? inc.quarried : 0;
+      assert.equal(s.players[1].goods[g] - before[1][g], (inc.harvest[g] ?? 0) + quarry - (p1Lost[g] ?? 0), g);
+    }
+    // What each viewer's dice pop-up is built from: their own losses and nobody else's.
+    const seen = (pid: string) => events.filter((e) => eventVisible(s, e, pid));
+    assert.deepEqual(rollShow(seen("p0"), null, "p0")!.raid, raids[0].data);
+    assert.deepEqual(rollShow(seen("p1"), "p1", "p1")!.raid, raids[1].data);
+    assert.equal(rollShow(seen("p2"), null, "p2")!.raid, null);
+    assert.deepEqual(rollShow(seen("p2"), null, "p2")!.raided, { p0: 7, p1: 6 });
+  }
+  assert.ok(checked >= 3, `checked ${checked} raids`);
+});
+
+test("dice replays: a gain from a region you can't see comes from the fog, not from a region", () => {
+  const { s } = newGame(2, 11);
+  const [a, b] = s.players;
+  assert.ok(!visibleRegions(s, a.id).has(b.capital), "b's capital is in a's fog");
+  s.regions[a.capital].token = 8;
+  s.regions[b.capital].token = 8;
+  const res = (id: string) => REGION_BY_ID.get(id)!.resource;
+  const event: GameEvent = {
+    seq: 40,
+    turn: 3,
+    round: 2,
+    actor: b.id,
+    type: "roll",
+    text: "🎲 Kird 1 rolled 8. Harvest: Kird 0 1 🍚, Kird 1 1 🪨.",
+    regions: [a.capital, b.capital],
+    public: true,
+    data: { roll: [5, 3], got: { [a.id]: { [res(a.capital)]: 1 }, [b.id]: { [res(b.capital)]: 1 } } } satisfies RollData,
+  };
+  const view = viewFor(s, a.id);
+  assert.equal(view.regions.find((r) => r.id === b.capital)!.owner, undefined, "the view doesn't say who holds it");
+  assert.deepEqual(payouts(rollShow([event], null, a.id)!, view), [
+    { player: a.id, resource: res(a.capital), region: a.capital },
+    { player: b.id, resource: res(b.capital), region: null },
+  ]);
+  // Rolls from before the dice carried their data still show, from their text.
+  const old = rollShow([{ ...event, data: { roll: [5, 3] } }], null, a.id)!;
+  assert.equal(old.got, null);
+  assert.deepEqual(old.lines, ["Harvest: Kird 0 1 🍚, Kird 1 1 🪨."]);
+  assert.deepEqual(payouts(old, view), []);
+});
+
+import { computeThrow, makeEnv, mulberry32, randomQuat, restingValues } from "../components/dice/tray";
+
+test("dice physics: a seed throws the same tumble every time, and it lands on the server's numbers", () => {
+  const env = makeEnv({ bounds: { minX: -9, maxX: 9, minZ: -4.8, maxZ: 4.8 }, dieSize: 0.85, surface: "wood" });
+  for (let seed = 1; seed <= 40; seed++) {
+    const values = [1 + (seed % 6), 1 + ((seed * 5) % 6)];
+    const rng = mulberry32(seed);
+    const starts = [-0.7, 0.7].map((x) => ({ p: [x, 2.3, 3.6] as [number, number, number], q: randomQuat(rng), size: 0.85 }));
+    const input = { values, seed, velocity: { x: (rng() - 0.5) * 5, y: 4, z: -10 }, spin: 18 };
+    const unturned: [number, number, number, number][] = [
+      [0, 0, 0, 1],
+      [0, 0, 0, 1],
+    ];
+    const throwIt = () => computeThrow(env, input, starts, unturned);
+    const record = throwIt();
+    assert.deepEqual(throwIt(), record, `seed ${seed}: replays tumble the same way`);
+    assert.deepEqual(restingValues(record), values, `seed ${seed}: lands on the roll`);
+  }
+});

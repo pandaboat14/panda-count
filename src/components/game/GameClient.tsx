@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { GameEvent } from "@/game/engine";
 import { NEIGHBORS, REGION_BY_ID } from "@/game/regions";
+import { rollShow, type RollShow } from "@/game/rollReport";
 import type { GamePayload } from "@/lib/game/store";
 import { useReducedMotion } from "@/lib/hooks";
 import { Avatar } from "../Avatar";
@@ -47,19 +48,6 @@ const TONE: Record<string, Highlight["tone"]> = {
   move: "move",
   loan: "move",
 };
-
-type DiceShow = { seq: number; turn: number; roll: [number, number]; lines: string[] };
-
-// The latest roll (by `who`, or by anyone if null), with what it did in plain words.
-function diceFor(events: GameEvent[], who: string | null): DiceShow | null {
-  const rollEvent = [...events].reverse().find((e) => e.type === "roll" && (who === null || e.actor === who) && Array.isArray(e.data?.roll));
-  if (!rollEvent) return null;
-  const roll = rollEvent.data!.roll as [number, number];
-  const lines = [rollEvent.text.replace(/^🎲 .*? rolled \d+[.:]?\s*/u, "")];
-  const income = events.find((e) => e.type === "income" && e.actor === rollEvent.actor && e.turn === rollEvent.turn);
-  if (income) lines.push(`Your turn: ${income.text}`);
-  return { seq: rollEvent.seq, turn: rollEvent.turn, roll, lines: lines.filter(Boolean) };
-}
 
 export function GameClient({ initial }: { initial: GamePayload }) {
   const { game, act: rawAct, send, loadOlder, olderDone, busy, error, savedAt, clearError } = useGame(initial);
@@ -174,14 +162,15 @@ export function GameClient({ initial }: { initial: GamePayload }) {
   const [replay, setReplay] = useState<{ list: GameEvent[]; i: number } | null>(null);
   const [replayOffered, setReplayOffered] = useState(false);
 
-  // ---- the chance cubes: your start-of-turn roll, played once the other Kirds' moves have been shown ----
-  const [dice, setDice] = useState<DiceShow | null>(null);
-  const [pendingDice, setPendingDice] = useState<DiceShow | null>(null);
+  // ---- the dice: your start-of-turn roll, thrown once the other Kirds' moves have been shown ----
+  // `live` is your own throw to make; otherwise it's a replay that throws itself.
+  const [dice, setDice] = useState<{ show: RollShow; live: boolean } | null>(null);
+  const [pendingDice, setPendingDice] = useState<RollShow | null>(null);
   const diceKey = `pd-dice-${game.id}`;
   useEffect(() => {
     // After mount (so server and client render the same): if your turn's roll hasn't been shown yet, queue it.
     const t = setTimeout(() => {
-      const mine = myTurn ? diceFor(game.events, view.me) : null;
+      const mine = myTurn ? rollShow(game.events, view.me, view.me) : null;
       // Only this turn's roll, and only once (it's remembered on this device).
       if (!mine || mine.turn !== view.turn) return;
       let shown = 0;
@@ -206,7 +195,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
       setToast("🎲 It's your turn!");
       setReplayOffered(false);
       setTab("plan");
-      const mine = diceFor(game.events, view.me);
+      const mine = rollShow(game.events, view.me, view.me);
       if (mine && mine.turn === view.turn) setPendingDice(mine);
     }
   }
@@ -227,7 +216,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
   useEffect(() => {
     if (!pendingDice || replay || battle || dice) return;
     const t = setTimeout(() => {
-      setDice(pendingDice);
+      setDice({ show: pendingDice, live: true });
       setPendingDice(null);
       try {
         localStorage.setItem(diceKey, String(pendingDice.seq));
@@ -388,8 +377,8 @@ export function GameClient({ initial }: { initial: GamePayload }) {
                   className="roll-link"
                   title="Watch the last roll again"
                   onClick={() => {
-                    const last = diceFor(game.events, null);
-                    if (last) setDice(last);
+                    const last = rollShow(game.events, null, view.me);
+                    if (last) setDice({ show: last, live: false });
                   }}
                 >
                   🎲 {view.lastRoll[0]}+{view.lastRoll[1]}={view.lastRoll[0] + view.lastRoll[1]}
@@ -625,7 +614,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
       )}
 
       {help && <HowToPlay onClose={() => setHelp(false)} />}
-      {dice && <DiceRoll key={dice.seq} roll={dice.roll} lines={dice.lines} still={still} onClose={closeDice} />}
+      {dice && <DiceRoll key={`${dice.show.seq}-${dice.live}`} show={dice.show} view={view} live={dice.live} still={still} onClose={closeDice} />}
       {battle && (
         <BattleView
           key={battle.seq}

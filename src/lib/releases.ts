@@ -9,6 +9,18 @@ export type Release = {
 export const RELEASES: Release[] = [
   {
     date: "2026-09-26",
+    title: "Throw your dice onto the map",
+    notes: [
+      "At the start of your turn your two dice hover over a tabletop world map in your colour. Tap them, or press and drag to flick them, and they bounce across the map before landing on your roll.",
+      "The regions with the number you rolled light up, and their resources fly into each Kird's purse at the edge of the table.",
+      "Then it tells you exactly what you got, from the dice and from your turn's harvest and income, and what everyone else got.",
+      "Roll a 7 and an ogre stomps onto the map: anyone holding more than 9 resource cards loses half. If the ogres raid you, you now see exactly what they took.",
+      "Tap the 🎲 up top to watch the last roll again: everyone sees the same throw land on the same numbers. Resources from land hidden in the fog rise out of the fog, so nothing gives away who holds what.",
+      "The dice clack as they land. Tap 🔊 in the pop-up to turn the sound off.",
+    ],
+  },
+  {
+    date: "2026-09-26",
     title: "Autopilot",
     pr: 13,
     notes: [
