@@ -2,25 +2,32 @@
 
 import { createContext, memo, useCallback, useContext, useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from "react";
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
-import { Html, OrbitControls, Text } from "@react-three/drei";
+import { Html, Line, OrbitControls, Text } from "@react-three/drei";
 import {
+  CanvasTexture,
   CatmullRomCurve3,
   Matrix4,
   MeshBasicMaterial,
   PerspectiveCamera,
   Quaternion,
+  SRGBColorSpace,
   Vector2,
   Vector3,
   type DirectionalLight,
   type Group,
   type Mesh,
   type Object3D,
+  type Sprite,
 } from "three";
 import { latLngToVector3, RADIUS } from "@/components/globe/geo";
 import { makeEarthTexture } from "@/components/globe/textures";
+import { restedIn } from "@/game/army";
 import { unitTotal, type GameView, type RegionView, type Units } from "@/game/engine";
-import { lineEnds, REGION_BY_ID, type Resource } from "@/game/regions";
+import { attackOdds } from "@/game/odds";
+import { lineEnds, placeName, REGION_BY_ID } from "@/game/regions";
 import { BUILDINGS, HEROES, HERO_IDS, type BuildingType } from "@/game/rules";
+import { EMPTY_RIM, FOG_COLORS, NATIVE_COLORS, RESOURCE_COLORS } from "./colors";
+import { drawFlag, FLAG_POLE_X, FLAG_SIZE, initialOf } from "./Flag";
 import {
   SLOTS,
   armyObject,
@@ -29,7 +36,6 @@ import {
   buildingPin,
   buildingSpot,
   disposeSprites,
-  flagObject,
   loadBadgeFont,
   type ArmyLook,
 } from "./models";
@@ -44,17 +50,17 @@ const MAST_TOP = 0.157;
 const TILT_MAX = (50 * Math.PI) / 180;
 const SQUADS_BELOW = 3;
 const MASCOTS_ABOVE = 3.4;
-
-export const RESOURCE_COLORS: Record<Resource, string> = {
-  bamboo: "#5f9a4a",
-  stone: "#9a968c",
-  iron: "#5d6b7a",
-  rice: "#e2cf8a",
-  gems: "#9b6fc7",
-};
-export const NATIVE_COLORS = { pandas: "#f7f4ec", nacams: "#6f8a3a", cams: "#e8b64a", wild: "#c9d6bf" } as const;
+// Owner rims, in tile radii: yours is much thicker, and edged in white.
+const RIM = 1.16;
+const RIM_MINE = 1.36;
 
 export type Highlight = { regions: string[]; tone: "battle" | "build" | "move" | "info" | "hero" };
+
+// What tapping a ringed region does next: send troops from it, reinforce it, invade it, build a gondola to it,
+// strike it, or put the building you're placing there.
+export type MarkKind = "source" | "move" | "attack" | "build" | "thunder" | "site";
+// A name tag on the map. "named" is a conqueror's new name, shown to everyone.
+export type BoardLabel = { id: string; text: string; tone?: MarkKind | "named" };
 // Choosing where to build: the building, the regions it can go in, and the one picked so far.
 export type Placing = { type: BuildingType; sites: string[]; site: string | null };
 // A building that just went up, so the board can raise it out of the ground.
@@ -63,7 +69,8 @@ export type Built = { region: string; building: BuildingType; seq: number };
 type Props = {
   view: GameView;
   selected: string | null;
-  targets: string[]; // regions you can click to complete the current action
+  marks: Record<string, MarkKind>;
+  labels: BoardLabel[];
   highlight: Highlight | null;
   focus: { lat: number; lng: number; seq: number } | null;
   still: boolean;
@@ -189,7 +196,7 @@ function CameraRig({ start, focus, still, children }: { start: Vector3; focus: P
 
 const HIDDEN = new MeshBasicMaterial({ visible: false });
 
-function World({ view, selected, targets, highlight, still, placing, built, movable, onSelect, onDrop }: Omit<Props, "onReady" | "focus">) {
+function World({ view, selected, marks, labels, highlight, still, placing, built, movable, onSelect, onDrop }: Omit<Props, "onReady" | "focus">) {
   const earth = useMemo(() => makeEarthTexture(), []);
   useEffect(() => () => earth.dispose(), [earth]);
   const colorOf = useMemo(() => new Map(view.players.map((p) => [p.id, p.color])), [view.players]);
@@ -202,6 +209,18 @@ function World({ view, selected, targets, highlight, still, placing, built, mova
     return m;
   }, [view.heroes]);
   const stations = useMemo(() => new Set(view.lines.flatMap((l) => lineEnds(l.id))), [view.lines]);
+  // One flag per Kird, redrawn only when someone joins, leaves or changes colour.
+  const flagSpec = JSON.stringify(view.players.map((p) => [p.id, p.color, p.id === view.me, initialOf(p.name)]));
+  const flags = useMemo(() => {
+    const out = new Map<string, CanvasTexture>();
+    for (const [id, color, mine, initial] of JSON.parse(flagSpec) as [string, string, boolean, string][]) {
+      const t = new CanvasTexture(drawFlag(color, mine, initial));
+      t.colorSpace = SRGBColorSpace;
+      out.set(id, t);
+    }
+    return out;
+  }, [flagSpec]);
+  useEffect(() => () => flags.forEach((t) => t.dispose()), [flags]);
   const [fontReady, setFontReady] = useState(false);
   useEffect(() => {
     let live = true;
@@ -217,7 +236,30 @@ function World({ view, selected, targets, highlight, still, placing, built, mova
     else hits.current.delete(id);
   }, []);
   const { state: dragging, start: startDrag, tip, earthRef } = useTroopDrag(movable, onDrop, hits);
-  const targetSet = useMemo(() => new Set(dragging ? dragging.targets : placing ? placing.sites : targets), [dragging, placing, targets]);
+  // While you drag troops, the regions they can reach are ringed and named: blue to reinforce, red (with your
+  // odds of taking it with everyone who's ready) to invade.
+  const dragFrom = dragging?.from ?? null;
+  const dragTargets = dragFrom ? movable.get(dragFrom) : undefined;
+  const drag = useMemo(() => {
+    if (!dragFrom || !dragTargets) return null;
+    const ready = restedIn(view.regions.find((r) => r.id === dragFrom)!);
+    const out: { marks: Record<string, MarkKind>; labels: BoardLabel[] } = { marks: {}, labels: [] };
+    for (const id of dragTargets) {
+      const r = view.regions.find((x) => x.id === id)!;
+      const name = placeName(id, r.name);
+      if (r.owner === view.me) {
+        out.marks[id] = "move";
+        out.labels.push({ id, text: `➡️ ${name}`, tone: "move" });
+      } else {
+        const odds = attackOdds(view, dragFrom, id, ready, 120);
+        out.marks[id] = "attack";
+        out.labels.push({ id, text: `⚔️ ${name}${odds ? ` · ${Math.round(odds.win * 100)}%` : ""}`, tone: "attack" });
+      }
+    }
+    return out;
+  }, [dragFrom, dragTargets, view]);
+  const shownMarks = drag ? drag.marks : marks;
+  const shownLabels = drag ? drag.labels : labels;
 
   return (
     <group>
@@ -235,8 +277,10 @@ function World({ view, selected, targets, highlight, still, placing, built, mova
             key={r.id}
             region={r}
             ownerColor={owner}
+            mine={Boolean(r.owner) && r.owner === view.me}
+            flag={r.owner ? flags.get(r.owner) : undefined}
             selected={selected === r.id}
-            target={targetSet.has(r.id)}
+            mark={shownMarks[r.id]}
             dragOver={dragging?.over === r.id ? (r.owner === view.me ? "move" : "attack") : null}
             lifted={dragging?.from === r.id}
             station={stations.has(r.id)}
@@ -253,6 +297,9 @@ function World({ view, selected, targets, highlight, still, placing, built, mova
         );
       })}
       {highlight?.regions.map((id) => <Pulse key={`${id}-${highlight.tone}`} id={id} tone={highlight.tone} still={still} />)}
+      {shownLabels.map((l) => (
+        <Label key={`${l.id}:${l.text}`} {...l} />
+      ))}
       {dragging && <DragArc from={dragging.from} over={dragging.over} tip={tip} still={still} />}
     </group>
   );
@@ -281,8 +328,10 @@ function hexPoint(id: string, y: number, [x, z]: [number, number]) {
 type TileProps = {
   region: RegionView;
   ownerColor: string | null;
+  mine: boolean;
+  flag: CanvasTexture | undefined;
   selected: boolean;
-  target: boolean;
+  mark: MarkKind | undefined;
   dragOver: "move" | "attack" | null;
   lifted: boolean;
   station: boolean;
@@ -297,13 +346,35 @@ type TileProps = {
   setHit: (id: string, m: Object3D | null) => void;
 };
 
-function Tile({ region, ownerColor, selected, target, dragOver, lifted, station, heroes, ghost, rise, draggable, fontReady, still, onSelect, onArmyDown, setHit }: TileProps) {
+function Tile({
+  region,
+  ownerColor,
+  mine,
+  flag,
+  selected,
+  mark,
+  dragOver,
+  lifted,
+  station,
+  heroes,
+  ghost,
+  rise,
+  draggable,
+  fontReady,
+  still,
+  onSelect,
+  onArmyDown,
+  setHit,
+}: TileProps) {
   const { pos, q } = useSurface(region.id);
   const def = REGION_BY_ID.get(region.id)!;
   const fog = region.fog;
-  const color = fog ? "#8c939b" : RESOURCE_COLORS[def.resource];
-  const rim = fog ? "#6e757d" : ownerColor ?? (region.native ? NATIVE_COLORS[region.native] : "#d9d2bf");
-  const glow = dragOver === "attack" ? "#ff8a7a" : dragOver === "move" ? "#9cc8ff" : ghost?.picked ? "#ffd76a" : selected || target ? rim : null;
+  const color = fog ? FOG_COLORS.tile : RESOURCE_COLORS[def.resource];
+  const rim = fog ? FOG_COLORS.rim : ownerColor ?? (region.native ? NATIVE_COLORS[region.native] : EMPTY_RIM);
+  const rimSize = TILE * (mine ? RIM_MINE : RIM);
+  // The rim glows for the region you're dropping troops on or putting a building in, and always for your own land.
+  const glow = dragOver === "attack" ? "#ff8a7a" : dragOver === "move" ? "#9cc8ff" : ghost?.picked ? "#ffd76a" : mine || selected ? rim : null;
+  const glowStrength = dragOver || ghost?.picked ? 0.8 : selected ? 0.55 : 0.4;
   const units = region.units;
   const total = units ? unitTotal(units) : 0;
   const hot = region.token === 6 || region.token === 8;
@@ -324,17 +395,17 @@ function Tile({ region, ownerColor, selected, target, dragOver, lifted, station,
       onPointerOut={() => (document.body.style.cursor = "")}
       scale={selected ? 1.25 : 1}
     >
-      {/* owner rim */}
+      {/* owner rim: yours is thick, glowing and edged in white */}
       <mesh position={[0, 0.012, 0]}>
-        <cylinderGeometry args={[TILE * 1.14, TILE * 1.14, 0.024, 6]} />
-        <meshStandardMaterial
-          color={rim}
-          emissive={glow ?? "#000"}
-          emissiveIntensity={glow ? (dragOver || ghost?.picked ? 0.8 : selected ? 0.5 : 0.35) : 0}
-          transparent={fog}
-          opacity={fog ? 0.7 : 1}
-        />
+        <cylinderGeometry args={[rimSize, rimSize, 0.024, 6]} />
+        <meshStandardMaterial color={rim} emissive={glow ?? "#000"} emissiveIntensity={glow ? glowStrength : 0} transparent={fog} opacity={fog ? 0.7 : 1} />
       </mesh>
+      {mine && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.025, 0]}>
+          <ringGeometry args={[rimSize, rimSize + TILE * 0.1, 6, 1, Math.PI / 6]} />
+          <meshBasicMaterial color="#fffaf3" toneMapped={false} />
+        </mesh>
+      )}
       {/* resource hex, also what the drag feels for */}
       <mesh position={[0, 0.03, 0]} ref={(m) => setHit(region.id, m)}>
         <cylinderGeometry args={[TILE, TILE, 0.03, 6]} />
@@ -362,7 +433,6 @@ function Tile({ region, ownerColor, selected, target, dragOver, lifted, station,
         {!fog && units && total > 0 && (
           <Army units={units} owner={armyColor} count={total} fontReady={fontReady} lifted={lifted} still={still} />
         )}
-        {!fog && ownerColor && total === 0 && <Flag owner={ownerColor} />}
         {draggable && total > 0 && (
           <mesh
             position={[SLOTS.army[0], 0.5, SLOTS.army[1]]}
@@ -375,12 +445,9 @@ function Tile({ region, ownerColor, selected, target, dragOver, lifted, station,
         {ghost && <Ghost type={ghost.type} picked={ghost.picked} still={still} />}
         {rise && !fog && <BuildFx key={rise.seq} type={rise.building} still={still} />}
       </group>
-      {target && <TargetRing still={still} />}
-      {heroes.length > 0 && (
-        <Html position={[0, 0.34, 0]} center zIndexRange={[30, 0]}>
-          <div className="board-heroes">{heroes.map((h) => HEROES[h as keyof typeof HEROES].icon).join("")}</div>
-        </Html>
-      )}
+      {flag && !fog && <FlagPin texture={flag} mine={mine} at={pos} />}
+      {mark && <TargetRing kind={mark} still={still} />}
+      {heroes.length > 0 && <HeroIcons heroes={heroes} at={pos} />}
     </group>
   );
 }
@@ -583,9 +650,68 @@ function Army({ units, owner, count, fontReady, lifted, still }: { units: Units;
   );
 }
 
-function Flag({ owner }: { owner: string }) {
-  const flag = useMemo(() => flagObject(owner), [owner]);
-  return <primitive object={flag} />;
+// Flags and labels ignore depth so the globe's curve never clips them, which means they'd show through
+// from the far side: this hides them whenever their spot faces away from the camera.
+const toCamera = new Vector3();
+function useFacing(at: Vector3, show: (visible: boolean) => void) {
+  const normal = useMemo(() => at.clone().normalize(), [at]);
+  useFrame(({ camera }) => show(toCamera.copy(camera.position).sub(at).normalize().dot(normal) > 0.03));
+}
+
+function useFacingElement(at: Vector3) {
+  const el = useRef<HTMLDivElement>(null);
+  const shown = useRef(true);
+  useFacing(at, (visible) => {
+    if (!el.current || shown.current === visible) return;
+    shown.current = visible;
+    el.current.style.visibility = visible ? "" : "hidden";
+  });
+  return el;
+}
+
+// The owner's flag, planted at the back tip of the hex behind everything else. It always faces the camera, so it
+// reads as well looking straight down as it does side-on, and yours are bigger. Up close it shrinks a little,
+// so the buildings and troops stay the stars.
+const FLAG_AT: [number, number] = [0, -0.8];
+function FlagPin({ texture, mine, at }: { texture: CanvasTexture; mine: boolean; at: Vector3 }) {
+  const ref = useRef<Sprite>(null);
+  const base = mine ? 0.34 : 0.22;
+  useFacing(at, (visible) => {
+    if (ref.current) ref.current.visible = visible;
+  });
+  useFrame(({ camera }) => {
+    if (!ref.current) return;
+    const k = Math.min(1, Math.max(0.45, camera.position.distanceTo(at) / 8));
+    ref.current.scale.set(base * k, base * k, 1);
+  });
+  return (
+    <sprite ref={ref} position={[FLAG_AT[0] * TILE, 0.03, FLAG_AT[1] * TILE]} center={[FLAG_POLE_X / FLAG_SIZE, 0]} scale={[base, base, 1]} renderOrder={mine ? 12 : 11}>
+      <spriteMaterial map={texture} transparent alphaTest={0.2} depthTest={false} depthWrite={false} toneMapped={false} />
+    </sprite>
+  );
+}
+
+function HeroIcons({ heroes, at }: { heroes: string[]; at: Vector3 }) {
+  const el = useFacingElement(at);
+  return (
+    <Html position={[0, 0.34, 0]} center zIndexRange={[30, 0]}>
+      <div ref={el} className="board-heroes">{heroes.map((h) => HEROES[h as keyof typeof HEROES].icon).join("")}</div>
+    </Html>
+  );
+}
+
+// A name tag just south of the hex, below its number.
+function Label({ id, text, tone }: BoardLabel) {
+  const { pos, q } = useSurface(id);
+  const at = useMemo(() => pos.clone().add(new Vector3(0, 0.02, TILE * 1.95).applyQuaternion(q)), [pos, q]);
+  const el = useFacingElement(at);
+  return (
+    <Html position={at} center zIndexRange={[20, 0]} pointerEvents="none">
+      <div ref={el} className={`board-label${tone ? ` ${tone}` : ""}`}>
+        {text}
+      </div>
+    </Html>
+  );
 }
 
 // ---------------------------------------------------------------- dragging troops
@@ -714,15 +840,34 @@ function DragArc({ from, over, tip, still }: { from: string; over: string | null
 
 // ---------------------------------------------------------------- rings, pulses, gondolas
 
-function TargetRing({ still }: { still: boolean }) {
+const MARK_LOOK: Record<MarkKind, { color: string; width: number; opacity: number; pulse: boolean }> = {
+  source: { color: "#ffc53d", width: 0.22, opacity: 0.95, pulse: true }, // yours, with troops ready to go
+  move: { color: "#3b8cff", width: 0.22, opacity: 0.95, pulse: true }, // yours: reinforce it
+  attack: { color: "#ff4d4f", width: 0.22, opacity: 0.95, pulse: true }, // anyone else's: invade it
+  build: { color: "#fffaf3", width: 0.08, opacity: 0.85, pulse: false }, // needs a gondola line first
+  thunder: { color: "#b566ff", width: 0.22, opacity: 0.95, pulse: true },
+  site: { color: "#ffd76a", width: 0.22, opacity: 0.95, pulse: true }, // the building you're placing can go here
+};
+
+// The hex's outline at radius r, lined up with the tile's corners.
+const hexOutline = (r: number) =>
+  Array.from({ length: 7 }, (_, i): [number, number, number] => [r * Math.sin((i * Math.PI) / 3), 0, r * Math.cos((i * Math.PI) / 3)]);
+const BUILD_OUTLINE = hexOutline(TILE * 1.62);
+
+function TargetRing({ kind, still }: { kind: MarkKind; still: boolean }) {
   const ref = useRef<Mesh>(null);
+  const look = MARK_LOOK[kind];
   useFrame(({ clock }) => {
-    if (ref.current) ref.current.scale.setScalar(still ? 1 : 1 + Math.sin(clock.elapsedTime * 5) * 0.08);
+    if (ref.current && look.pulse && !still) ref.current.scale.setScalar(1 + Math.sin(clock.elapsedTime * 5) * 0.06);
   });
+  // Somewhere a gondola line would reach: a quiet dashed outline, like a road not yet built.
+  if (kind === "build") {
+    return <Line points={BUILD_OUTLINE} position={[0, 0.055, 0]} color={look.color} lineWidth={2.5} dashed dashSize={0.045} gapSize={0.03} transparent opacity={look.opacity} />;
+  }
   return (
-    <mesh ref={ref} rotation={[-Math.PI / 2, 0, Math.PI / 6]} position={[0, 0.05, 0]}>
-      <ringGeometry args={[TILE * 1.25, TILE * 1.42, 6]} />
-      <meshBasicMaterial color="#fffaf3" transparent opacity={0.9} />
+    <mesh ref={ref} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.055, 0]}>
+      <ringGeometry args={[TILE * 1.58, TILE * (1.58 + look.width), 6, 1, Math.PI / 6]} />
+      <meshBasicMaterial color={look.color} transparent opacity={look.opacity} depthWrite={false} toneMapped={false} />
     </mesh>
   );
 }

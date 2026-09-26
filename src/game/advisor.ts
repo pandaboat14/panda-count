@@ -2,7 +2,7 @@
 // from what that player can see (their GameView), so it never leaks anything hidden by the fog.
 import { emptyUnits, unitTotal, type Action, type GameView, type RegionView, type Units } from "./engine";
 import { attackOdds } from "./odds";
-import { NEIGHBORS, REGION_BY_ID, lineId } from "./regions";
+import { NEIGHBORS, REGION_BY_ID, lineId, placeName } from "./regions";
 import { BUILDINGS, GOODS, GOOD_INFO, RAID_THRESHOLD, RESOURCES, UNIT_TYPES, type Cost, type Good } from "./rules";
 
 export type Suggestion = {
@@ -18,8 +18,6 @@ export type Suggestion = {
   plan?: { from: string; to: string };
   tab?: "diplomacy" | "bank";
 };
-
-const name = (id: string) => REGION_BY_ID.get(id)?.name ?? id;
 
 function restedOf(r: RegionView): Units {
   const u = emptyUnits();
@@ -69,6 +67,7 @@ export function advise(view: GameView): Suggestion[] {
   const price = view.prices.buyPrice;
   const mine = view.regions.filter((r) => r.owner === view.me);
   const byId = new Map(view.regions.map((r) => [r.id, r]));
+  const name = (id: string) => placeName(id, byId.get(id)?.name);
   const pact = (pid?: string | null) => Boolean(pid) && view.pacts.some((p) => (p.a === view.me && p.b === pid) || (p.b === view.me && p.a === pid));
   const lineOk = (a: string, b: string) => {
     const l = view.lines.find((x) => x.id === lineId(a, b));

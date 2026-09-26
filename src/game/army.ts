@@ -2,7 +2,7 @@
 // Everything is worked out from the player's own view, so nothing hidden by the fog leaks.
 import { emptyUnits, unitTotal, type BattleData, type GameEvent, type GameView, type RegionView, type Units } from "./engine";
 import { battleOdds, viewHeroBonus } from "./odds";
-import { NEIGHBORS, REGION_BY_ID, lineId } from "./regions";
+import { NEIGHBORS, lineId, placeName } from "./regions";
 import { HEROES, HERO_IDS, NACAM_UPKEEP, PANDAS_PER_PANDACOIN, UNITS, UNIT_TYPES, type HeroId } from "./rules";
 
 export type ArmySummary = {
@@ -116,7 +116,7 @@ export function battleRecord(view: GameView, events: GameEvent[]): BattleRecord[
     if (e.type !== "battle" || !e.data) continue;
     const d = e.data as unknown as BattleData;
     if (!d.attacker || !d.attackerLost || !d.defenderLost) continue;
-    const place = REGION_BY_ID.get(d.to)?.name ?? d.to;
+    const place = d.place ?? placeName(d.to, view.regions.find((r) => r.id === d.to)?.name);
     if (e.actor === view.me) {
       out.push({ event: e, role: "attack", won: d.won, place, opponent: name(d.defender, d.defenderName), lost: d.attackerLost, killed: d.defenderLost });
     } else if (d.defender === view.me) {

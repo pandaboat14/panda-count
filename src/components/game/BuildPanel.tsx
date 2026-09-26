@@ -77,7 +77,7 @@ export function BuildPanel({ ctx, placing, setPlacing }: { ctx: Ctx; placing: Pl
             <div className="dest-list">
               {sites.map((id) => (
                 <button key={id} type="button" className={`chip${placing.site === id ? " on" : ""}`} onClick={() => setPlacing({ ...placing, site: id })}>
-                  {regionName(id)}
+                  {regionName(view, id)}
                 </button>
               ))}
             </div>
@@ -94,7 +94,7 @@ export function BuildPanel({ ctx, placing, setPlacing }: { ctx: Ctx; placing: Pl
               action={{ type: "build", region: placing.site, building: placing.type }}
               onDone={() => setPlacing(null)}
             >
-              Build in {regionName(placing.site)}
+              Build in {regionName(view, placing.site)}
             </DoButton>
           ) : (
             <button type="button" className="btn" disabled>
@@ -139,7 +139,7 @@ export function BuildPanel({ ctx, placing, setPlacing }: { ctx: Ctx; placing: Pl
               <p className="small">{info.blurb}</p>
               <CostChips cost={info.cost} have={me.goods} />
               <p className="muted small">
-                {have.length ? `In ${have.map((r) => regionName(r.id)).join(", ")}` : "You don’t have one yet"}
+                {have.length ? `In ${have.map((r) => regionName(view, r.id)).join(", ")}` : "You don’t have one yet"}
                 {" · "}
                 {room ? `room in ${room} more` : "every region has one"}
               </p>

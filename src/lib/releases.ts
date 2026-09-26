@@ -13,10 +13,34 @@ export const RELEASES: Release[] = [
     notes: [
       "Buildings stand on the globe as little 3D models, each with a pin showing its icon: a pagoda with a panda in its bamboo, a gym with a giant barbell on the roof, a striped market stall, and stone walls round the whole region for a fort.",
       "A new 🏗️ Build tab lists every building with what it does, what it costs and where you already have one. Pick one, tap a glowing region, and watch it rise out of the ground.",
-      "Troops are easy to spot. Zoomed out, each army is one big figure with a banner showing how many are there. Zoom in and you see the squad itself, mixed like the real army: pandas with bamboo, armed pandas in tin helmets, club-swinging ogres and flexing CAMs.",
-      "Drag your troops to move them: on your turn, grab an army and drop it on a glowing region it can reach by gondola. Red means invade, and you see your odds before anyone sets off.",
-      "The camera leans in as you zoom, so you see everything from the side. Each hex's number now sits at its front tip, where nothing can hide it, and gondola cables leave from a mast so they pass over the buildings.",
+      "Troops are easy to spot. Zoomed out, each army is one big figure with a badge showing how many are there. Zoom in and you see the squad itself, mixed like the real army: pandas with bamboo, armed pandas in tin helmets, club-swinging ogres and flexing CAMs.",
+      "Drag your troops to move them: on your turn, grab an army and drop it on a glowing region it can reach by gondola. The move bar opens ready to choose who goes, with your chance to win if it's an invasion.",
+      "The camera leans in as you zoom, so you see everything from the side. Each hex's number now sits at its front tip, where nothing can hide it, flags fly from the back of the hex, and gondola cables leave from a mast so they pass over the buildings.",
       "Battle replays use the new figures.",
+    ],
+  },
+  {
+    date: "2026-09-26",
+    title: "Plant your flag",
+    notes: [
+      "Your land is unmistakable now: every region you hold flies your flag (your colour with a white star) and glows with a thick border in your colour. Other Kirds' flags carry their initial.",
+      "Tap \"Your land\" under your goods to fly around your regions one by one.",
+      "Conquerors rename what they take. When you capture a region, give it a new name or keep the old one, and rename it again from its panel while you hold it. Everyone sees the new name, and the old one is shown underneath.",
+      "Moving troops has a clear start and finish: tap 🚡 Move troops next to End turn, pick one of your regions, pick where to send them, choose who goes, and send. ✕ Stop moving (or Esc) ends it.",
+      "While you move, the map rings every choice: gold for your regions with troops ready, blue for your own land, red for invasions with your chance to win, and a dashed ring where you'd need a gondola first, one tap away.",
+    ],
+  },
+  {
+    date: "2026-09-26",
+    title: "Throw your dice onto the map",
+    pr: 14,
+    notes: [
+      "At the start of your turn your two dice hover over a tabletop world map in your colour. Tap them, or press and drag to flick them, and they bounce across the map before landing on your roll.",
+      "The regions with the number you rolled light up, and their resources fly into each Kird's purse at the edge of the table.",
+      "Then it tells you exactly what you got, from the dice and from your turn's harvest and income, and what everyone else got.",
+      "Roll a 7 and an ogre stomps onto the map: anyone holding more than 9 resource cards loses half. If the ogres raid you, you now see exactly what they took.",
+      "Tap the 🎲 up top to watch the last roll again: everyone sees the same throw land on the same numbers. Resources from land hidden in the fog rise out of the fog, so nothing gives away who holds what.",
+      "The dice clack as they land. Tap 🔊 in the pop-up to turn the sound off.",
     ],
   },
   {

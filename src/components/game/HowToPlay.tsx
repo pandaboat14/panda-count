@@ -26,9 +26,10 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
         <h3>Your turn</h3>
         <ol>
           <li>
-            <strong>Dice &amp; harvest.</strong> The chance cubes roll on screen (tap the 🎲 up top to watch the last roll again). Every
+            <strong>Dice &amp; harvest.</strong> You throw your two dice onto the world map: tap them, or flick them. Every
             region you hold gives you 1 of its resource. Then the dice pay out, Catan-style: every
-            region with that number pays its owner one more. Roll a 7 and <strong>ogres raid</strong>: anyone holding more than 9 resource
+            region with that number pays its owner one more, and the dice tell you what everyone collected (tap the 🎲 up top to
+            watch the last roll again). Roll a 7 and <strong>ogres raid</strong>: anyone holding more than 9 resource
             cards loses half.
           </li>
           <li>
@@ -44,7 +45,8 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
             Market, 2 with Ping), and changes currencies. Any button you&rsquo;re short for offers to buy what&rsquo;s missing first.
           </li>
           <li>
-            <strong>Do anything, in any order:</strong> build gondolas, recruit, build, move, invade, trade, hire heroes, loan pandas.
+            <strong>Do anything, in any order:</strong> build gondolas, recruit, build, move troops and invade (tap 🚡 Move troops), trade,
+            hire heroes, loan pandas.
           </li>
           <li>Hit <strong>End turn</strong>. The next Kird gets a replay of everything they&rsquo;re allowed to see.</li>
         </ol>
@@ -58,15 +60,47 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
           before they commit, hire heroes and gang up on people. They play the moment your turn ends, and each of their moves stays on screen
           for 8 seconds (tap ▶ to move on, or Skip all). They answer your trade, pact and loan offers on their turn.
         </p>
-        <h3>🚡 Urban gondolas</h3>
+        <h3>🚩 Your land</h3>
         <p>
-          The <strong>only</strong> way to move troops. Build a line from one of your regions to a neighbour, then send troops along it: into
-          your own land to reinforce, or into anyone else&rsquo;s to invade. Units can ride one line per turn, and fresh recruits rest until
-          next turn.
+          Every region you hold flies your flag (your colour with a white star, on a gold pole) and wears a thick glowing border in your
+          colour. Other Kirds&rsquo; flags carry their initial. Tap <strong>Your land</strong> under your goods to visit your regions one by
+          one.
         </p>
+        <h3>🚡 Moving troops</h3>
         <p>
-          <strong>Drag to move:</strong> on your turn, grab one of your armies on the globe and drop it on a glowing region it can reach.
-          Red means invade. A card asks who goes (everyone rested, to start with) and shows your chance to win before anyone sets off.
+          Urban gondolas are the <strong>only</strong> way to move troops. Build a line from one of your regions to a neighbour, then send
+          troops along it: into your own land to reinforce, or into anyone else&rsquo;s to invade.
+        </p>
+        <ol>
+          <li>
+            <strong>Start:</strong> tap <strong>🚡 Move troops</strong> next to End turn (or <strong>Move troops from here</strong> in a
+            region&rsquo;s panel).
+          </li>
+          <li>
+            <strong>From:</strong> tap one of your regions. Gold rings show the ones with troops ready to go.
+          </li>
+          <li>
+            <strong>To:</strong> tap a ringed neighbour. Blue is your own land, red is an invasion, with your chance to win. A dashed ring
+            needs a gondola line first, and one tap builds it.
+          </li>
+          <li>
+            <strong>Who goes:</strong> pick the troops, then press Send or Invade.
+          </li>
+          <li>
+            <strong>Stop:</strong> tap <strong>✕ Stop moving</strong> (or press Esc) when you&rsquo;re done.
+          </li>
+        </ol>
+        <p>Units can ride one line per turn, and fresh recruits rest until next turn.</p>
+        <p>
+          <strong>Or drag them:</strong> on your turn, grab one of your armies on the globe and drop it on a ringed region it can reach.
+          The move bar opens at <strong>Who goes</strong>, with everyone who&rsquo;s ready picked and your chance to win if it&rsquo;s an
+          invasion.
+        </p>
+        <h3>✏️ Renaming what you conquer</h3>
+        <p>
+          Conquerors name what they take. When you capture a region you&rsquo;re offered the chance to rename it, or keep its name, and you
+          can rename it again from its panel for as long as you hold it. Names are public, so everyone sees them, even through the fog, and
+          whoever takes the region next can rename it in turn. The land you start with wasn&rsquo;t conquered, so it keeps its name.
         </p>
         <h3>⚔️ Battles</h3>
         <p>

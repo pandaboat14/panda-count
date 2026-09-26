@@ -4,9 +4,11 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { unitTotal, type GameEvent } from "@/game/engine";
+import { unitTotal, type BattleData, type GameEvent } from "@/game/engine";
 import { NEIGHBORS, REGION_BY_ID } from "@/game/regions";
 import { BUILDINGS, type BuildingType } from "@/game/rules";
+import { fillCost } from "@/game/advisor";
+import { rollShow, type RollShow } from "@/game/rollReport";
 import type { GamePayload } from "@/lib/game/store";
 import { useReducedMotion } from "@/lib/hooks";
 import { Avatar } from "../Avatar";
@@ -15,15 +17,17 @@ import { canReplay } from "@/game/battleScript";
 import { BattleView } from "./BattleView";
 import { DiceRoll } from "./DiceRoll";
 import { ChatPanel, channelOf, type Channel } from "./ChatPanel";
-import type { Built, Highlight } from "./Board";
+import type { BoardLabel, Built, Highlight, MarkKind } from "./Board";
+import { FlagIcon } from "./Flag";
 import { Glossary, GoodsBar, affordable } from "./bits";
-import { fillCost } from "@/game/advisor";
 import { GameOver } from "./GameOver";
-import { BankPanel, DiplomacyPanel, HeroesPanel, LogPanel, RegionPanel, buyThen, meOf, playerName, regionName, regionView, rested, usableLine, type Ctx } from "./panels";
+import { BankPanel, DiplomacyPanel, HeroesPanel, LogPanel, RegionPanel, RenameCard, buyThen, meOf, playerName, regionName, regionView, usableLine, type Ctx } from "./panels";
 import { BuildPanel, sitesFor, type Placement } from "./BuildPanel";
-import { MoveCard } from "./MoveCard";
+import { restedIn } from "@/game/army";
+import { attackOdds } from "@/game/odds";
 import { HowToPlay } from "./HowToPlay";
 import { ArmyPanel } from "./ArmyPanel";
+import { MoveBar, moveOptions, moveSources } from "./MoveBar";
 import { PlanPanel } from "./PlanPanel";
 import { useGame } from "./useGame";
 
@@ -33,6 +37,8 @@ type Tab = "plan" | "army" | "region" | "build" | "heroes" | "diplomacy" | "chat
 
 // How long each of the other Kirds' moves stays on screen, so there's time to read it.
 const FEED_MS = 8500;
+// While the move bar is up, the camera aims this many degrees south of the action, so it shows above the bar.
+const MOVE_RAISE = 12;
 // Routine bookkeeping that isn't worth a caption.
 const QUIET = new Set(["endTurn", "turn", "income"]);
 
@@ -50,20 +56,11 @@ const TONE: Record<string, Highlight["tone"]> = {
   arm: "build",
   move: "move",
   loan: "move",
+  rename: "build",
 };
 
-type DiceShow = { seq: number; turn: number; roll: [number, number]; lines: string[] };
-
-// The latest roll (by `who`, or by anyone if null), with what it did in plain words.
-function diceFor(events: GameEvent[], who: string | null): DiceShow | null {
-  const rollEvent = [...events].reverse().find((e) => e.type === "roll" && (who === null || e.actor === who) && Array.isArray(e.data?.roll));
-  if (!rollEvent) return null;
-  const roll = rollEvent.data!.roll as [number, number];
-  const lines = [rollEvent.text.replace(/^🎲 .*? rolled \d+[.:]?\s*/u, "")];
-  const income = events.find((e) => e.type === "income" && e.actor === rollEvent.actor && e.turn === rollEvent.turn);
-  if (income) lines.push(`Your turn: ${income.text}`);
-  return { seq: rollEvent.seq, turn: rollEvent.turn, roll, lines: lines.filter(Boolean) };
-}
+// Moving troops: where from, then where to (either can still be unpicked).
+type Move = { from: string | null; to: string | null };
 
 export function GameClient({ initial }: { initial: GamePayload }) {
   const { game, act: rawAct, send, loadOlder, olderDone, busy, error, savedAt, clearError } = useGame(initial);
@@ -76,7 +73,13 @@ export function GameClient({ initial }: { initial: GamePayload }) {
   const still = useReducedMotion();
 
   const [selected, setSelected] = useState<string | null>(me.capital ?? null);
-  const [dest, setDest] = useState<string | null>(null);
+  // Move mode: null when you're not moving troops.
+  const [move, setMove] = useState<Move | null>(null);
+  const [moveNote, setMoveNote] = useState<string | null>(null);
+  // Phones tuck the panel away while you move troops, and bring it back when you stop.
+  const [restorePanel, setRestorePanel] = useState(false);
+  // A region you just took, waiting to hear if you'd like to rename it.
+  const [renameAsk, setRenameAsk] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>(myTurn ? "plan" : "region");
   const [thunder, setThunder] = useState(false);
   const [focus, setFocus] = useState<{ lat: number; lng: number; seq: number } | null>(null);
@@ -90,39 +93,33 @@ export function GameClient({ initial }: { initial: GamePayload }) {
   const [menu, setMenu] = useState(false);
   // The Build tab's pick: which building you're placing, and where.
   const [placing, setPlacing] = useState<Placement | null>(null);
-  // The last building you put up, so the globe can raise it out of the ground.
+  // The building you just put up, so the globe raises it out of the ground (only for as long as that takes,
+  // so it never plays twice).
   const [built, setBuilt] = useState<Built | null>(null);
-  // Troops you dropped on a region, waiting for you to say who goes.
-  const [moveCard, setMoveCard] = useState<{ from: string; to: string } | null>(null);
-  // Only for as long as it takes to rise, so it never plays twice.
   useEffect(() => {
     if (!built) return;
     const t = setTimeout(() => setBuilt(null), 3200);
     return () => clearTimeout(t);
   }, [built]);
 
-  const focusOn = useCallback((id: string) => {
-    const d = REGION_BY_ID.get(id);
-    if (d) setFocus({ lat: d.lat, lng: d.lng, seq: Date.now() });
-  }, []);
-
-  // Every move goes through here so a battle you just fought plays out on screen, and a building you just
-  // put up rises on the globe.
+  // Every move goes through here so a battle you just fought plays out on screen, a region you
+  // just took gets offered a new name once it has, and a building you just put up rises on the globe.
   const act: typeof rawAct = useCallback(
     async (a) => {
       const evs = await rawAct(a);
       if (evs) {
         const fought = evs.find((e) => canReplay(e) && e.actor === view.me);
         if (fought) setBattle(fought);
+        const took = evs.find((e) => e.actor === view.me && (e.type === "capture" || (e.type === "battle" && (e.data as Partial<BattleData> | undefined)?.won)));
+        if (took) setRenameAsk((took.data as Partial<BattleData> | undefined)?.to ?? took.regions.at(-1) ?? null);
+        const renamed = evs.find((e) => e.type === "rename" && e.actor === view.me);
+        if (renamed) setToast(renamed.text);
         const b = evs.find((e) => e.type === "build" && e.actor === view.me && e.regions[0]);
-        if (b) {
-          setBuilt({ region: b.regions[0], building: b.data?.building as BuildingType, seq: b.seq });
-          focusOn(b.regions[0]);
-        }
+        if (b) setBuilt({ region: b.regions[0], building: b.data?.building as BuildingType, seq: b.seq });
       }
       return evs;
     },
-    [rawAct, view.me, focusOn],
+    [rawAct, view.me],
   );
 
   // ---- chat: which conversation is open, and what's unread ----
@@ -188,6 +185,26 @@ export function GameClient({ initial }: { initial: GamePayload }) {
     }
   };
 
+  // Flies the camera to a region, or halfway between two. `raise` aims that many degrees south of the spot, so it
+  // sits above the middle of the screen (clear of the move bar along the bottom).
+  const focusOn = useCallback((id: string, also?: string | null, raise = 0) => {
+    const a = REGION_BY_ID.get(id);
+    const b = also ? REGION_BY_ID.get(also) : undefined;
+    if (!a) return;
+    let { lat, lng } = a;
+    if (b) {
+      // Halfway along the great circle, so both regions stay on screen.
+      const v = (d: { lat: number; lng: number }) => {
+        const [la, ln] = [(d.lat * Math.PI) / 180, (d.lng * Math.PI) / 180];
+        return [Math.cos(la) * Math.cos(ln), Math.cos(la) * Math.sin(ln), Math.sin(la)];
+      };
+      const [x, y, z] = v(a).map((n, i) => n + v(b)[i]);
+      lat = (Math.atan2(z, Math.hypot(x, y)) * 180) / Math.PI;
+      lng = (Math.atan2(y, x) * 180) / Math.PI;
+    }
+    setFocus({ lat: Math.max(-85, lat - raise), lng, seq: Date.now() });
+  }, []);
+
   // ---- replay of everything since your last turn ----
   const unseen = useMemo(
     () => game.events.filter((e) => e.seq > (me.lastTurnEndSeq ?? 0) && e.actor !== view.me && !QUIET.has(e.type)),
@@ -196,14 +213,15 @@ export function GameClient({ initial }: { initial: GamePayload }) {
   const [replay, setReplay] = useState<{ list: GameEvent[]; i: number } | null>(null);
   const [replayOffered, setReplayOffered] = useState(false);
 
-  // ---- the chance cubes: your start-of-turn roll, played once the other Kirds' moves have been shown ----
-  const [dice, setDice] = useState<DiceShow | null>(null);
-  const [pendingDice, setPendingDice] = useState<DiceShow | null>(null);
+  // ---- the dice: your start-of-turn roll, thrown once the other Kirds' moves have been shown ----
+  // `live` is your own throw to make; otherwise it's a replay that throws itself.
+  const [dice, setDice] = useState<{ show: RollShow; live: boolean } | null>(null);
+  const [pendingDice, setPendingDice] = useState<RollShow | null>(null);
   const diceKey = `pd-dice-${game.id}`;
   useEffect(() => {
     // After mount (so server and client render the same): if your turn's roll hasn't been shown yet, queue it.
     const t = setTimeout(() => {
-      const mine = myTurn ? diceFor(game.events, view.me) : null;
+      const mine = myTurn ? rollShow(game.events, view.me, view.me) : null;
       // Only this turn's roll, and only once (it's remembered on this device).
       if (!mine || mine.turn !== view.turn) return;
       let shown = 0;
@@ -224,13 +242,20 @@ export function GameClient({ initial }: { initial: GamePayload }) {
   const [seenTurn, setSeenTurn] = useState(view.turn);
   if (view.turn !== seenTurn) {
     setSeenTurn(view.turn);
+    // A turn change always ends any troop move, building placement or rename that was under way.
+    setMove(null);
+    setMoveNote(null);
+    setRenameAsk(null);
     setPlacing(null);
-    setMoveCard(null);
+    if (restorePanel) {
+      setPanelOpen(true);
+      setRestorePanel(false);
+    }
     if (myTurn) {
       setToast("🎲 It's your turn!");
       setReplayOffered(false);
       setTab("plan");
-      const mine = diceFor(game.events, view.me);
+      const mine = rollShow(game.events, view.me, view.me);
       if (mine && mine.turn === view.turn) setPendingDice(mine);
     }
   }
@@ -251,7 +276,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
   useEffect(() => {
     if (!pendingDice || replay || battle || dice) return;
     const t = setTimeout(() => {
-      setDice(pendingDice);
+      setDice({ show: pendingDice, live: true });
       setPendingDice(null);
       try {
         localStorage.setItem(diceKey, String(pendingDice.seq));
@@ -288,14 +313,62 @@ export function GameClient({ initial }: { initial: GamePayload }) {
     return () => clearTimeout(t);
   }, [toast]);
 
+  // ---- moving troops ----
+  const startMove = useCallback(
+    (from: string | null, to: string | null = null) => {
+      setThunder(false);
+      setPlacing(null);
+      setReplay(null);
+      setMove({ from, to });
+      setMoveNote(null);
+      if (from) setSelected(from);
+      if (from) focusOn(from, to, MOVE_RAISE);
+      // Phones: tuck the panel away so the whole map is free to tap.
+      if (panelOpen && window.matchMedia("(max-width: 760px)").matches) {
+        setPanelOpen(false);
+        setRestorePanel(true);
+      }
+    },
+    [focusOn, panelOpen],
+  );
+  const stopMove = useCallback(() => {
+    setMove(null);
+    setMoveNote(null);
+    if (restorePanel) {
+      setPanelOpen(true);
+      setRestorePanel(false);
+    }
+  }, [restorePanel]);
+  // The bar's buttons can name regions anywhere on the globe, so the camera follows them there.
+  const pickMove = useCallback(
+    (from: string | null, to: string | null) => {
+      setMove({ from, to });
+      if (from) setSelected(from);
+      if (from) focusOn(from, to, MOVE_RAISE);
+    },
+    [focusOn],
+  );
+
+  // Esc stops moving troops (or calling thunder), unless a dialog is open and wants the key itself.
+  useEffect(() => {
+    if (!move && !thunder) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || document.querySelector("dialog[open]")) return;
+      if (thunder) setThunder(false);
+      else stopMove();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [move, thunder, stopMove]);
+
   // ---- clicking the board ----
   const sel = selected ? regionView(view, selected) : null;
-  const moveTargets = useMemo(() => {
-    if (thunder) return view.regions.filter((r) => !r.fog && r.owner !== view.me).map((r) => r.id);
-    if (!myTurn || !selected || sel?.owner !== view.me) return [];
-    return NEIGHBORS.get(selected)!.filter((n) => usableLine(view, selected, n));
-  }, [thunder, myTurn, selected, sel?.owner, view]);
+  const thunderTargets = useMemo(
+    () => (thunder ? view.regions.filter((r) => !r.fog && r.owner !== view.me).map((r) => r.id) : []),
+    [thunder, view],
+  );
 
+  // Tapping the region you picked for a building a second time builds it there (buying anything missing first).
   const buildHere = useCallback(
     async (type: BuildingType, id: string) => {
       const { cost, label } = BUILDINGS[type];
@@ -303,51 +376,79 @@ export function GameClient({ initial }: { initial: GamePayload }) {
         setToast(`You can't afford a ${label} yet, even with the Bank.`);
         return;
       }
-      const ctxNow: Ctx = { view, myTurn, busy, act, avatars: game.avatars, over };
-      if (await buyThen(ctxNow, cost, { type: "build", region: id, building: type })) setPlacing(null);
+      if (await buyThen({ view, myTurn, busy, act, avatars: game.avatars, over }, cost, { type: "build", region: id, building: type })) setPlacing(null);
     },
     [me.goods, view, myTurn, busy, act, game.avatars, over],
   );
 
-  const onSelect = useCallback((id: string) => {
-    // Choosing where a building goes: tap a glowing region, then tap it again (or use the button) to build.
-    if (placing) {
-      const ok = view.regions.some((r) => r.id === id && r.owner === view.me && !r.buildings?.includes(placing.type));
-      if (!ok) setToast(regionView(view, id).owner === view.me ? `${regionName(id)} already has one.` : "You can only build in your own regions.");
-      else if (placing.site === id) void buildHere(placing.type, id);
-      else setPlacing({ ...placing, site: id });
-      return;
-    }
-    if (thunder) {
-      if (moveTargets.includes(id) && confirm(`Call Casey's thunder down on ${regionName(id)}?`)) {
-        act({ type: "thunder", target: id });
+  const onSelect = useCallback(
+    (id: string) => {
+      // Choosing where a building goes: tap a glowing region, then tap it again (or press Build) to put it there.
+      if (placing) {
+        const r = regionView(view, id);
+        if (r.owner !== view.me) setToast(`You can only build in your own regions.`);
+        else if (r.buildings?.includes(placing.type)) setToast(`${regionName(view, id)} already has a ${BUILDINGS[placing.type].label}.`);
+        else if (placing.site === id) void buildHere(placing.type, id);
+        else setPlacing({ ...placing, site: id });
+        return;
       }
-      setThunder(false);
-      return;
-    }
-    if (selected && moveTargets.includes(id)) {
-      setDest(dest === id ? null : id);
+      if (thunder) {
+        if (thunderTargets.includes(id) && confirm(`Call Casey's thunder down on ${regionName(view, id)}?`)) {
+          act({ type: "thunder", target: id });
+        }
+        setThunder(false);
+        return;
+      }
+      if (move) {
+        const r = regionView(view, id);
+        const from = move.from;
+        setMoveNote(null);
+        if (from && id === from) {
+          // Tapping where you're moving from again lets you pick somewhere else.
+          setMove({ from: null, to: null });
+        } else if (from && NEIGHBORS.get(from)!.includes(id) && !(r.owner === view.me && !usableLine(view, from, id))) {
+          setMove({ from, to: move.to === id ? null : id });
+        } else if (r.owner === view.me) {
+          setMove({ from: id, to: null });
+          setSelected(id);
+        } else {
+          setMoveNote(
+            from
+              ? `${regionName(view, id)} isn't next to ${regionName(view, from)}: troops ride one gondola line at a time.`
+              : `${regionName(view, id)} isn't yours. Start from one of your regions: they fly your flag.`,
+          );
+        }
+        return;
+      }
+      setSelected(id);
       setTab("region");
-      return;
-    }
-    setSelected(id);
-    setDest(null);
-    setTab("region");
-    setPanelOpen(true);
-  }, [placing, view, buildHere, thunder, moveTargets, selected, dest, act]);
+      setPanelOpen(true);
+    },
+    [placing, buildHere, thunder, thunderTargets, move, view, act],
+  );
   const onReady = useCallback(() => setReady(true), []);
 
   const ctx: Ctx = { view, myTurn, busy, act, avatars: game.avatars, over };
   const closeDice = useCallback(() => setDice(null), []);
 
-  // Pick an attack: show the source region's panel with the target lined up.
-  const planAttack = (from: string, to: string) => {
-    setSelected(from);
-    setDest(to);
-    setTab("region");
-    setPanelOpen(true);
-    focusOn(to);
-  };
+  // Pick an attack (Sun Tzu's, or from a region's panel): straight into move mode, ready to choose who goes.
+  const planAttack = (from: string, to: string) => startMove(from, to);
+
+  // Placing a building from the Build tab: the camera swings round to where it can go, and any troop move stops.
+  const startPlacing = useCallback(
+    (p: Placement | null) => {
+      if (p && !placing) {
+        stopMove();
+        setThunder(false);
+        const sites = sitesFor(view, p.type);
+        const at = selected && sites.includes(selected) ? selected : sites[0];
+        if (at) focusOn(at);
+      }
+      if (p?.site && p.site !== placing?.site) focusOn(p.site);
+      setPlacing(p);
+    },
+    [placing, stopMove, view, selected, focusOn],
+  );
 
   const setAutopilot = async (on: boolean, level: "medium" | "hard" = "medium") => {
     if (
@@ -362,7 +463,6 @@ export function GameClient({ initial }: { initial: GamePayload }) {
 
   const endTurn = async () => {
     if (await act({ type: "endTurn" })) {
-      setDest(null);
       setToast(view.players.some((p) => p.bot) ? "Turn ended. The computer players are moving…" : "Turn ended. The Kirds have been summoned.");
     }
   };
@@ -383,6 +483,15 @@ export function GameClient({ initial }: { initial: GamePayload }) {
 
   const hoursWaiting = (now - view.turnStartedAt) / 3600000;
 
+  // "Your land": each tap flies on to the next region you hold.
+  const myLand = useMemo(() => view.regions.filter((r) => r.owner === view.me).map((r) => r.id), [view.regions, view.me]);
+  const showMyLand = () => {
+    if (!myLand.length) return;
+    const id = myLand[(myLand.indexOf(selected ?? "") + 1) % myLand.length];
+    setSelected(id);
+    focusOn(id);
+  };
+
   // During a replay the board follows the replay; otherwise it shows your own picks.
   const replayRegion = replayEvent?.regions.at(-1);
   const replayDef = replayRegion ? REGION_BY_ID.get(replayRegion) : undefined;
@@ -396,16 +505,56 @@ export function GameClient({ initial }: { initial: GamePayload }) {
         ? replayEvent.regions.length
           ? { regions: replayEvent.regions, tone: TONE[replayEvent.type] ?? "info" }
           : null
-        : highlight ?? (dest ? { regions: [dest], tone: regionView(view, dest).owner === view.me ? "move" : "battle" } : null),
-    [replayEvent, highlight, dest, view],
+        : highlight ?? (move?.to ? { regions: [move.to], tone: regionView(view, move.to).owner === view.me ? "move" : "battle" } : null),
+    [replayEvent, highlight, move, view],
   );
-  const boardTargets = useMemo(() => (thunder || dest === null ? moveTargets : [dest]), [thunder, dest, moveTargets]);
-
-  // Placing a building: the regions it can go in glow, with a see-through preview over each.
-  const boardPlacing = useMemo(
-    () => (placing ? { type: placing.type, site: placing.site, sites: sitesFor(view, placing.type) } : null),
-    [placing, view],
-  );
+  // Rings for whatever you're doing: where a building can go, where troops can leave from, where they can go,
+  // or what thunder can hit.
+  const buildSites = useMemo(() => (placing ? sitesFor(view, placing.type) : []), [placing, view]);
+  const boardMarks = useMemo(() => {
+    const marks: Record<string, MarkKind> = {};
+    if (placing) {
+      for (const id of buildSites) marks[id] = "site";
+    } else if (thunder) {
+      for (const id of thunderTargets) marks[id] = "thunder";
+    } else if (move && myTurn) {
+      if (!move.from) {
+        for (const r of moveSources(view)) marks[r.id] = "source";
+      } else if (move.to) {
+        marks[move.to] = !usableLine(view, move.from, move.to) ? "build" : regionView(view, move.to).owner === view.me ? "move" : "attack";
+      } else {
+        const { lines, build } = moveOptions(view, move.from);
+        for (const n of build) marks[n] = "build";
+        for (const n of lines) marks[n] = regionView(view, n).owner === view.me ? "move" : "attack";
+      }
+    }
+    return marks;
+  }, [placing, buildSites, thunder, thunderTargets, move, myTurn, view]);
+  // Name tags: where troops are moving from and to (with your odds), what a replay is about, or what you picked.
+  const boardLabels = useMemo<BoardLabel[]>(() => {
+    if (replayRegion) return [{ id: replayRegion, text: regionName(view, replayRegion) }];
+    if (placing) return buildSites.map((id) => ({ id, text: `${id === placing.site ? "✓" : "🏗️"} ${regionName(view, id)}`, tone: "site" }));
+    if (thunder) return [];
+    if (!move) {
+      const named: BoardLabel[] = view.regions.filter((r) => r.name).map((r) => ({ id: r.id, text: r.name!, tone: "named" }));
+      return selected && !named.some((l) => l.id === selected) ? [...named, { id: selected, text: regionName(view, selected) }] : named;
+    }
+    if (!move.from) return [];
+    const from = move.from;
+    const labels: BoardLabel[] = [{ id: from, text: `From ${regionName(view, from)}`, tone: "source" }];
+    const ready = restedIn(regionView(view, from));
+    for (const [id, kind] of Object.entries(boardMarks)) {
+      if (kind === "move") labels.push({ id, text: `➡️ ${regionName(view, id)}`, tone: kind });
+      else if (kind === "attack") {
+        // The odds of sending everyone ready; once you pick who goes, the bar has the exact number.
+        const odds = !move.to && unitTotal(ready) ? attackOdds(view, from, id, ready, 120) : null;
+        labels.push({ id, text: `⚔️ ${regionName(view, id)}${odds ? ` · ${Math.round(odds.win * 100)}%` : ""}`, tone: kind });
+      } else if (id === move.to) labels.push({ id, text: `🚡 ${regionName(view, id)}`, tone: kind });
+    }
+    return labels;
+  }, [replayRegion, placing, buildSites, thunder, move, selected, view, boardMarks]);
+  // Placing a building: a see-through preview bobs over each region it could go in.
+  const boardPlacing = useMemo(() => (placing ? { type: placing.type, site: placing.site, sites: buildSites } : null), [placing, buildSites]);
   // Another Kird's building rises during the replay too.
   const boardBuilt = useMemo<Built | null>(
     () =>
@@ -414,31 +563,14 @@ export function GameClient({ initial }: { initial: GamePayload }) {
         : built,
     [replayEvent, built],
   );
-  // Armies you can pick up and drag: rested troops with a gondola line to ride.
-  const movable = useMemo(() => {
-    const m = new Map<string, string[]>();
-    if (!myTurn || over || placing || busy) return m;
-    for (const r of view.regions) {
-      if (r.owner !== view.me || !unitTotal(rested(r))) continue;
-      const to = NEIGHBORS.get(r.id)!.filter((n) => usableLine(view, r.id, n));
-      if (to.length) m.set(r.id, to);
-    }
-    return m;
-  }, [myTurn, over, placing, busy, view]);
-  const onDrop = useCallback((from: string, to: string) => setMoveCard({ from, to }), []);
-  const startPlacing = useCallback(
-    (p: Placement | null) => {
-      setPlacing(p);
-      if (p && !placing) {
-        // Swing round to where it can go: the selected region if it fits, else the first that does.
-        const sites = sitesFor(view, p.type);
-        const at = selected && sites.includes(selected) ? selected : sites[0];
-        if (at) focusOn(at);
-      }
-      if (p?.site) focusOn(p.site);
-    },
-    [placing, view, selected, focusOn],
+  // Armies you can pick up and drag to a neighbour: rested troops with a gondola line to ride.
+  const movable = useMemo(
+    () => new Map(myTurn && !over && !placing && !busy ? moveSources(view).map((r) => [r.id, moveOptions(view, r.id).lines] as const) : []),
+    [myTurn, over, placing, busy, view],
   );
+  // Dropping troops on a region opens the move bar, ready to choose who goes.
+  const onDrop = useCallback((from: string, to: string) => startMove(from, to), [startMove]);
+  const renaming = renameAsk && myTurn && !battle && !dice && view.regions.some((r) => r.id === renameAsk && r.renamable) ? renameAsk : null;
 
   return (
     <main className="game">
@@ -448,7 +580,8 @@ export function GameClient({ initial }: { initial: GamePayload }) {
           <Board
             view={view}
             selected={selected}
-            targets={boardTargets}
+            marks={boardMarks}
+            labels={boardLabels}
             highlight={boardHighlight}
             focus={boardFocus}
             still={still}
@@ -476,8 +609,8 @@ export function GameClient({ initial }: { initial: GamePayload }) {
                   className="roll-link"
                   title="Watch the last roll again"
                   onClick={() => {
-                    const last = diceFor(game.events, null);
-                    if (last) setDice(last);
+                    const last = rollShow(game.events, null, view.me);
+                    if (last) setDice({ show: last, live: false });
                   }}
                 >
                   🎲 {view.lastRoll[0]}+{view.lastRoll[1]}={view.lastRoll[0] + view.lastRoll[1]}
@@ -550,61 +683,71 @@ export function GameClient({ initial }: { initial: GamePayload }) {
               : `⚠️ ${playerName(view, view.threat)} holds ${view.players.find((p) => p.id === view.threat)?.regions ?? view.goal} regions. Take some before their next turn, or they win!`}
           </p>
         )}
-        <Glossary />
+        <div className="goods-extras">
+          <button type="button" className="your-land" onClick={showMyLand} title="Fly to each of your regions in turn">
+            <FlagIcon color={me.color} mine size={22} />
+            <span>
+              Your land: <strong>{me.regions}</strong> region{me.regions === 1 ? "" : "s"}
+            </span>
+          </button>
+          <Glossary />
+        </div>
       </div>
 
       {over && <GameOver view={view} avatars={game.avatars} endedAt={game.endedAt} />}
 
-      {!over && unseen.length > 0 && !replay && !replayOffered && !placing && !moveCard && (
-        <div className="replay-offer">
-          <p>
-            <strong>{unseen.length}</strong> thing{unseen.length === 1 ? "" : "s"} happened since your last turn.
-          </p>
-          <div className="form-actions">
-            <button className="btn small" onClick={() => { setReplay({ list: unseen, i: 0 }); setReplayOffered(true); }}>▶ Watch replay</button>
-            <button className="btn ghost small" onClick={() => { setReplayOffered(true); setTab("log"); }}>Read it</button>
+      <div className="game-prompts">
+        {!over && unseen.length > 0 && !replay && !replayOffered && !placing && (
+          <div className="replay-offer">
+            <p>
+              <strong>{unseen.length}</strong> thing{unseen.length === 1 ? "" : "s"} happened since your last turn.
+            </p>
+            <div className="form-actions">
+              <button className="btn small" onClick={() => { setReplay({ list: unseen, i: 0 }); setReplayOffered(true); }}>▶ Watch replay</button>
+              <button className="btn ghost small" onClick={() => { setReplayOffered(true); setTab("log"); }}>Read it</button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {replay && replay.list[replay.i] && (
-        <div className="replay-caption" role="status">
-          <p className="muted small">
-            {replay.i + 1} / {replay.list.length} · Round {replay.list[replay.i].round}
-          </p>
-          <p>{replay.list[replay.i].text}</p>
-          {!canReplay(replay.list[replay.i]) && !still && <span key={`${replay.i}-${replay.list[replay.i].seq}`} className="feed-timer" style={{ animationDuration: `${FEED_MS}ms` }} />}
-          {canReplay(replay.list[replay.i]) && !battle && (
-            <button className="btn small" onClick={() => setBattle(replay.list[replay.i])}>⚔️ Watch the battle</button>
-          )}
-          <div className="form-actions">
-            <button className="btn ghost small" onClick={() => setReplay({ ...replay, i: Math.max(0, replay.i - 1) })} disabled={replay.i === 0}>◀</button>
-            <button className="btn ghost small" onClick={nextReplay}>▶</button>
-            <button className="btn small" onClick={() => setReplay(null)}>{replay.i + 1 < replay.list.length ? "Skip all ⏭" : "Done"}</button>
+        {replay && replay.list[replay.i] && (
+          <div className="replay-caption" role="status">
+            <p className="muted small">
+              {replay.i + 1} / {replay.list.length} · Round {replay.list[replay.i].round}
+            </p>
+            <p>{replay.list[replay.i].text}</p>
+            {!canReplay(replay.list[replay.i]) && !still && <span key={`${replay.i}-${replay.list[replay.i].seq}`} className="feed-timer" style={{ animationDuration: `${FEED_MS}ms` }} />}
+            {canReplay(replay.list[replay.i]) && !battle && (
+              <button className="btn small" onClick={() => setBattle(replay.list[replay.i])}>⚔️ Watch the battle</button>
+            )}
+            <div className="form-actions">
+              <button className="btn ghost small" onClick={() => setReplay({ ...replay, i: Math.max(0, replay.i - 1) })} disabled={replay.i === 0}>◀</button>
+              <button className="btn ghost small" onClick={nextReplay}>▶</button>
+              <button className="btn small" onClick={() => setReplay(null)}>{replay.i + 1 < replay.list.length ? "Skip all ⏭" : "Done"}</button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {placing && (
-        <div className="replay-caption placing-caption" role="status">
-          <p>
-            🏗️ Placing a {BUILDINGS[placing.type].label}:{" "}
-            {placing.site ? `tap ${regionName(placing.site)} again or press Build to put it there.` : "tap a glowing region."}
-          </p>
-          <button className="btn ghost small" onClick={() => setPlacing(null)}>Cancel</button>
-        </div>
-      )}
+        {placing && (
+          <div className="replay-caption placing-caption" role="status">
+            <p>
+              🏗️ Placing a {BUILDINGS[placing.type].label}:{" "}
+              {placing.site ? `tap ${regionName(view, placing.site)} again, or press Build, to put it there.` : "tap a glowing region."}
+            </p>
+            <button className="btn ghost small" onClick={() => setPlacing(null)}>Cancel</button>
+          </div>
+        )}
 
-      {moveCard && !battle && <MoveCard key={`${moveCard.from}>${moveCard.to}`} ctx={ctx} from={moveCard.from} to={moveCard.to} onClose={() => setMoveCard(null)} />}
+        {thunder && (
+          <div className="replay-caption">
+            <p>⚡ Pick a region you can see for Casey to strike.</p>
+            <button className="btn ghost small" onClick={() => setThunder(false)}>Cancel</button>
+          </div>
+        )}
 
-      {thunder && (
-        <div className="replay-caption">
-          <p>⚡ Pick a region you can see for Casey to strike.</p>
-          <button className="btn ghost small" onClick={() => setThunder(false)}>Cancel</button>
-        </div>
-      )}
+        {renaming && <RenameCard key={renaming} ctx={ctx} id={renaming} onClose={() => setRenameAsk(null)} />}
+      </div>
 
-      {!panelOpen && (
+      {!panelOpen && !move && (
         <button className="panel-restore" onClick={() => setPanelOpen(true)} aria-label="Show the actions panel">
           ▴ Actions
           {pendingOffers + unreadTotal > 0 && <span className="dot-count">{pendingOffers + unreadTotal}</span>}
@@ -647,9 +790,11 @@ export function GameClient({ initial }: { initial: GamePayload }) {
                   key={selected}
                   ctx={ctx}
                   id={selected}
-                  dest={dest}
-                  setDest={setDest}
-                  startThunder={() => setThunder(true)}
+                  startMove={(from) => startMove(from)}
+                  startThunder={() => {
+                    stopMove();
+                    setThunder(true);
+                  }}
                   planAttack={planAttack}
                 />
               ) : (
@@ -669,7 +814,6 @@ export function GameClient({ initial }: { initial: GamePayload }) {
                 events={game.events}
                 onManage={(id) => {
                   setSelected(id);
-                  setDest(null);
                   setTab("region");
                   setPanelOpen(true);
                   focusOn(id);
@@ -703,13 +847,20 @@ export function GameClient({ initial }: { initial: GamePayload }) {
         )}
       </aside>
 
-      <div className="game-bottom">
+      <div className={`game-bottom${move ? " moving" : ""}`}>
         {over ? (
           <Link className="btn end-turn" href="/game">🎲 Start a new game</Link>
+        ) : myTurn && move ? (
+          <MoveBar ctx={ctx} from={move.from} to={move.to} note={moveNote} pick={pickMove} setNote={setMoveNote} onStop={stopMove} />
         ) : myTurn ? (
-          <button className="btn end-turn" disabled={busy} onClick={endTurn}>
-            End turn ⏭
-          </button>
+          <div className="turn-actions">
+            <button className="btn move-troops" disabled={busy} onClick={() => startMove(sel?.owner === view.me ? selected : null)}>
+              🚡 Move troops
+            </button>
+            <button className="btn end-turn" disabled={busy} onClick={endTurn}>
+              End turn ⏭
+            </button>
+          </div>
         ) : (
           <p className="waiting">
             Waiting for {active.bot ? "🤖 " : ""}{active.name}…
@@ -727,7 +878,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
       )}
 
       {help && <HowToPlay onClose={() => setHelp(false)} />}
-      {dice && <DiceRoll key={dice.seq} roll={dice.roll} lines={dice.lines} still={still} onClose={closeDice} />}
+      {dice && <DiceRoll key={`${dice.show.seq}-${dice.live}`} show={dice.show} view={view} live={dice.live} still={still} onClose={closeDice} />}
       {battle && (
         <BattleView
           key={battle.seq}

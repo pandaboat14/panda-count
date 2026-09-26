@@ -708,17 +708,8 @@ function armyModel(look: ArmyLook, figs: UnitType[]) {
   });
 }
 
-function bannerModel() {
-  return cached("banner", (k) => {
-    k.cyl(0.012, 0.014, 0.8, P.woodDark, [0, 0.4, 0], 0, 1, 6);
-    k.ball(0.022, P.gold, [0, 0.81, 0]);
-    k.box(0.2, 0.13, 0.012, "owner", [0.1, 0.71, 0]);
-    k.box(0.2, 0.02, 0.014, "ownerDark", [0.1, 0.64, 0]);
-    k.cone(0.045, 0.06, "owner", [0.2, 0.66, 0], [0, 0, -Math.PI / 2], [1, 1, 0.12], 3);
-  });
-}
-
-// An army at the middle of its hex: the figures, a banner in the owner's colour and a badge with the head count.
+// An army at the middle of its hex: the figures, and a badge in the owner's colour with the head count
+// floating over them. (The owner's flag flies from the back of the hex.)
 export function armyObject(units: Units, owner: string, look: ArmyLook, count: number) {
   const g = new Group();
   const figs = armyFigures(units, look === "squad" ? 6 : 3);
@@ -726,22 +717,11 @@ export function armyObject(units: Units, owner: string, look: ArmyLook, count: n
   const shadow = blobShadow(look === "squad" ? 0.42 : 0.36, look === "squad" ? 0.24 : 0.28);
   shadow.position.z = look === "squad" ? -0.02 : 0;
   g.add(shadow);
-  const banner = instance(bannerModel(), owner);
-  banner.position.set(look === "squad" ? 0.02 : 0.26, 0, look === "squad" ? -0.26 : 0.05);
-  g.add(banner);
   const badge = sprite(badgeTex(count, owner), 0.34, 0.34);
-  badge.position.set(banner.position.x + 0.1, 0.94, banner.position.z);
+  badge.position.set(look === "squad" ? 0.12 : 0.2, look === "squad" ? 0.66 : 0.86, -0.06);
   keepReadable(badge, 24);
   g.add(badge);
   g.position.set(SLOTS.army[0], 0, SLOTS.army[1]);
-  return g;
-}
-
-// The owner's flag, for a region they hold with nobody in it.
-export function flagObject(owner: string) {
-  const g = instance(bannerModel(), owner);
-  g.position.set(SLOTS.army[0] + 0.1, 0, SLOTS.army[1]);
-  g.scale.setScalar(0.8);
   return g;
 }
 

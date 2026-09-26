@@ -92,11 +92,11 @@ export function ArmyPanel({
                 <strong>
                   {HEROES[h.id].icon} {HEROES[h.id].name}
                 </strong>{" "}
-                <span className="muted small">in {h.region ? regionName(h.region) : "the Hall"}</span>
+                <span className="muted small">in {h.region ? regionName(view, h.region) : "the Hall"}</span>
                 <p className="small">{heroBonusText(h.id)}.</p>
                 {h.region && (
                   <button className="btn ghost small" onClick={() => onManage(h.region!)}>
-                    Go to {regionName(h.region)}
+                    Go to {regionName(view, h.region)}
                   </button>
                 )}
               </li>
@@ -116,7 +116,7 @@ export function ArmyPanel({
               <li key={r.region.id}>
                 <button className={`army-region${risk >= 50 ? " danger" : risk >= 20 ? " watch" : ""}`} onClick={() => onManage(r.region.id)}>
                   <span className="army-region-head">
-                    <strong>{regionName(r.region.id)}</strong>
+                    <strong>{regionName(view, r.region.id)}</strong>
                     {r.region.id === ctx.view.players.find((p) => p.id === view.me)?.capital && <span className="badge">capital</span>}
                     {r.heroes.map((h) => (
                       <span key={h} title={HEROES[h].name}>{HEROES[h].icon}</span>
@@ -133,7 +133,7 @@ export function ArmyPanel({
                   </span>
                   {r.danger && (
                     <span className={`army-risk${risk >= 50 ? " high" : ""}`}>
-                      ⚠️ {playerName(view, r.danger.owner)} could take it from {regionName(r.danger.from)}: {risk}% chance
+                      ⚠️ {playerName(view, r.danger.owner)} could take it from {regionName(view, r.danger.from)}: {risk}% chance
                     </span>
                   )}
                 </button>

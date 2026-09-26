@@ -2,7 +2,7 @@
 // It never ends: there is no victory check, eliminated Kirds respawn, and new rounds keep
 // drawing world events so there's always something going on.
 
-import { NEIGHBORS, REGIONS, REGION_BY_ID, lineEnds, lineId, type NativeNation, type Resource } from "./regions";
+import { NEIGHBORS, REGIONS, REGION_BY_ID, lineEnds, lineId, placeName, type NativeNation, type Resource } from "./regions";
 import {
   BUILDINGS,
   BUY_PRICE,
@@ -53,6 +53,10 @@ export type RegionState = {
   tired: Units; // units that already moved (or were just recruited) this turn
   buildings: BuildingType[];
   token: number; // Catan-style production number, 2–12 except 7
+  // A new name from a Kird who conquered it (missing: its real-world name). It outlasts their rule.
+  name?: string;
+  // Whoever last took it by force or rode in unopposed: they may rename it while they hold it.
+  conqueror?: string;
 };
 
 export type BotLevel = "easy" | "medium" | "hard";
@@ -141,6 +145,31 @@ export type BattleData = {
   defenderName: string;
   from: string;
   to: string;
+  place?: string; // what the region was called when the battle was fought (older battles don't say)
+};
+
+// What a start-of-turn roll event carries, so the dice can be re-enacted without reading its text.
+// All of it is public (the text already says who collected what). Which region paid whom stays in the
+// fog, and so does what the ogres took from each Kird: only the raided Kird gets a RaidData event.
+export type RollData = {
+  roll: [number, number];
+  got?: Record<string, Cost>; // not on a 7: what each player collected
+  blight?: boolean; // bamboo blight was on, so bamboo regions paid nothing
+  raided?: Record<string, number>; // on a 7: how many resource cards each raided player lost
+};
+
+// Private to the raided player: exactly what the ogres took, out of how many cards.
+export type RaidData = { lost: Cost; held: number };
+
+// Private to the active player: their start-of-turn harvest and income, as numbers.
+export type IncomeData = {
+  harvest: Cost;
+  quarried: number; // Stone the ogres hauled in
+  coin: number; // after ogre wages
+  pandaCoin: number;
+  camCoin: number;
+  wages: number; // Coin paid to the ogres
+  deserted: number; // unpaid ogres who walked off
 };
 
 export type Action =
@@ -162,6 +191,7 @@ export type Action =
   | { type: "respond"; offerId: string; accept: boolean }
   | { type: "cancelOffer"; offerId: string }
   | { type: "breakPact"; with: string }
+  | { type: "rename"; region: string; name: string }
   | { type: "endTurn" }
   | { type: "skipTurn" }
   | { type: "autopilot"; on: boolean; level?: BotLevel };
@@ -199,7 +229,7 @@ function shuffle<T>(s: GameState, arr: T[]) {
 export const activePlayer = (s: GameState) => s.players.find((p) => p.seat === s.activeSeat)!;
 const playerById = (s: GameState, id: string) => s.players.find((p) => p.id === id) ?? fail("No such player.");
 const regionOf = (s: GameState, id: string) => s.regions[id] ?? fail("No such region.");
-export const regionName = (id: string) => REGION_BY_ID.get(id)?.name ?? id;
+export const regionName = (s: GameState, id: string) => placeName(id, s.regions[id]?.name);
 export const ownedRegions = (s: GameState, pid: string) => Object.values(s.regions).filter((r) => r.owner === pid);
 const heroesOf = (s: GameState, pid: string) => HERO_IDS.filter((h) => s.heroes[h].owner === pid);
 export const hasHero = (s: GameState, pid: string, h: HeroId) => s.heroes[h].owner === pid;
@@ -375,6 +405,8 @@ function settle(s: GameState, p: Player, r: RegionState) {
   r.native = null;
   r.units = { ...START_KIT.units };
   r.tired = emptyUnits();
+  // Land you're given isn't land you took: only conquest comes with the right to rename.
+  delete r.conqueror;
   p.capital = r.id;
 }
 
@@ -401,7 +433,7 @@ export function addPlayer(s: GameState, id: string, name: string, bot?: BotLevel
   settle(s, p, r);
   // No free gondola: choosing where to build first is the opening move.
   const out: GameEvent[] = [];
-  emit(s, out, { actor: id, type: "join", text: `${bot ? "🤖 " : ""}${p.name} joined the world, landing in ${regionName(r.id)}.`, regions: [r.id], public: true });
+  emit(s, out, { actor: id, type: "join", text: `${bot ? "🤖 " : ""}${p.name} joined the world, landing in ${regionName(s, r.id)}.`, regions: [r.id], public: true });
   // The very first Kird starts playing straight away, dice and all.
   if (s.players.length === 1) startTurn(s, out);
   return out;
@@ -420,6 +452,7 @@ export function removePlayer(s: GameState, id: string, now: number): GameEvent[]
     r.owner = null;
     r.native = unitTotal(r.units) > 0 ? "wild" : null;
     r.tired = emptyUnits();
+    delete r.conqueror;
   }
   for (const h of HERO_IDS) if (s.heroes[h].owner === id) s.heroes[h] = { owner: null, region: null, movedTurn: 0 };
   for (const [lid, line] of Object.entries(s.lines)) if (line.owner === id) delete s.lines[lid];
@@ -488,10 +521,10 @@ function applyActionTo(s: GameState, actorId: string, a: Action, now: number): G
       const r = regionOf(s, a.region);
       if (r.owner !== me.id) fail("You can only build in your own regions.");
       const b = BUILDINGS[a.building] ?? fail("Unknown building.");
-      if (r.buildings.includes(a.building)) fail(`${regionName(r.id)} already has a ${b.label}.`);
+      if (r.buildings.includes(a.building)) fail(`${regionName(s, r.id)} already has a ${b.label}.`);
       pay(me, b.cost, `a ${b.label}`);
       r.buildings.push(a.building);
-      emit(s, out, { actor: me.id, type: "build", text: `${me.name} built a ${b.icon} ${b.label} in ${regionName(r.id)}.`, regions: [r.id], data: { building: a.building } });
+      emit(s, out, { actor: me.id, type: "build", text: `${me.name} built a ${b.icon} ${b.label} in ${regionName(s, r.id)}.`, regions: [r.id], data: { building: a.building } });
       break;
     }
     case "recruit": {
@@ -504,7 +537,7 @@ function applyActionTo(s: GameState, actorId: string, a: Action, now: number): G
       r.units[a.unit] += n;
       r.tired[a.unit] += n;
       const u = UNITS[a.unit];
-      emit(s, out, { actor: me.id, type: "recruit", text: `${me.name} recruited ${n} ${u.icon} ${n === 1 ? u.label : u.plural} in ${regionName(r.id)}.`, regions: [r.id], data: { unit: a.unit, count: n } });
+      emit(s, out, { actor: me.id, type: "recruit", text: `${me.name} recruited ${n} ${u.icon} ${n === 1 ? u.label : u.plural} in ${regionName(s, r.id)}.`, regions: [r.id], data: { unit: a.unit, count: n } });
       break;
     }
     case "arm": {
@@ -518,19 +551,19 @@ function applyActionTo(s: GameState, actorId: string, a: Action, now: number): G
       r.tired.panda -= tiredPandas;
       r.units.armedPanda += n;
       r.tired.armedPanda += tiredPandas;
-      emit(s, out, { actor: me.id, type: "arm", text: `${me.name} armed ${n} panda${n === 1 ? "" : "s"} in ${regionName(r.id)}. 🛡️`, regions: [r.id], data: { count: n } });
+      emit(s, out, { actor: me.id, type: "arm", text: `${me.name} armed ${n} panda${n === 1 ? "" : "s"} in ${regionName(s, r.id)}. 🛡️`, regions: [r.id], data: { count: n } });
       break;
     }
     case "gondola": {
       const from = regionOf(s, a.from);
       regionOf(s, a.to);
       if (from.owner !== me.id) fail("Gondola lines have to start in one of your regions.");
-      if (!NEIGHBORS.get(a.from)!.includes(a.to)) fail(`${regionName(a.to)} is too far from ${regionName(a.from)} for a gondola.`);
+      if (!NEIGHBORS.get(a.from)!.includes(a.to)) fail(`${regionName(s, a.to)} is too far from ${regionName(s, a.from)} for a gondola.`);
       if (s.lines[lineId(a.from, a.to)]) fail("There's already a gondola line there.");
       if (hasModifier(s, "gondolaStrike")) fail("The gondola workers are on strike this round.");
       pay(me, gondolaCost(s, me.id), "a gondola line");
       s.lines[lineId(a.from, a.to)] = { owner: me.id, builtTurn: s.turn };
-      emit(s, out, { actor: me.id, type: "gondola", text: `${me.name} built an urban gondola 🚡 from ${regionName(a.from)} to ${regionName(a.to)}.`, regions: [a.from, a.to] });
+      emit(s, out, { actor: me.id, type: "gondola", text: `${me.name} built an urban gondola 🚡 from ${regionName(s, a.from)} to ${regionName(s, a.to)}.`, regions: [a.from, a.to] });
       break;
     }
     case "move":
@@ -574,8 +607,8 @@ function applyActionTo(s: GameState, actorId: string, a: Action, now: number): G
         actor: me.id,
         type: "hero",
         text: a.hero === "casey"
-          ? `⚡ THE HEAVENS SPLIT. ${me.name} has recruited Casey, the Norse God, in ${regionName(r.id)}. ⚡`
-          : `${me.name} recruited ${info.icon} ${info.name}, ${info.title}, in ${regionName(r.id)}.`,
+          ? `⚡ THE HEAVENS SPLIT. ${me.name} has recruited Casey, the Norse God, in ${regionName(s, r.id)}. ⚡`
+          : `${me.name} recruited ${info.icon} ${info.name}, ${info.title}, in ${regionName(s, r.id)}.`,
         regions: [r.id],
         public: true,
         data: { hero: a.hero },
@@ -592,7 +625,7 @@ function applyActionTo(s: GameState, actorId: string, a: Action, now: number): G
       if (!lineUsable(s, me.id, from, a.to)) fail("Heroes ride gondolas too, and there's no line of yours there.");
       h.region = a.to;
       h.movedTurn = s.turn;
-      emit(s, out, { actor: me.id, type: "heroMove", text: `${HEROES[a.hero].icon} ${HEROES[a.hero].name} rode the gondola from ${regionName(from)} to ${regionName(a.to)}.`, regions: [from, a.to], data: { hero: a.hero } });
+      emit(s, out, { actor: me.id, type: "heroMove", text: `${HEROES[a.hero].icon} ${HEROES[a.hero].name} rode the gondola from ${regionName(s, from)} to ${regionName(s, a.to)}.`, regions: [from, a.to], data: { hero: a.hero } });
       break;
     }
     case "thunder": {
@@ -605,7 +638,7 @@ function applyActionTo(s: GameState, actorId: string, a: Action, now: number): G
       const killed = removeStrongest(r, 3);
       me.thunderReadyTurn = s.turn + THUNDER_COOLDOWN * Math.max(1, s.players.length);
       const victim = r.owner ? playerById(s, r.owner).name : `the ${r.native ?? "empty"} natives`;
-      emit(s, out, { actor: me.id, type: "thunder", text: `⚡ Casey called down thunder on ${regionName(r.id)}, destroying ${describeUnits(killed) || "nothing but grass"} belonging to ${victim}.`, regions: [r.id], public: true, data: { killed } });
+      emit(s, out, { actor: me.id, type: "thunder", text: `⚡ Casey called down thunder on ${regionName(s, r.id)}, destroying ${describeUnits(killed) || "nothing but grass"} belonging to ${victim}.`, regions: [r.id], public: true, data: { killed } });
       if (!r.owner && unitTotal(r.units) === 0) r.native = null;
       break;
     }
@@ -655,7 +688,7 @@ function applyActionTo(s: GameState, actorId: string, a: Action, now: number): G
       const r = regionOf(s, a.region);
       if (r.owner !== me.id) fail("Loaned pandas have to come from your own region.");
       const n = positiveInt(a.count, 10);
-      if (r.units.panda - r.tired.panda < n) fail(`${regionName(r.id)} doesn't have ${n} rested panda${n === 1 ? "" : "s"}.`);
+      if (r.units.panda - r.tired.panda < n) fail(`${regionName(s, r.id)} doesn't have ${n} rested panda${n === 1 ? "" : "s"}.`);
       s.offers.push({ id: `o${s.nextId++}`, kind: "loan", from: me.id, to: to.id, region: r.id, count: n, turn: s.turn });
       emit(s, out, { actor: me.id, type: "offer", text: `🐼 Panda diplomacy! ${me.name} offered to loan ${n} panda${n === 1 ? "" : "s"} to ${to.name}.`, regions: [], public: true });
       break;
@@ -674,6 +707,9 @@ function applyActionTo(s: GameState, actorId: string, a: Action, now: number): G
       breakPact(s, out, me, other);
       break;
     }
+    case "rename":
+      rename(s, out, me, a);
+      break;
     case "endTurn":
       emit(s, out, { actor: me.id, type: "endTurn", text: `${me.name} ended their turn.`, regions: [], public: true });
       // Turns played on autopilot don't count as "seen": the replay waits for the person to come back.
@@ -778,11 +814,77 @@ function respond(s: GameState, out: GameEvent[], me: Player, offerId: string, ac
     emit(s, out, {
       actor: me.id,
       type: "loan",
-      text: `🐼🤝 Panda diplomacy: ${from.name} loaned ${o.count} panda${o.count === 1 ? "" : "s"} to ${me.name}, who welcomed them in ${regionName(dest.id)}. Both earn PandaCoin from the loan, and they're now at peace.`,
+      text: `🐼🤝 Panda diplomacy: ${from.name} loaned ${o.count} panda${o.count === 1 ? "" : "s"} to ${me.name}, who welcomed them in ${regionName(s, dest.id)}. Both earn PandaCoin from the loan, and they're now at peace.`,
       regions: [r.id, dest.id],
       public: true,
     });
   }
+}
+
+// ---------------------------------------------------------------- names
+
+export const NAME_MAX = 24;
+
+// Names that only differ in capitals, spaces or punctuation count as the same name.
+export const nameKey = (n: string) => n.normalize("NFKC").toLowerCase().replace(/[\s\u200d'’".,!?&_-]/gu, "");
+
+// Tidies a name a Kird typed and checks it can go on the map: the rules and the rename box share this, so they
+// always agree. `nameOf` gives any region's current name.
+export function checkRegionName(id: string, raw: unknown, nameOf: (id: string) => string): { name: string; problem?: never } | { problem: string; name?: never } {
+  if (typeof raw !== "string" || raw.length > 200) return { problem: `Give it a name of up to ${NAME_MAX} characters.` };
+  const name = raw
+    .normalize("NFC")
+    .replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, " ")
+    // Keep the joiner that glues emoji together; drop every other invisible or direction-flipping character.
+    .replace(/(?!\u200d)\p{Cf}/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const length = [...name].length;
+  if (length < 2) return { problem: "A name needs at least 2 characters." };
+  if (length > NAME_MAX) return { problem: `Names can be up to ${NAME_MAX} characters.` };
+  if (!/[\p{L}\p{N}]/u.test(name)) return { problem: "A name needs at least one letter or number." };
+  if (/\p{M}{4}/u.test(name)) return { problem: "That's a lot of accents. Try something plainer." };
+  const before = nameOf(id);
+  if (name === before) return { problem: `It's already called ${before}.` };
+  // Two places with the same name would make every order ambiguous, so names are unique, old ones included.
+  const key = nameKey(name);
+  for (const d of REGIONS) {
+    if (d.id === id) continue;
+    const now = nameOf(d.id);
+    if (nameKey(now) === key) return { problem: `${now} is already on the map. Pick another name.` };
+    if (nameKey(d.name) === key) return { problem: `${now} was once called ${d.name}. Pick another name.` };
+  }
+  return { name };
+}
+
+// Conquerors may rename what they took, while they hold it. Regions taken before names existed carry no
+// record of who took them; the only land anyone gets without a fight is their home (where they landed,
+// or were given asylum), so any other region they hold counts as conquered.
+export function mayRename(r: RegionState, p: Player | undefined) {
+  if (!p || r.owner !== p.id) return false;
+  return r.conqueror !== undefined ? r.conqueror === p.id : r.id !== p.capital;
+}
+
+// Conquerors name what they take. The new name is public: everyone sees it, even through the fog.
+function rename(s: GameState, out: GameEvent[], me: Player, a: Extract<Action, { type: "rename" }>) {
+  const r = regionOf(s, a.region);
+  if (r.owner !== me.id) fail("You can only rename land you hold.");
+  if (!mayRename(r, me)) fail("Only conquerors rename: take a region to give it a new name.");
+  const before = regionName(s, r.id);
+  const check = checkRegionName(r.id, a.name, (id) => regionName(s, id));
+  if (check.problem !== undefined) fail(check.problem);
+  const name = check.name!;
+  const original = REGION_BY_ID.get(r.id)!.name;
+  if (name === original) delete r.name;
+  else r.name = name;
+  emit(s, out, {
+    actor: me.id,
+    type: "rename",
+    text: name === original ? `🚩 ${me.name} gave ${before} back its old name, ${name}.` : `🚩 ${me.name} renamed ${before} to ${name}.`,
+    regions: [r.id],
+    public: true,
+    data: { from: before, to: name },
+  });
 }
 
 // ---------------------------------------------------------------- movement & combat
@@ -809,10 +911,10 @@ function move(s: GameState, out: GameEvent[], me: Player, a: Extract<Action, { t
   const to = regionOf(s, a.to);
   if (from.owner !== me.id) fail("You can only send troops from your own regions.");
   if (a.from === a.to) fail("Pick a different region.");
-  if (!lineUsable(s, me.id, a.from, a.to)) fail(`There's no gondola line of yours between ${regionName(a.from)} and ${regionName(a.to)}. Build one first: urban gondolas are the only way to move troops.`);
+  if (!lineUsable(s, me.id, a.from, a.to)) fail(`There's no gondola line of yours between ${regionName(s, a.from)} and ${regionName(s, a.to)}. Build one first: urban gondolas are the only way to move troops.`);
   const units = readUnits(a.units);
   for (const t of UNIT_TYPES) {
-    if (from.units[t] - from.tired[t] < units[t]) fail(`Not enough rested ${UNITS[t].plural} in ${regionName(from.id)}.`);
+    if (from.units[t] - from.tired[t] < units[t]) fail(`Not enough rested ${UNITS[t].plural} in ${regionName(s, from.id)}.`);
   }
   const piecerHere = s.heroes.piecer.owner === me.id && s.heroes.piecer.region === from.id;
   for (const t of UNIT_TYPES) from.units[t] -= units[t];
@@ -822,7 +924,7 @@ function move(s: GameState, out: GameEvent[], me: Player, a: Extract<Action, { t
       to.units[t] += units[t];
       if (!piecerHere) to.tired[t] += units[t];
     }
-    emit(s, out, { actor: me.id, type: "move", text: `${me.name} sent ${describeUnits(units)} by gondola from ${regionName(from.id)} to ${regionName(to.id)}.`, regions: [from.id, to.id], data: { units } });
+    emit(s, out, { actor: me.id, type: "move", text: `${me.name} sent ${describeUnits(units)} by gondola from ${regionName(s, from.id)} to ${regionName(s, to.id)}.`, regions: [from.id, to.id], data: { units } });
     return;
   }
 
@@ -833,7 +935,7 @@ function move(s: GameState, out: GameEvent[], me: Player, a: Extract<Action, { t
 
   if (unitTotal(to.units) === 0) {
     capture(s, out, me, to, units, defender);
-    emit(s, out, { actor: me.id, type: "capture", text: `${me.name} rode into ${regionName(to.id)} unopposed and claimed it${defender ? ` from ${defender.name}` : ""}.`, regions: [from.id, to.id], public: Boolean(defender), data: { units } });
+    emit(s, out, { actor: me.id, type: "capture", text: `${me.name} rode into ${regionName(s, to.id)} unopposed and claimed it${defender ? ` from ${defender.name}` : ""}.`, regions: [from.id, to.id], public: Boolean(defender), data: { units } });
     return;
   }
 
@@ -844,8 +946,8 @@ function move(s: GameState, out: GameEvent[], me: Player, a: Extract<Action, { t
   to.units = result.defender;
   to.tired = clampTired(to.tired, to.units);
   const text = result.attackerWon
-    ? `⚔️ ${me.name} invaded ${regionName(to.id)} with ${describeUnits(units)} and defeated ${defenderName}${describeUnits(result.defenderLost) ? ` (${describeUnits(result.defenderLost)} fell)` : ""}. ${regionName(to.id)} is theirs.`
-    : `⚔️ ${me.name} invaded ${regionName(to.id)} with ${describeUnits(units)}, but ${defenderName} held the line. Every attacker fell${describeUnits(result.defenderLost) ? `, taking ${describeUnits(result.defenderLost)} with them` : ""}.`;
+    ? `⚔️ ${me.name} invaded ${regionName(s, to.id)} with ${describeUnits(units)} and defeated ${defenderName}${describeUnits(result.defenderLost) ? ` (${describeUnits(result.defenderLost)} fell)` : ""}. ${regionName(s, to.id)} is theirs.`
+    : `⚔️ ${me.name} invaded ${regionName(s, to.id)} with ${describeUnits(units)}, but ${defenderName} held the line. Every attacker fell${describeUnits(result.defenderLost) ? `, taking ${describeUnits(result.defenderLost)} with them` : ""}.`;
   emit(s, out, {
     actor: me.id,
     type: "battle",
@@ -865,6 +967,7 @@ function move(s: GameState, out: GameEvent[], me: Player, a: Extract<Action, { t
       defenderName,
       from: from.id,
       to: to.id,
+      place: regionName(s, to.id),
     } satisfies BattleData,
   });
   if (result.attackerWon) capture(s, out, me, to, result.attacker, defender);
@@ -889,16 +992,17 @@ function capture(s: GameState, out: GameEvent[], me: Player, to: RegionState, ar
   to.native = null;
   to.units = { ...arrivals };
   to.tired = { ...arrivals };
+  to.conqueror = me.id;
   for (const h of HERO_IDS) {
     const hero = s.heroes[h];
     if (hero.region !== to.id || !hero.owner || hero.owner === me.id) continue;
     if (h === "casey") {
       hero.owner = me.id;
-      emit(s, out, { actor: me.id, type: "heroCaptured", text: `⚡ ${me.name} CAPTURED Casey, the Norse God, in ${regionName(to.id)}! He now fights for them.`, regions: [to.id], public: true, data: { hero: h } });
+      emit(s, out, { actor: me.id, type: "heroCaptured", text: `⚡ ${me.name} CAPTURED Casey, the Norse God, in ${regionName(s, to.id)}! He now fights for them.`, regions: [to.id], public: true, data: { hero: h } });
     } else {
       hero.owner = null;
       hero.region = null;
-      emit(s, out, { actor: me.id, type: "heroFled", text: `${HEROES[h].icon} ${HEROES[h].name} fled ${regionName(to.id)} and is back in the Hall of Heroes, ready to be recruited again.`, regions: [to.id], public: true, data: { hero: h } });
+      emit(s, out, { actor: me.id, type: "heroFled", text: `${HEROES[h].icon} ${HEROES[h].name} fled ${regionName(s, to.id)} and is back in the Hall of Heroes, ready to be recruited again.`, regions: [to.id], public: true, data: { hero: h } });
     }
   }
   if (defender) {
@@ -1021,7 +1125,7 @@ function startTurn(s: GameState, out: GameEvent[]) {
       settle(s, p, r);
       r.units = { ...emptyUnits(), panda: 2 };
       p.respawns += 1;
-      emit(s, out, { actor: p.id, type: "asylum", text: `🕊️ ${p.name} lost everything, and was granted Panda Asylum in ${regionName(r.id)} with 2 pandas.`, regions: [r.id], public: true });
+      emit(s, out, { actor: p.id, type: "asylum", text: `🕊️ ${p.name} lost everything, and was granted Panda Asylum in ${regionName(s, r.id)} with 2 pandas.`, regions: [r.id], public: true });
     }
   }
 
@@ -1030,19 +1134,41 @@ function startTurn(s: GameState, out: GameEvent[]) {
   s.lastRoll = roll;
   const total = roll[0] + roll[1];
   if (total === 7) {
-    const hit: string[] = [];
+    const raids: { q: Player; lost: Cost; held: number }[] = [];
     for (const q of s.players) {
       const held = RESOURCES.reduce((n, g) => n + q.goods[g], 0);
       if (held <= RAID_THRESHOLD) continue;
+      const before = { ...q.goods };
       let lose = Math.floor(held / 2);
       while (lose > 0) {
         const g = pick(s, RESOURCES.filter((x) => q.goods[x] > 0));
         q.goods[g] -= 1;
         lose -= 1;
       }
-      hit.push(q.name);
+      const lost: Cost = {};
+      for (const g of RESOURCES) if (before[g] > q.goods[g]) lost[g] = before[g] - q.goods[g];
+      raids.push({ q, lost, held });
     }
-    emit(s, out, { actor: p.id, type: "roll", text: `🎲 ${p.name} rolled 7: OGRE RAID! 👹 ${hit.length ? `${hit.join(", ")} lost half their resources.` : "Nobody was carrying enough to raid."}`, regions: [], public: true, data: { roll } });
+    const hit = raids.map((r) => r.q.name);
+    emit(s, out, {
+      actor: p.id,
+      type: "roll",
+      text: `🎲 ${p.name} rolled 7: OGRE RAID! 👹 ${hit.length ? `${hit.join(", ")} lost half their resources.` : "Nobody was carrying enough to raid."}`,
+      regions: [],
+      public: true,
+      data: { roll, raided: Object.fromEntries(raids.map((r) => [r.q.id, Math.floor(r.held / 2)])) } satisfies RollData,
+    });
+    // Each raided Kird learns exactly what the ogres took; everyone else only learns how many cards.
+    for (const { q, lost, held } of raids) {
+      emit(s, out, {
+        actor: p.id,
+        type: "raid",
+        text: `👹 The ogres raided you and took ${costText(lost)}: ${Math.floor(held / 2)} of your ${held} resource cards.`,
+        regions: [],
+        only: [q.id],
+        data: { lost, held } satisfies RaidData,
+      });
+    }
   } else {
     const blight = hasModifier(s, "blight");
     const got: Record<string, Cost> = {};
@@ -1061,7 +1187,7 @@ function startTurn(s: GameState, out: GameEvent[]) {
       text: `🎲 ${p.name} rolled ${total}. ${summary ? `Harvest: ${summary}.` : "Nobody's regions produced."}${blight ? " (Bamboo blight: no bamboo.)" : ""}`,
       regions: Object.values(s.regions).filter((r) => r.token === total).map((r) => r.id),
       public: true,
-      data: { roll },
+      data: { roll, got, ...(blight ? { blight } : {}) } satisfies RollData,
     });
   }
 
@@ -1095,6 +1221,7 @@ function startTurn(s: GameState, out: GameEvent[]) {
   // Ogre upkeep.
   const ogres = mine.reduce((n, r) => n + r.units.nacam, 0);
   let deserted = 0;
+  let wages = 0;
   if (ogres && !hasHero(s, p.id, "cockpenis")) {
     const due = ogres * NACAM_UPKEEP;
     coin -= due;
@@ -1108,6 +1235,7 @@ function startTurn(s: GameState, out: GameEvent[]) {
         left -= n;
       }
     }
+    wages = due - deserted * NACAM_UPKEEP;
   }
   p.goods.coin += coin;
   p.goods.pandaCoin += pandaCoin;
@@ -1119,6 +1247,7 @@ function startTurn(s: GameState, out: GameEvent[]) {
     text: `Harvest: ${costText(harvest) || "nothing"}.${quarried ? ` 👹 Ogre quarry: +${quarried} 🪨.` : ""} Income: ${coin >= 0 ? "+" : ""}${coin} 🪙, +${pandaCoin} 🐼, +${camCoin} 💪${ogres && !hasHero(s, p.id, "cockpenis") ? ` (after ${ogres} 🪙 ogre upkeep)` : ""}.${deserted ? ` 👹 ${deserted} unpaid ogre${deserted === 1 ? "" : "s"} deserted!` : ""}`,
     regions: [],
     only: [p.id],
+    data: { harvest, quarried, coin, pandaCoin, camCoin, wages, deserted } satisfies IncomeData,
   });
 }
 
@@ -1164,6 +1293,8 @@ export type RegionView = {
   id: string;
   token: number;
   fog: boolean;
+  name?: string; // a conqueror's new name: public, so it shows through the fog too
+  renamable?: boolean; // you conquered it and still hold it
   owner?: string | null;
   native?: NativeNation | null;
   units?: Units;
@@ -1213,6 +1344,7 @@ export type GameView = {
 
 export function viewFor(s: GameState, pid: string): GameView {
   const vis = visibleRegions(s, pid);
+  const viewer = s.players.find((p) => p.id === pid);
   return {
     me: pid,
     turn: s.turn,
@@ -1236,11 +1368,23 @@ export function viewFor(s: GameState, pid: string): GameView {
         ? { goods: { ...p.goods }, capital: p.capital, thunderReadyTurn: p.thunderReadyTurn, pickpocketTurn: p.pickpocketTurn, lastTurnEndSeq: p.lastTurnEndSeq }
         : {}),
     })),
-    regions: Object.values(s.regions).map((r) =>
-      vis.has(r.id)
-        ? { id: r.id, token: r.token, fog: false, owner: r.owner, native: r.native, units: { ...r.units }, tired: r.owner === pid ? { ...r.tired } : undefined, buildings: [...r.buildings] }
-        : { id: r.id, token: r.token, fog: true },
-    ),
+    regions: Object.values(s.regions).map((r) => {
+      const named = r.name ? { name: r.name } : {};
+      if (!vis.has(r.id)) return { id: r.id, token: r.token, fog: true, ...named };
+      const mine = r.owner === pid;
+      return {
+        id: r.id,
+        token: r.token,
+        fog: false,
+        ...named,
+        ...(mayRename(r, viewer) ? { renamable: true } : {}),
+        owner: r.owner,
+        native: r.native,
+        units: { ...r.units },
+        tired: mine ? { ...r.tired } : undefined,
+        buildings: [...r.buildings],
+      };
+    }),
     lines: Object.entries(s.lines)
       .filter(([id]) => lineEnds(id).some((e) => vis.has(e)))
       .map(([id, l]) => ({ id, owner: l.owner })),

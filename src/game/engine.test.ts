@@ -10,6 +10,7 @@ import {
   emptyUnits,
   eventVisible,
   lineUsable,
+  nameKey,
   ownedRegions,
   removePlayer,
   unitTotal,
@@ -268,8 +269,12 @@ function randomAction(s: GameState, rnd: () => number): Action {
     if (mineOffers.length) return { type: "respond", offerId: pickFrom(mineOffers).id, accept: rnd() < 0.7 };
   }
   if (roll < 0.96 && others.length) return { type: "breakPact", with: pickFrom(others).id };
+  if (roll < 0.98) return { type: "rename", region, name: pickFrom(FUZZ_NAMES) };
   return { type: "endTurn" };
 }
+
+// Good names, bad names, real names and near-duplicates.
+const FUZZ_NAMES = ["Pandaland", "Fort Bamboo", "  Bao   Town ", "Kirdistan", "pandaland!", "x", "Texas", "Sichuan", "🐼🐼", "A".repeat(30)];
 
 function checkInvariants(s: GameState, events: GameEvent[]) {
   const ids = new Set(s.players.map((p) => p.id));
@@ -295,6 +300,22 @@ function checkInvariants(s: GameState, events: GameEvent[]) {
     } else assert.equal(hero.region, null);
   }
   for (const id of Object.keys(s.lines)) for (const e of lineEnds(id)) assert.ok(s.regions[e]);
+  // Only a conqueror who still holds a region may rename it; names on the map are tidy and never clash,
+  // and a renamed region's old name stays reserved for it.
+  const taken = new Map<string, string>();
+  for (const d of REGIONS) {
+    const r = s.regions[d.id];
+    if (r.conqueror !== undefined) assert.equal(r.conqueror, r.owner, `${r.id}'s conqueror holds it`);
+    if (r.name !== undefined) {
+      assert.notEqual(r.name, d.name, `${r.id} forgets a new name rather than storing its real one`);
+      assert.ok(r.name === r.name.trim() && [...r.name].length >= 2 && [...r.name].length <= 24, `"${r.name}" is tidy`);
+    }
+    for (const n of r.name ? [r.name, d.name] : [d.name]) {
+      const k = nameKey(n);
+      assert.ok((taken.get(k) ?? d.id) === d.id, `"${n}" clashes with ${taken.get(k)}`);
+      taken.set(k, d.id);
+    }
+  }
   for (let i = 1; i < events.length; i++) assert.equal(events[i].seq, events[i - 1].seq + 1, "event seq is contiguous");
   assert.equal(s.seq, events.at(-1)?.seq ?? 0);
   assert.ok(s.activeSeat >= 0 && s.activeSeat < s.players.length);
@@ -308,6 +329,7 @@ function lcg(seed: number) {
 test("fuzz: thousands of random actions never break the world", () => {
   let applied = 0;
   let rejected = 0;
+  let renamed = 0;
   for (const [seed, players] of [[1, 2], [2, 3], [3, 4], [4, 6], [5, 8], [6, 1]] as const) {
     const { s, events } = newGame(players, seed);
     const rnd = lcg(seed * 7919);
@@ -331,6 +353,7 @@ test("fuzz: thousands of random actions never break the world", () => {
       checkInvariants(s, events);
     }
     assert.ok(s.round > 5, `seed ${seed}: the game kept going (round ${s.round})`);
+    renamed += events.filter((e) => e.type === "rename").length;
     // Every player can always load their view, and event filtering never throws.
     for (const p of s.players) {
       viewFor(s, p.id);
@@ -338,6 +361,7 @@ test("fuzz: thousands of random actions never break the world", () => {
     }
   }
   assert.ok(applied > 5000, `applied ${applied}, rejected ${rejected}`);
+  assert.ok(renamed > 10, `conquerors renamed ${renamed} regions`);
 });
 
 test("determinism: same seed and same actions give the same world", () => {
@@ -791,4 +815,266 @@ test("autopilot: rounds keep going with people away, but a game where everyone's
 test("autopilot: computer players can't switch it off", () => {
   const { s } = botGame(["easy"]);
   assert.throws(() => applyAction(s, "bot0", { type: "autopilot", on: false }, NOW), /always/);
+});
+
+// ---------------------------------------------------------------- the start-of-turn roll
+
+import type { IncomeData, RaidData, RollData } from "./engine";
+import { REGION_BY_ID } from "./regions";
+import { cardCount, payouts, rollShow } from "./rollReport";
+
+test("dice: a roll's data says exactly what each Kird collected, and nothing about who holds what", () => {
+  let checked = 0;
+  for (let seed = 1; seed <= 200 && checked < 12; seed++) {
+    const { s } = newGame(3, seed);
+    // Hand out plenty of land so most numbers pay somebody.
+    Object.values(s.regions)
+      .filter((r) => !r.owner)
+      .slice(0, 24)
+      .forEach((r, i) => Object.assign(r, { owner: s.players[i % 3].id, native: null }));
+    const before = s.players.map((p) => ({ ...p.goods }));
+    const events = applyAction(s, "p0", { type: "endTurn" }, NOW); // p1's turn starts with the roll
+    const roll = events.find((e) => e.type === "roll")!;
+    const data = roll.data as RollData;
+    const total = data.roll[0] + data.roll[1];
+    if (total === 7) continue;
+    checked++;
+    assert.ok(roll.public);
+    // Fog of war: the public data names players and goods, never regions.
+    assert.deepEqual(Object.keys(data).filter((k) => !["roll", "got", "blight"].includes(k)), []);
+    const json = JSON.stringify(data);
+    for (const r of REGIONS) assert.ok(!json.includes(`"${r.id}"`), `${r.id} stays out of the roll data`);
+    // It adds up: one card per paying region.
+    const paying = Object.values(s.regions).filter((r) => r.owner && r.token === total && !(data.blight && REGION_BY_ID.get(r.id)!.resource === "bamboo"));
+    assert.equal(Object.values(data.got!).reduce((n, c) => n + cardCount(c), 0), paying.length);
+    // …and it matches every purse. p1 also gets their turn's harvest and income, which their private event spells out.
+    const inc = events.find((e) => e.type === "income")!.data as IncomeData;
+    assert.deepEqual(events.find((e) => e.type === "income")!.only, ["p1"]);
+    s.players.forEach((p, i) => {
+      const expect: Partial<Record<string, number>> = { ...data.got![p.id] };
+      if (p.id === "p1") {
+        for (const [g, n] of Object.entries(inc.harvest)) expect[g] = (expect[g] ?? 0) + (n ?? 0);
+        expect.stone = (expect.stone ?? 0) + inc.quarried;
+        Object.assign(expect, { coin: inc.coin, pandaCoin: inc.pandaCoin, camCoin: inc.camCoin });
+      }
+      for (const g of GOODS) assert.equal(p.goods[g] - before[i][g], expect[g] ?? 0, `seed ${seed}: ${p.id} ${g}`);
+    });
+  }
+  assert.ok(checked >= 8, `checked ${checked} rolls`);
+});
+
+test("dice: on a 7 everyone learns who the ogres raided, and only the raided Kird learns what they took", () => {
+  let checked = 0;
+  for (let seed = 1; seed <= 400 && checked < 5; seed++) {
+    const { s } = newGame(3, seed);
+    Object.assign(s.players[0].goods, { bamboo: 5, stone: 4, iron: 3, rice: 2, gems: 1 }); // 15 cards
+    Object.assign(s.players[1].goods, { bamboo: 1, stone: 6, iron: 1, rice: 4, gems: 0 }); // 12 cards
+    Object.assign(s.players[2].goods, { bamboo: 2, stone: 2, iron: 2, rice: 2, gems: 1 }); // 9: safe
+    const before = s.players.map((p) => ({ ...p.goods }));
+    const events = applyAction(s, "p0", { type: "endTurn" }, NOW);
+    const roll = events.find((e) => e.type === "roll")!;
+    const data = roll.data as RollData;
+    if (data.roll[0] + data.roll[1] !== 7) continue;
+    checked++;
+    assert.deepEqual(data.raided, { p0: 7, p1: 6 }, "who was raided, and how many cards they lost");
+    assert.deepEqual(Object.keys(data).sort(), ["raided", "roll"], "no word on what anyone lost");
+    const raids = events.filter((e) => e.type === "raid");
+    assert.deepEqual(raids.map((e) => e.only), [["p0"], ["p1"]]);
+    for (const e of raids) {
+      const id = e.only![0];
+      const { lost, held } = e.data as RaidData;
+      assert.equal(held, id === "p0" ? 15 : 12);
+      assert.equal(cardCount(lost), Math.floor(held / 2));
+      for (const other of s.players) if (other.id !== id) assert.equal(eventVisible(s, e, other.id), false, `${other.id} can't see ${id}'s losses`);
+    }
+    // p0 is between turns, so the raid is the only change to their purse.
+    const p0Lost = (raids[0].data as RaidData).lost;
+    for (const g of RESOURCES) assert.equal(before[0][g] - s.players[0].goods[g], p0Lost[g] ?? 0, g);
+    // p1's turn starts right after: what the ogres took, then their harvest.
+    const inc = events.find((e) => e.type === "income")!.data as IncomeData;
+    const p1Lost = (raids[1].data as RaidData).lost;
+    for (const g of RESOURCES) {
+      const quarry = g === "stone" ? inc.quarried : 0;
+      assert.equal(s.players[1].goods[g] - before[1][g], (inc.harvest[g] ?? 0) + quarry - (p1Lost[g] ?? 0), g);
+    }
+    // What each viewer's dice pop-up is built from: their own losses and nobody else's.
+    const seen = (pid: string) => events.filter((e) => eventVisible(s, e, pid));
+    assert.deepEqual(rollShow(seen("p0"), null, "p0")!.raid, raids[0].data);
+    assert.deepEqual(rollShow(seen("p1"), "p1", "p1")!.raid, raids[1].data);
+    assert.equal(rollShow(seen("p2"), null, "p2")!.raid, null);
+    assert.deepEqual(rollShow(seen("p2"), null, "p2")!.raided, { p0: 7, p1: 6 });
+  }
+  assert.ok(checked >= 3, `checked ${checked} raids`);
+});
+
+test("dice replays: a gain from a region you can't see comes from the fog, not from a region", () => {
+  const { s } = newGame(2, 11);
+  const [a, b] = s.players;
+  assert.ok(!visibleRegions(s, a.id).has(b.capital), "b's capital is in a's fog");
+  s.regions[a.capital].token = 8;
+  s.regions[b.capital].token = 8;
+  const res = (id: string) => REGION_BY_ID.get(id)!.resource;
+  const event: GameEvent = {
+    seq: 40,
+    turn: 3,
+    round: 2,
+    actor: b.id,
+    type: "roll",
+    text: "🎲 Kird 1 rolled 8. Harvest: Kird 0 1 🍚, Kird 1 1 🪨.",
+    regions: [a.capital, b.capital],
+    public: true,
+    data: { roll: [5, 3], got: { [a.id]: { [res(a.capital)]: 1 }, [b.id]: { [res(b.capital)]: 1 } } } satisfies RollData,
+  };
+  const view = viewFor(s, a.id);
+  assert.equal(view.regions.find((r) => r.id === b.capital)!.owner, undefined, "the view doesn't say who holds it");
+  assert.deepEqual(payouts(rollShow([event], null, a.id)!, view), [
+    { player: a.id, resource: res(a.capital), region: a.capital },
+    { player: b.id, resource: res(b.capital), region: null },
+  ]);
+  // Rolls from before the dice carried their data still show, from their text.
+  const old = rollShow([{ ...event, data: { roll: [5, 3] } }], null, a.id)!;
+  assert.equal(old.got, null);
+  assert.deepEqual(old.lines, ["Harvest: Kird 0 1 🍚, Kird 1 1 🪨."]);
+  assert.deepEqual(payouts(old, view), []);
+});
+
+import { computeThrow, makeEnv, mulberry32, randomQuat, restingValues } from "../components/dice/tray";
+
+test("dice physics: a seed throws the same tumble every time, and it lands on the server's numbers", () => {
+  const env = makeEnv({ bounds: { minX: -9, maxX: 9, minZ: -4.8, maxZ: 4.8 }, dieSize: 0.85, surface: "wood" });
+  for (let seed = 1; seed <= 40; seed++) {
+    const values = [1 + (seed % 6), 1 + ((seed * 5) % 6)];
+    const rng = mulberry32(seed);
+    const starts = [-0.7, 0.7].map((x) => ({ p: [x, 2.3, 3.6] as [number, number, number], q: randomQuat(rng), size: 0.85 }));
+    const input = { values, seed, velocity: { x: (rng() - 0.5) * 5, y: 4, z: -10 }, spin: 18 };
+    const unturned: [number, number, number, number][] = [
+      [0, 0, 0, 1],
+      [0, 0, 0, 1],
+    ];
+    const throwIt = () => computeThrow(env, input, starts, unturned);
+    const record = throwIt();
+    assert.deepEqual(throwIt(), record, `seed ${seed}: replays tumble the same way`);
+    assert.deepEqual(restingValues(record), values, `seed ${seed}: lands on the roll`);
+  }
+});
+
+// ---------------------------------------------------------------- names
+
+import { checkRegionName, regionName, type BattleData } from "./engine";
+
+// Kird 0 rides into an empty neighbour and claims it.
+function conquest(seed = 3) {
+  const { s } = newGame(2, seed);
+  const [a, b] = s.players;
+  const from = a.capital;
+  const to = NEIGHBORS.get(from)!.find((n) => !s.regions[n].owner)!;
+  Object.assign(s.regions[to], { units: emptyUnits(), native: null });
+  s.lines[lineId(from, to)] = { owner: a.id, builtTurn: 0 };
+  applyAction(s, a.id, { type: "move", from, to, units: { panda: 1 } }, NOW);
+  assert.equal(s.regions[to].owner, a.id);
+  return { s, a, b, to };
+}
+
+test("names: conquerors rename what they take, and everyone sees the new name", () => {
+  const { s, a, b, to } = conquest();
+  const old = REGION_BY_ID.get(to)!.name;
+  const [e] = applyAction(s, a.id, { type: "rename", region: to, name: "  Fort   Bamboo " }, NOW);
+  assert.equal(s.regions[to].name, "Fort Bamboo");
+  assert.equal(e.text, `🚩 Kird 0 renamed ${old} to Fort Bamboo.`);
+  assert.ok(eventVisible(s, e, b.id), "renaming is public news");
+  // The name shows through the fog, but only the conqueror may change it.
+  const seen = [a.id, b.id].map((id) => viewFor(s, id).regions.find((r) => r.id === to)!);
+  assert.deepEqual(seen.map((r) => [r.fog, r.name, r.renamable]), [[false, "Fort Bamboo", true], [true, "Fort Bamboo", undefined]]);
+  // Everything that happens there from now on uses the new name…
+  Object.assign(s.players[0].goods, { bamboo: 5, rice: 5 });
+  const [recruit] = applyAction(s, a.id, { type: "recruit", region: to, unit: "panda", count: 1 }, NOW);
+  assert.match(recruit.text, /in Fort Bamboo\.$/);
+  // …until the old name is given back.
+  const [back] = applyAction(s, a.id, { type: "rename", region: to, name: old }, NOW);
+  assert.equal(s.regions[to].name, undefined);
+  assert.equal(back.text, `🚩 Kird 0 gave Fort Bamboo back its old name, ${old}.`);
+});
+
+test("names: only a conqueror renames, only while they hold it, and only on their turn", () => {
+  const { s, a, b, to } = conquest();
+  assert.throws(() => applyAction(s, a.id, { type: "rename", region: a.capital, name: "Homeland" }, NOW), /conquerors/, "land you were given wasn't conquered");
+  assert.throws(() => applyAction(s, b.id, { type: "rename", region: to, name: "Mine Now" }, NOW), /turn/);
+  applyAction(s, a.id, { type: "endTurn" }, NOW);
+  assert.throws(() => applyAction(s, b.id, { type: "rename", region: to, name: "Mine Now" }, NOW), /hold/);
+});
+
+test("names: tidy, sensible, and never another region's name, now or once", () => {
+  const { s, a, to } = conquest();
+  const rename = (name: unknown) => applyAction(s, a.id, { type: "rename", region: to, name } as Action, NOW);
+  assert.throws(() => rename("x"), /at least 2/);
+  assert.throws(() => rename("x".repeat(25)), /up to 24/);
+  assert.throws(() => rename("!!"), /letter or number/);
+  assert.throws(() => rename(42), GameError);
+  const other = REGIONS.find((r) => r.id !== to)!;
+  assert.throws(() => rename(` ${other.name.toUpperCase()}!`), /already on the map/, "capitals and punctuation don't make a new name");
+  // Invisible and right-to-left characters can't disguise a name.
+  rename("Pan\u202Eda\u200Bland");
+  assert.equal(s.regions[to].name, "Pandaland");
+  assert.throws(() => rename("Pandaland"), /already called/);
+  // A renamed region's real name stays taken, so nobody can pose as it.
+  s.regions[other.id].name = "Kirdistan";
+  assert.throws(() => rename(other.name), /once called/);
+  assert.throws(() => rename("KIRDISTAN"), /Kirdistan is already on the map/);
+  assert.equal(s.regions[to].name, "Pandaland", "failed renames change nothing");
+  // The rename box runs the very same check.
+  assert.deepEqual(checkRegionName(to, "  Bao  Town ", (id) => regionName(s, id)), { name: "Bao Town" });
+});
+
+test("names: a name outlasts its namer, and the right to rename passes to whoever takes it next", () => {
+  const { s, b, to } = conquest();
+  applyAction(s, s.players[0].id, { type: "rename", region: to, name: "Pandaland" }, NOW);
+  applyAction(s, s.players[0].id, { type: "endTurn" }, NOW);
+  const from = NEIGHBORS.get(to)!.find((n) => s.regions[n].owner !== s.players[0].id)!;
+  Object.assign(s.regions[from], { owner: b.id, native: null, units: { ...emptyUnits(), cam: 12 }, tired: emptyUnits() });
+  s.lines[lineId(from, to)] = { owner: b.id, builtTurn: 0 };
+  const fight = applyAction(s, b.id, { type: "move", from, to, units: { cam: 12 } }, NOW).find((e) => e.type === "battle")!;
+  assert.equal((fight.data as unknown as BattleData).place, "Pandaland", "the battle remembers what the place was called");
+  assert.equal(s.regions[to].owner, b.id);
+  assert.equal(s.regions[to].name, "Pandaland", "a new owner keeps the name until they change it");
+  applyAction(s, b.id, { type: "rename", region: to, name: "Bo's Bay" }, NOW);
+  assert.equal(s.regions[to].name, "Bo's Bay");
+  // When a conqueror leaves, their land goes wild but its name stays on the map.
+  removePlayer(s, b.id, NOW);
+  assert.equal(s.regions[to].name, "Bo's Bay");
+  assert.equal(s.regions[to].conqueror, undefined);
+});
+
+test("names: in games from before renaming, any region you hold except your home counts as conquered", () => {
+  const { s } = newGame(2, 3);
+  const [a] = s.players;
+  const old = NEIGHBORS.get(a.capital)!.find((n) => !s.regions[n].owner)!;
+  // An old save: a region taken long ago, with no record of who took it.
+  Object.assign(s.regions[old], { owner: a.id, native: null });
+  assert.equal(s.regions[old].conqueror, undefined);
+  const view = viewFor(s, a.id);
+  assert.equal(view.regions.find((r) => r.id === old)!.renamable, true);
+  assert.equal(view.regions.find((r) => r.id === a.capital)!.renamable, undefined);
+  applyAction(s, a.id, { type: "rename", region: old, name: "Old Conquest" }, NOW);
+  assert.equal(s.regions[old].name, "Old Conquest");
+  assert.throws(() => applyAction(s, a.id, { type: "rename", region: a.capital, name: "Homeland" }, NOW), /conquerors/);
+});
+
+test("names: land your autopilot conquers while you're away is yours to rename when you're back", () => {
+  const s = newWorld(31, NOW);
+  addPlayer(s, "taylor", "Taylor");
+  addPlayer(s, "alex", "Alex");
+  applyAction(s, "alex", { type: "autopilot", on: true, level: "hard" }, NOW);
+  const taken = () => ownedRegions(s, "alex").find((r) => r.conqueror === "alex");
+  for (let round = 0; round < 40 && !taken(); round++) {
+    applyAction(s, "taylor", { type: "endTurn" }, NOW);
+    runBots(s, NOW);
+  }
+  const won = taken();
+  assert.ok(won, "autopilot conquered something");
+  applyAction(s, "alex", { type: "autopilot", on: false }, NOW);
+  applyAction(s, "taylor", { type: "endTurn" }, NOW);
+  assert.equal(activePlayer(s).id, "alex", "back in command, it's Alex's turn");
+  assert.equal(viewFor(s, "alex").regions.find((r) => r.id === won.id)!.renamable, true);
+  applyAction(s, "alex", { type: "rename", region: won.id, name: "Alexandria" }, NOW);
+  assert.equal(s.regions[won.id].name, "Alexandria");
 });
