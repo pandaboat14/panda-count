@@ -10,6 +10,7 @@ export const RELEASES: Release[] = [
   {
     date: "2026-09-26",
     title: "Buildings you can see, troops you can drag",
+    pr: 15,
     notes: [
       "Buildings stand on the globe as little 3D models, each with a pin showing its icon: a pagoda with a panda in its bamboo, a gym with a giant barbell on the roof, a striped market stall, and stone walls round the whole region for a fort.",
       "A new 🏗️ Build tab lists every building with what it does, what it costs and where you already have one. Pick one, tap a glowing region, and watch it rise out of the ground.",
