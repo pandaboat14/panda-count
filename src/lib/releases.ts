@@ -37,6 +37,19 @@ export const RELEASES: Release[] = [
   },
   {
     date: "2026-09-26",
+    title: "Computer players, Stone from ogres and fewer errors",
+    pr: 7,
+    notes: [
+      "Play Panda Diplomacy against the computer. When you start a world, list each player as Human or Computer, and give each computer player Easy, Medium or Hard difficulty.",
+      "Computer players take their turns as soon as yours ends, and each of their moves stays on screen for at least 8 seconds so you can read it.",
+      "NACAM ogres now quarry 🪨 Stone: each ogre has a 1 in 3 chance to bring 1 Stone at the start of your turn, so more ogres means more Stone. The rules explain it.",
+      "Tap \"What are these?\" under your goods for a key to every resource and currency: how to earn it and what it buys.",
+      "Fixed the errors that popped up while using the Bank and switching between panels, caused by sign-in checks expiring mid-game.",
+      "Every move is saved as you make it. Your games are listed as In progress or Complete, and ending a game keeps it, with final standings.",
+    ],
+  },
+  {
+    date: "2026-09-26",
     title: "Release notes",
     pr: 6,
     notes: ["This page. Every update to Panda Count now gets a note here, linked from the bottom of each page."],
