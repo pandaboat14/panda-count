@@ -7,22 +7,14 @@ import { CatmullRomCurve3, Matrix4, Quaternion, Vector3, type Group, type Mesh, 
 import { latLngToVector3, RADIUS } from "@/components/globe/geo";
 import { makeEarthTexture } from "@/components/globe/textures";
 import type { GameView, RegionView } from "@/game/engine";
-import { lineEnds, REGION_BY_ID, type Resource } from "@/game/regions";
+import { lineEnds, REGION_BY_ID } from "@/game/regions";
 import { HEROES, HERO_IDS, type UnitType } from "@/game/rules";
+import { EMPTY_RIM, FOG_COLORS, NATIVE_COLORS, RESOURCE_COLORS } from "./colors";
 import { Figure } from "./figures";
 
 const FONT = "/fonts/bricolage-800.woff";
 const UP = new Vector3(0, 1, 0);
 const TILE = 0.2;
-
-export const RESOURCE_COLORS: Record<Resource, string> = {
-  bamboo: "#5f9a4a",
-  stone: "#9a968c",
-  iron: "#5d6b7a",
-  rice: "#e2cf8a",
-  gems: "#9b6fc7",
-};
-export const NATIVE_COLORS = { pandas: "#f7f4ec", nacams: "#6f8a3a", cams: "#e8b64a", wild: "#c9d6bf" } as const;
 
 export type Highlight = { regions: string[]; tone: "battle" | "build" | "move" | "info" | "hero" };
 
@@ -151,8 +143,8 @@ function Tile({
   const { pos, q } = useSurface(region.id);
   const def = REGION_BY_ID.get(region.id)!;
   const fog = region.fog;
-  const color = fog ? "#8c939b" : RESOURCE_COLORS[def.resource];
-  const rim = fog ? "#6e757d" : ownerColor ?? (region.native ? NATIVE_COLORS[region.native] : "#d9d2bf");
+  const color = fog ? FOG_COLORS.tile : RESOURCE_COLORS[def.resource];
+  const rim = fog ? FOG_COLORS.rim : ownerColor ?? (region.native ? NATIVE_COLORS[region.native] : EMPTY_RIM);
   const total = region.units ? region.units.panda + region.units.armedPanda + region.units.nacam + region.units.cam : 0;
   const hot = region.token === 6 || region.token === 8;
 

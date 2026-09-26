@@ -143,6 +143,30 @@ export type BattleData = {
   to: string;
 };
 
+// What a start-of-turn roll event carries, so the dice can be re-enacted without reading its text.
+// All of it is public (the text already says who collected what). Which region paid whom stays in the
+// fog, and so does what the ogres took from each Kird: only the raided Kird gets a RaidData event.
+export type RollData = {
+  roll: [number, number];
+  got?: Record<string, Cost>; // not on a 7: what each player collected
+  blight?: boolean; // bamboo blight was on, so bamboo regions paid nothing
+  raided?: Record<string, number>; // on a 7: how many resource cards each raided player lost
+};
+
+// Private to the raided player: exactly what the ogres took, out of how many cards.
+export type RaidData = { lost: Cost; held: number };
+
+// Private to the active player: their start-of-turn harvest and income, as numbers.
+export type IncomeData = {
+  harvest: Cost;
+  quarried: number; // Stone the ogres hauled in
+  coin: number; // after ogre wages
+  pandaCoin: number;
+  camCoin: number;
+  wages: number; // Coin paid to the ogres
+  deserted: number; // unpaid ogres who walked off
+};
+
 export type Action =
   | { type: "build"; region: string; building: BuildingType }
   | { type: "recruit"; region: string; unit: "panda" | "nacam" | "cam"; count: number }
@@ -1030,19 +1054,41 @@ function startTurn(s: GameState, out: GameEvent[]) {
   s.lastRoll = roll;
   const total = roll[0] + roll[1];
   if (total === 7) {
-    const hit: string[] = [];
+    const raids: { q: Player; lost: Cost; held: number }[] = [];
     for (const q of s.players) {
       const held = RESOURCES.reduce((n, g) => n + q.goods[g], 0);
       if (held <= RAID_THRESHOLD) continue;
+      const before = { ...q.goods };
       let lose = Math.floor(held / 2);
       while (lose > 0) {
         const g = pick(s, RESOURCES.filter((x) => q.goods[x] > 0));
         q.goods[g] -= 1;
         lose -= 1;
       }
-      hit.push(q.name);
+      const lost: Cost = {};
+      for (const g of RESOURCES) if (before[g] > q.goods[g]) lost[g] = before[g] - q.goods[g];
+      raids.push({ q, lost, held });
     }
-    emit(s, out, { actor: p.id, type: "roll", text: `🎲 ${p.name} rolled 7: OGRE RAID! 👹 ${hit.length ? `${hit.join(", ")} lost half their resources.` : "Nobody was carrying enough to raid."}`, regions: [], public: true, data: { roll } });
+    const hit = raids.map((r) => r.q.name);
+    emit(s, out, {
+      actor: p.id,
+      type: "roll",
+      text: `🎲 ${p.name} rolled 7: OGRE RAID! 👹 ${hit.length ? `${hit.join(", ")} lost half their resources.` : "Nobody was carrying enough to raid."}`,
+      regions: [],
+      public: true,
+      data: { roll, raided: Object.fromEntries(raids.map((r) => [r.q.id, Math.floor(r.held / 2)])) } satisfies RollData,
+    });
+    // Each raided Kird learns exactly what the ogres took; everyone else only learns how many cards.
+    for (const { q, lost, held } of raids) {
+      emit(s, out, {
+        actor: p.id,
+        type: "raid",
+        text: `👹 The ogres raided you and took ${costText(lost)}: ${Math.floor(held / 2)} of your ${held} resource cards.`,
+        regions: [],
+        only: [q.id],
+        data: { lost, held } satisfies RaidData,
+      });
+    }
   } else {
     const blight = hasModifier(s, "blight");
     const got: Record<string, Cost> = {};
@@ -1061,7 +1107,7 @@ function startTurn(s: GameState, out: GameEvent[]) {
       text: `🎲 ${p.name} rolled ${total}. ${summary ? `Harvest: ${summary}.` : "Nobody's regions produced."}${blight ? " (Bamboo blight: no bamboo.)" : ""}`,
       regions: Object.values(s.regions).filter((r) => r.token === total).map((r) => r.id),
       public: true,
-      data: { roll },
+      data: { roll, got, ...(blight ? { blight } : {}) } satisfies RollData,
     });
   }
 
@@ -1095,6 +1141,7 @@ function startTurn(s: GameState, out: GameEvent[]) {
   // Ogre upkeep.
   const ogres = mine.reduce((n, r) => n + r.units.nacam, 0);
   let deserted = 0;
+  let wages = 0;
   if (ogres && !hasHero(s, p.id, "cockpenis")) {
     const due = ogres * NACAM_UPKEEP;
     coin -= due;
@@ -1108,6 +1155,7 @@ function startTurn(s: GameState, out: GameEvent[]) {
         left -= n;
       }
     }
+    wages = due - deserted * NACAM_UPKEEP;
   }
   p.goods.coin += coin;
   p.goods.pandaCoin += pandaCoin;
@@ -1119,6 +1167,7 @@ function startTurn(s: GameState, out: GameEvent[]) {
     text: `Harvest: ${costText(harvest) || "nothing"}.${quarried ? ` 👹 Ogre quarry: +${quarried} 🪨.` : ""} Income: ${coin >= 0 ? "+" : ""}${coin} 🪙, +${pandaCoin} 🐼, +${camCoin} 💪${ogres && !hasHero(s, p.id, "cockpenis") ? ` (after ${ogres} 🪙 ogre upkeep)` : ""}.${deserted ? ` 👹 ${deserted} unpaid ogre${deserted === 1 ? "" : "s"} deserted!` : ""}`,
     regions: [],
     only: [p.id],
+    data: { harvest, quarried, coin, pandaCoin, camCoin, wages, deserted } satisfies IncomeData,
   });
 }
 

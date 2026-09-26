@@ -832,25 +832,135 @@ i.heat { background: radial-gradient(circle, #d64828 0%, #e97846 55%, #e9b8a8 10
 }
 .panel-restore .dot-count { top: -4px; right: -4px; }
 
-/* The chance cubes */
-.dice-overlay {
-  position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px;
-  background: rgba(16, 24, 20, .55); backdrop-filter: blur(2px);
+/* The dice: Map Drop, your roll thrown onto a tabletop world map (fixed colours, like the table itself) */
+.dice-dialog {
+  border: 0; padding: 0; margin: auto; background: transparent; overflow: visible;
+  width: min(980px, calc(100% - 16px)); max-width: none; max-height: calc(100dvh - 16px);
 }
+.dice-dialog::backdrop { background: rgba(16, 24, 20, .6); backdrop-filter: blur(2px); }
+/* A column that fits the screen: as the result opens below, the table gives way to it (phones scroll instead). */
 .dice-card {
-  width: min(420px, 100%); background: var(--paper); border-radius: 22px; padding: 16px 18px 14px;
-  box-shadow: 0 30px 70px -20px rgba(0,0,0,.7); text-align: center;
+  display: flex; flex-direction: column; gap: 10px; max-height: calc(100dvh - 16px); overflow-y: auto; overscroll-behavior: contain;
+  background: var(--paper); border-radius: 22px; padding: 12px 14px 14px; box-shadow: 0 30px 70px -20px rgba(0,0,0,.7);
 }
-.dice-card .eyebrow { margin: 0; }
-.dice-stage { height: 190px; margin: 4px -8px 0; border-radius: 16px; background: radial-gradient(circle at 50% 40%, #28453a, #13231c 70%); }
-.dice-fallback { color: var(--paper); font: 800 2.4rem var(--serif); margin: 0; line-height: 190px; }
-.dice-result { min-height: 64px; opacity: 0; transform: translateY(6px); transition: opacity .35s, transform .35s; }
-.dice-result.shown { opacity: 1; transform: none; }
-.dice-result h2 { font-family: var(--serif); margin: 10px 0 4px; font-size: 1.5rem; }
-.dice-result .raid { color: #a24a30; font-size: 1.1rem; margin-left: 6px; }
-.dice-result p { margin: 2px 0; font-size: .9rem; }
+.dice-card > * { flex: none; }
+.dice-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.dice-head .eyebrow { font-size: .72rem; }
+.dice-head h2 { margin: 0; font: 800 1.3rem/1.15 var(--serif); }
+.dice-card > .dice-stage {
+  flex: 0 1 540px; min-height: 230px; position: relative; overflow: hidden; border-radius: 18px; background: #3b2718;
+  touch-action: manipulation; user-select: none; -webkit-user-select: none;
+}
+/* While the dice wait to be thrown a drag is a flick, not a scroll. */
+.dice-stage[data-phase="waiting"], .dice-stage[data-phase="holding"] { touch-action: none; }
+.dice-gl { position: absolute; inset: 0; outline: none; }
+.dice-gl:focus-visible { box-shadow: inset 0 0 0 3px var(--bamboo-deep); }
+.dice-canvas { display: block; width: 100%; height: 100%; }
+.dice-hint, .dice-tag {
+  position: absolute; top: 12px; margin: 0; pointer-events: none; max-width: calc(100% - 24px);
+  padding: 6px 13px; border-radius: 99px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dice-hint { left: 50%; transform: translateX(-50%); font: 700 .9rem/1.2 var(--sans); background: rgba(20, 22, 18, .72); color: #fffaf3; backdrop-filter: blur(4px); }
+.dice-tag { left: 12px; font: 700 .76rem/1.2 var(--sans); background: #fffaf3; color: #1c1b17; box-shadow: 0 4px 14px -6px rgba(0,0,0,.5); max-width: calc(100% - 110px); }
+.dice-tag .rec { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #d64a2b; margin-right: 6px; vertical-align: 1px; animation: rec-blink 1s steps(2) infinite; }
+@keyframes rec-blink { 50% { opacity: .2; } }
+.dice-total {
+  position: absolute; right: 12px; top: 12px; display: grid; justify-items: center; padding: 6px 12px 8px; border-radius: 14px;
+  background: #fffaf3; box-shadow: 0 6px 18px -8px rgba(0,0,0,.55); pointer-events: none; transform-origin: 50% 0;
+  animation: badge-pop .35s cubic-bezier(.2,1.6,.4,1);
+}
+@keyframes badge-pop { from { transform: scale(.4); opacity: 0; } }
+.dice-total small { font: 700 .64rem/1 var(--sans); letter-spacing: .12em; text-transform: uppercase; color: #57544a; }
+.dice-total b { font: 800 2rem/1 var(--font-bricolage), var(--sans); color: #1c1b17; }
+.dice-total.seven b { color: #a24a30; }
+.dice-flat { position: absolute; inset: 0; margin: 0; display: flex; align-items: center; justify-content: center; gap: 14px; }
+.dice-flat .die-chip { width: 64px; height: 64px; font-size: 2.2rem; border-radius: 14px; }
+
+/* Each Kird's purse tag, under their purse at the table's edge */
+.purse-tags { position: absolute; inset: 0; pointer-events: none; }
+.purse-tag {
+  position: absolute; display: grid; justify-items: center; gap: 2px; min-width: 60px; padding: 5px 9px; border-radius: 12px;
+  transform: translate(-50%, var(--dy, 0px)); transition: transform .2s;
+  background: rgba(255, 250, 243, .94); color: #1c1b17; box-shadow: 0 6px 16px -8px rgba(0,0,0,.6);
+  font: 800 .8rem/1.2 var(--sans); white-space: nowrap;
+}
+.purse-tag.bump { transform: translate(-50%, calc(var(--dy, 0px) - 4px)) scale(1.06); }
+.purse-tag .nm { display: inline-flex; align-items: center; gap: 5px; max-width: 12em; overflow: hidden; text-overflow: ellipsis; }
+.purse-tag .nm::before { content: ""; flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+.purse-tag .tally { display: flex; gap: 3px; min-height: 1.25em; font: 800 .9rem/1.25 var(--font-bricolage), var(--sans); }
+.purse-tag .tally:empty { display: none; }
+.purse-tag .g { padding: 0 5px; border-radius: 6px; background: color-mix(in srgb, var(--res) 25%, #fffaf3); }
+.purse-tag .l { padding: 0 5px; border-radius: 6px; background: #f8e1d8; color: #a24a30; }
+.purse-tag .s { color: #1f4b35; font: 700 .8rem/1.25 var(--sans); }
+
+/* The written result */
+.dice-report-wrap { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .45s cubic-bezier(.2,.8,.2,1); }
+.dice-report-wrap.open { grid-template-rows: 1fr; }
+.dice-report-wrap > div { overflow: hidden; min-height: 0; }
+.dice-report {
+  display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 10px 16px; align-items: start; padding: 2px;
+  opacity: 0; transform: translateY(14px); transition: opacity .35s .1s, transform .45s .08s cubic-bezier(.2,.8,.2,1);
+}
+.open .dice-report { opacity: 1; transform: none; }
+.dice-report .r-roll, .dice-report .r-where { grid-column: 1 / -1; }
+.r-roll { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; }
+.r-dice { display: flex; align-items: center; gap: 8px; }
+.r-dice .op { font: 700 1.3rem/1 var(--font-bricolage), var(--sans); color: #57544a; }
+.r-total { font: 800 2.4rem/1 var(--font-bricolage), var(--sans); letter-spacing: -.02em; }
+.die-chip { width: 36px; height: 36px; border-radius: 9px; display: grid; place-items: center; font: 800 1.25rem/1 var(--font-bricolage), var(--sans); box-shadow: inset 0 -3px 0 rgba(0,0,0,.18); }
+.raid-banner { margin: 0; padding: 5px 13px; border-radius: 12px; background: #a24a30; color: #fffaf3; font: 800 1.05rem/1.2 var(--font-bricolage), var(--sans); letter-spacing: .04em; }
+.r-where { margin: 0; font-size: .95rem; color: #3a3830; text-wrap: pretty; }
+.r-where .own { font-weight: 700; white-space: nowrap; }
+.r-where .own::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--c); margin: 0 4px 1px 0; }
+.r-card { border-radius: 14px; background: var(--cream); padding: 10px 12px; display: grid; gap: 7px; }
+.r-card h3 { margin: 0; font: 800 .74rem/1 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: #57544a; }
+.you-card { background: #fff; box-shadow: inset 0 0 0 2px var(--c, var(--forest)); }
+.r-line { display: grid; grid-template-columns: 7.2rem minmax(0, 1fr); gap: 4px 10px; align-items: baseline; }
+.r-label { font-weight: 700; font-size: .86rem; color: #57544a; }
+.r-val { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 6px; min-width: 0; }
+.r-turn { border-top: 1.5px dashed rgba(28,27,23,.14); padding-top: 7px; }
+.r-src { font-size: .84rem; color: #57544a; }
+.r-note { margin: 0; font-size: .8rem; color: #57544a; }
+.r-note.warn { color: #a24a30; font-weight: 700; }
+.dice-report .none { color: #57544a; font-style: italic; }
+.good-chip {
+  display: inline-flex; align-items: center; gap: 3px; padding: 2px 9px 2px 8px; border-radius: 99px; white-space: nowrap;
+  font: 700 .88rem/1.35 var(--sans); background: color-mix(in srgb, var(--res, #b3955c) 20%, #fffaf3);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--res, #b3955c) 55%, transparent);
+}
+.good-chip b { font-family: var(--font-bricolage), var(--sans); font-weight: 800; }
+.good-chip .lbl { font-weight: 600; font-size: .78rem; color: #57544a; }
+.good-chip.loss { background: #f8e1d8; box-shadow: inset 0 0 0 1.5px rgba(162,74,48,.45); color: #a24a30; }
+.good-chip.loss .lbl { color: #8a3f29; }
+.everyone { list-style: none; margin: 0; padding: 0; display: grid; }
+.everyone li { display: grid; grid-template-columns: 8.2rem minmax(0, 1fr); gap: 4px 10px; align-items: center; padding: 6px 0; border-top: 1px solid rgba(28,27,23,.08); }
+.everyone li:first-child { border-top: 0; padding-top: 0; }
+.who { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; min-width: 0; overflow-wrap: anywhere; }
+.who .dot { flex: none; width: 12px; height: 12px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2px #fffaf3, 0 0 0 3.5px var(--c); }
+.safe { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 99px; background: #e3eee6; color: #1f4b35; font-weight: 700; font-size: .84rem; }
+.dice-foot { display: grid; gap: 6px; }
+.dice-foot .feed-timer { margin: 0; }
+.dice-foot .form-actions { justify-content: flex-end; }
+@media (max-width: 760px) {
+  .dice-dialog { width: calc(100% - 12px); max-height: calc(100dvh - 12px); }
+  .dice-card { max-height: calc(100dvh - 12px); padding: 10px 10px 12px; border-radius: 18px; }
+  .dice-head h2 { font-size: 1.15rem; }
+  .dice-card > .dice-stage { flex: 0 0 clamp(240px, 76vw, 360px); border-radius: 14px; }
+  .dice-total { right: 8px; top: 8px; padding: 4px 9px 5px; border-radius: 12px; }
+  .dice-total b { font-size: 1.45rem; }
+  .dice-total small { font-size: .56rem; }
+  .dice-tag { top: 8px; left: 8px; }
+  .dice-report { grid-template-columns: 1fr; }
+  .purse-tag { min-width: 0; padding: 3px 7px; font-size: .7rem; }
+  .purse-tag .tally { font-size: .72rem; }
+  .dice-hint { font-size: .82rem; }
+}
+@media (max-width: 520px) {
+  .r-line, .everyone li { grid-template-columns: 1fr; gap: 4px; }
+  .r-total { font-size: 2.1rem; }
+  .good-chip .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
 .roll-link { border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer; text-decoration: underline dotted; }
-@media (prefers-reduced-motion: reduce) { .dice-result { transition: none; } }
 /* Phones: the minimise handle shows (this must come after its base rule above). */
 @media (max-width: 760px) {
   .panel-grip { display: flex; }

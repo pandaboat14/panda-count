@@ -775,7 +775,7 @@ const LOG_FILTERS: Record<string, { label: string; types?: string[]; mine?: bool
   all: { label: "All" },
   battles: { label: "⚔️ Battles", types: ["battle", "capture", "thunder", "heroCaptured", "heroFled", "asylum"] },
   diplomacy: { label: "🤝 Diplomacy", types: ["offer", "pact", "loan", "betrayal", "trade", "decline", "pickpocket"] },
-  world: { label: "🌍 World", types: ["world", "roll", "join", "leave", "skip"] },
+  world: { label: "🌍 World", types: ["world", "roll", "raid", "join", "leave", "skip"] },
   mine: { label: "🙋 Mine", mine: true },
 };
 

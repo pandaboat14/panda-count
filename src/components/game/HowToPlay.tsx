@@ -26,9 +26,10 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
         <h3>Your turn</h3>
         <ol>
           <li>
-            <strong>Dice &amp; harvest.</strong> The chance cubes roll on screen (tap the 🎲 up top to watch the last roll again). Every
+            <strong>Dice &amp; harvest.</strong> You throw your two dice onto the world map: tap them, or flick them. Every
             region you hold gives you 1 of its resource. Then the dice pay out, Catan-style: every
-            region with that number pays its owner one more. Roll a 7 and <strong>ogres raid</strong>: anyone holding more than 9 resource
+            region with that number pays its owner one more, and the dice tell you what everyone collected (tap the 🎲 up top to
+            watch the last roll again). Roll a 7 and <strong>ogres raid</strong>: anyone holding more than 9 resource
             cards loses half.
           </li>
           <li>
