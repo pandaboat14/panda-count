@@ -19,8 +19,8 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
           <strong>Endless</strong> world that never stops.
         </p>
         <p>
-          <strong>Stuck?</strong> Open the <strong>💡 Plan</strong> tab. On your turn it suggests your best next moves, and one tap does
-          them. You also start with a gondola line to a soft neighbour, so your first invasion is ready on turn one.
+          <strong>Stuck?</strong> Open the <strong>💡 Plan</strong> tab and ask Sun Tzu. On your turn he suggests your best next moves
+          (with a saying or two), and one tap does them. You also start with a gondola line to a soft neighbour, so your first invasion is ready on turn one.
         </p>
         <h3>Your turn</h3>
         <ol>

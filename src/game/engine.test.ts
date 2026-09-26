@@ -613,3 +613,20 @@ test("replays: only battles that recorded their dice can be re-enacted (older ga
   assert.equal(canReplay({ type: "battle", data: { attacker: {} } }), false);
   assert.equal(canReplay({ type: "move", data: fight.data }), false);
 });
+
+import { SUN_TZU_QUOTES, sunTzuOpening, sunTzuSays } from "./sunTzu";
+
+test("Sun Tzu: every piece of advice comes with a saying, steady within a turn", () => {
+  for (const list of Object.values(SUN_TZU_QUOTES)) assert.ok(list.length > 0 && list.every((q) => q.length > 10));
+  for (let seed = 1; seed <= 10; seed++) {
+    const { s } = newGame(2, seed);
+    const tips = advise(viewFor(s, s.players[0].id));
+    tips.forEach((t, i) => {
+      const q = sunTzuSays(t, s.turn, i);
+      assert.ok(q.length > 10);
+      assert.equal(sunTzuSays(t, s.turn, i), q, "same saying on every refresh");
+    });
+  }
+  assert.ok(sunTzuOpening(1, true, true).length > 10);
+  assert.ok(sunTzuOpening(-3, false, false).length > 10, "handles any turn number");
+});

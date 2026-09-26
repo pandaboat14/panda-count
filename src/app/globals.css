@@ -798,3 +798,10 @@ i.heat { background: radial-gradient(circle, #d64828 0%, #e97846 55%, #e9b8a8 10
 .odds-chip.fair { background: #f6ebc8; color: #6b5210; }
 .odds-chip.bad { background: #f6d2c8; color: #6b2d1c; }
 .game-over-title { font-family: var(--serif); font-size: 1.3rem; margin: 4px 0 8px; }
+
+/* Sun Tzu, the advisor */
+.sun-tzu { display: grid; grid-template-columns: 56px 1fr; gap: 12px; align-items: center; margin-bottom: 8px; }
+.sun-tzu h2 { margin: 0; }
+.sun-tzu-portrait { border-radius: 50%; box-shadow: 0 2px 8px -3px rgba(0,0,0,.35); }
+.sun-tzu-quote { margin: 2px 0 4px; font-family: var(--serif); font-style: italic; color: #8a2f23; }
+.plan-list .sun-tzu-quote { margin: 0 0 4px; }

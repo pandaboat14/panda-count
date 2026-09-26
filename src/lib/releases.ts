@@ -8,12 +8,12 @@ export type Release = {
 
 export const RELEASES: Release[] = [
   {
-    date: "2026-09-27",
-    title: "A game you can actually win",
+    date: "2026-09-26",
+    title: "Sun Tzu, and a game you can actually win",
     pr: 8,
     notes: [
       "Pick how long a world lasts: first to 10, 15 or 20 regions wins, or play Endless. A race bar shows how close everyone is.",
-      "New 💡 Plan tab: on your turn it suggests your best next moves, and one tap does them.",
+      "Meet your advisor, Sun Tzu. The new 💡 Plan tab suggests your best next moves in his (mostly real) words, and one tap does them.",
       "See your chance to win before you invade, and the losses to expect.",
       "The World Bank now sells any resource for 3 🪙 (2 with a Market). Short on something? Buttons offer to buy what's missing and do the action in one tap.",
       "Every Kird starts with a gondola line to a weak neighbour, so your first invasion is ready on turn one.",
