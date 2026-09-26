@@ -14,6 +14,12 @@ function weakest(alive: Soldier[], stat: "attack" | "defense") {
   return [...alive].sort((x, y) => UNITS[x.type][stat] - UNITS[y.type][stat])[0];
 }
 
+// Battles fought before replays existed carry no dice, so they can't be re-enacted.
+export function canReplay(e: { type: string; data?: Record<string, unknown> }) {
+  const d = e.data as Partial<BattleData> | undefined;
+  return e.type === "battle" && Boolean(d?.attacker && d.defenderStart && d.attackerLost && d.defenderLost && Array.isArray(d.rolls));
+}
+
 export function battleScript(b: BattleData) {
   const soldiers = [...expand(b.attacker, "atk"), ...expand(b.defenderStart, "def")];
   const alive = (side: "atk" | "def") => soldiers.filter((s) => s.side === side && s.diesAt === null);

@@ -250,7 +250,8 @@ function randomAction(s: GameState, rnd: () => number): Action {
     const units = Object.fromEntries(UNIT_TYPES.map((t) => [t, Math.floor((from.units[t] - from.tired[t]) * rnd())]));
     return { type: "move", from: from.id, to, units };
   }
-  if (roll < 0.66) return { type: "bankTrade", give: pickFrom(RESOURCES), get: pickFrom(RESOURCES) };
+  if (roll < 0.645) return { type: "bankTrade", give: pickFrom(RESOURCES), get: pickFrom(RESOURCES) };
+  if (roll < 0.66) return { type: "buy", good: pickFrom(RESOURCES), count: 1 + Math.floor(rnd() * 3) };
   if (roll < 0.69) {
     const x = pickFrom(EXCHANGE);
     return { type: "exchange", from: x.from, to: x.to };
@@ -425,4 +426,207 @@ test("stone: NACAM ogres quarry Stone, and more ogres find more", () => {
   const many = haul(6);
   assert.ok(few > none, `1 ogre (${few}) beats none (${none})`);
   assert.ok(many > few * 1.5, `6 ogres (${many}) beat 1 (${few})`);
+});
+
+// ---------------------------------------------------------------- economy, caps, starts, victory
+
+import { BUY_PRICE, BUY_PRICE_MARKET, NATIVE_CAP } from "./rules";
+import { capNatives, createGame as newWorld } from "./engine";
+
+test("bank: Coin buys any resource, cheaper with a Market, and you can't overspend", () => {
+  const { s } = newGame(1);
+  const id = s.players[0].id;
+  s.players[0].goods.coin = 10;
+  applyAction(s, id, { type: "buy", good: "stone", count: 2 }, NOW);
+  assert.equal(s.players[0].goods.coin, 10 - 2 * BUY_PRICE);
+  assert.equal(s.players[0].goods.stone, 2 + 2);
+  s.regions[s.players[0].capital].buildings.push("market");
+  applyAction(s, id, { type: "buy", good: "gems", count: 1 }, NOW);
+  assert.equal(s.players[0].goods.coin, 10 - 2 * BUY_PRICE - BUY_PRICE_MARKET);
+  assert.throws(() => applyAction(s, id, { type: "buy", good: "gems", count: 20 }, NOW), GameError);
+  assert.throws(() => applyAction(s, id, { type: "buy", good: "coin" as never, count: 1 }, NOW), GameError);
+  assert.throws(() => applyAction(s, id, { type: "buy", good: "iron", count: 0 }, NOW), GameError);
+});
+
+test("natives: garrisons never grow past their caps, however long the game runs", () => {
+  const { s } = newGame(1, 5);
+  const id = s.players[0].id;
+  for (let i = 0; i < 400; i++) applyAction(s, id, { type: "endTurn" }, NOW);
+  for (const r of Object.values(s.regions)) {
+    if (r.owner || !r.native) continue;
+    for (const t of UNIT_TYPES) assert.ok(r.units[t] <= (NATIVE_CAP[r.native][t] ?? 0), `${r.id} ${t} ${r.units[t]}`);
+  }
+  // And an old, overgrown garrison is trimmed back.
+  const ogres = Object.values(s.regions).find((r) => !r.owner && r.native === "nacams")!;
+  ogres.units.nacam = 40;
+  capNatives(ogres);
+  assert.equal(ogres.units.nacam, NATIVE_CAP.nacams.nacam);
+});
+
+test("starts: every Kird lands with a gondola line to a soft neighbour, and can win a battle on turn one", () => {
+  for (let seed = 1; seed <= 40; seed++) {
+    const { s } = newGame(4, seed);
+    for (const p of s.players) {
+      const lines = Object.entries(s.lines).filter(([, l]) => l.owner === p.id);
+      assert.equal(lines.length, 1, `${p.name} has one starter line (seed ${seed})`);
+      const target = lineEnds(lines[0][0]).find((e) => e !== p.capital)!;
+      assert.ok(lineUsable(s, p.id, p.capital, target));
+      assert.ok(unitTotal(s.regions[target].units) <= 3, `soft target (seed ${seed}: ${unitTotal(s.regions[target].units)})`);
+    }
+  }
+});
+
+test("victory: the first Kird to reach the goal wins, and nothing moves after", () => {
+  const s = newWorld(9, NOW, 3);
+  addPlayer(s, "a", "A");
+  addPlayer(s, "b", "B");
+  const free = Object.values(s.regions).filter((r) => !r.owner).slice(0, 2);
+  for (const r of free) {
+    r.owner = "a";
+    r.native = null;
+  }
+  // Any action triggers the check.
+  const events = applyAction(s, "a", { type: "buy", good: "rice", count: 1 }, NOW);
+  assert.equal(s.winner, "a");
+  assert.ok(events.some((e) => e.type === "victory" && e.public));
+  assert.throws(() => applyAction(s, "a", { type: "endTurn" }, NOW), /over/);
+  assert.equal(viewFor(s, "b").winner, "a");
+  assert.equal(viewFor(s, "b").goal, 3);
+});
+
+test("victory: endless games (no goal) never end", () => {
+  const { s } = newGame(1);
+  for (const r of Object.values(s.regions).slice(0, 30)) {
+    r.owner = s.players[0].id;
+    r.native = null;
+  }
+  applyAction(s, s.players[0].id, { type: "endTurn" }, NOW);
+  assert.equal(s.winner, null);
+});
+
+test("skip: the host is the first person, even when computer players sit first", () => {
+  const s = newWorld(3, NOW);
+  addPlayer(s, "bot-1", "Robo", "hard");
+  addPlayer(s, "human", "Taylor");
+  addPlayer(s, "late", "Alex");
+  applyAction(s, "bot-1", { type: "endTurn" }, NOW); // now Taylor's turn
+  applyAction(s, "human", { type: "endTurn" }, NOW); // now Alex's turn
+  const later = NOW + 13 * 3600 * 1000;
+  assert.throws(() => applyAction(s, "bot-1", { type: "skipTurn" }, later), /host/);
+  applyAction(s, "human", { type: "skipTurn" }, later);
+  assert.equal(activePlayer(s).id, "bot-1");
+});
+
+// ---------------------------------------------------------------- odds & advisor
+
+import { advise, fillCost } from "./advisor";
+import { battleOdds, units as mkUnits } from "./odds";
+
+test("odds: big armies are favourites, tiny ones aren't, and the numbers are stable", () => {
+  const strong = battleOdds(mkUnits({ panda: 8, nacam: 3 }), 0, mkUnits({ panda: 1 }), 0);
+  const weak = battleOdds(mkUnits({ panda: 1 }), 0, mkUnits({ nacam: 8 }), 1);
+  assert.ok(strong.win > 0.97, `strong ${strong.win}`);
+  assert.ok(weak.win < 0.05, `weak ${weak.win}`);
+  assert.deepEqual(battleOdds(mkUnits({ panda: 3 }), 0, mkUnits({ panda: 2 }), 0), battleOdds(mkUnits({ panda: 3 }), 0, mkUnits({ panda: 2 }), 0));
+  assert.equal(battleOdds(mkUnits({ panda: 1 }), 0, mkUnits({}), 0).win, 1);
+});
+
+test("advisor: on turn one it points at the starter gondola's invasion, which really does win", () => {
+  let wins = 0;
+  let total = 0;
+  for (let seed = 1; seed <= 30; seed++) {
+    const { s } = newGame(1, seed);
+    const me = s.players[0];
+    const tips = advise(viewFor(s, me.id));
+    const attack = tips.find((t) => t.plan);
+    assert.ok(attack, `seed ${seed}: ${tips.map((t) => t.title).join(" | ")}`);
+    // Do what it says with everything it planned to send.
+    const from = s.regions[attack!.plan!.from];
+    const send = { ...from.units };
+    send.panda -= 1;
+    const events = applyAction(s, me.id, { type: "move", from: from.id, to: attack!.plan!.to, units: send }, NOW);
+    total++;
+    if (s.regions[attack!.plan!.to].owner === me.id) wins++;
+    assert.ok(events.length > 0);
+  }
+  assert.ok(wins / total >= 0.8, `advised attacks won ${wins}/${total}`);
+});
+
+test("advisor: quiet when it isn't your turn, and never suggests hitting a pact partner", () => {
+  const { s } = newGame(2, 4);
+  const [a, b] = s.players;
+  assert.deepEqual(advise(viewFor(s, b.id)), []);
+  s.pacts.push({ a: a.id, b: b.id, sinceRound: 1 });
+  for (const t of advise(viewFor(s, a.id))) if (t.plan) assert.notEqual(s.regions[t.plan.to].owner, b.id);
+});
+
+test("advisor: buying missing resources is priced right and refused when Coin can't cover it", () => {
+  assert.deepEqual(fillCost({ bamboo: 1, stone: 0, iron: 0, coin: 10 }, { bamboo: 1, stone: 1, iron: 1, coin: 1 }, 3), { buy: { stone: 1, iron: 1 }, coin: 6 });
+  assert.equal(fillCost({ coin: 6 }, { stone: 1, iron: 1, coin: 1 }, 3), null);
+  assert.equal(fillCost({ coin: 99 }, { camCoin: 1 }, 3), null);
+});
+
+// ---------------------------------------------------------------- bot diplomacy & chat
+
+import { botReply } from "./botChat";
+
+test("bots: they make offers to human neighbours, one at a time, and withdraw stale ones", () => {
+  let offered = 0;
+  for (let seed = 1; seed <= 20; seed++) {
+    const s = newWorld(seed, NOW);
+    addPlayer(s, "human", "Taylor");
+    addPlayer(s, "bot", "Robo", "easy");
+    // Make them neighbours: hand the bot a region bordering Taylor's capital.
+    const n = NEIGHBORS.get(s.players[0].capital)!.find((x) => !s.regions[x].owner)!;
+    Object.assign(s.regions[n], { owner: "bot", native: null });
+    let made = false;
+    for (let round = 0; round < 12; round++) {
+      applyAction(s, "human", { type: "endTurn" }, NOW);
+      if (runBots(s, NOW).some((e) => e.type === "offer" && e.actor === "bot")) made = true;
+      assert.ok(s.offers.filter((o) => o.from === "bot").length <= 1, "at most one open offer");
+      for (const o of s.offers.filter((x) => x.from === "bot")) assert.ok(s.turn - o.turn < s.players.length * 2 + 2, "stale offers get withdrawn");
+    }
+    if (made) offered++;
+  }
+  assert.ok(offered >= 10, `bots offered in ${offered}/20 games`);
+});
+
+test("bot chat: replies fit what was said and the bot's personality", () => {
+  const r = () => 0;
+  assert.match(botReply("easy", "want to make a pact?", r), /pact/i);
+  assert.match(botReply("hard", "I'm going to invade you", r), /simulated|Casey/);
+  assert.ok(botReply("medium", "hello there", r).length > 0);
+  assert.ok(botReply("hard", "🐼", r).length > 0);
+});
+
+import { canReplay } from "./battleScript";
+
+test("replays: only battles that recorded their dice can be re-enacted (older games had none)", () => {
+  const { s } = newGame(1, 3);
+  const me = s.players[0];
+  const target = lineEnds(Object.keys(s.lines)[0]).find((e) => e !== me.capital)!;
+  const send = { ...s.regions[me.capital].units };
+  const events = applyAction(s, me.id, { type: "move", from: me.capital, to: target, units: send }, NOW);
+  const fight = events.find((e) => e.type === "battle" || e.type === "capture")!;
+  if (fight.type === "battle") assert.equal(canReplay(fight), true);
+  assert.equal(canReplay({ type: "battle", data: undefined }), false);
+  assert.equal(canReplay({ type: "battle", data: { attacker: {} } }), false);
+  assert.equal(canReplay({ type: "move", data: fight.data }), false);
+});
+
+import { SUN_TZU_QUOTES, sunTzuOpening, sunTzuSays } from "./sunTzu";
+
+test("Sun Tzu: every piece of advice comes with a saying, steady within a turn", () => {
+  for (const list of Object.values(SUN_TZU_QUOTES)) assert.ok(list.length > 0 && list.every((q) => q.length > 10));
+  for (let seed = 1; seed <= 10; seed++) {
+    const { s } = newGame(2, seed);
+    const tips = advise(viewFor(s, s.players[0].id));
+    tips.forEach((t, i) => {
+      const q = sunTzuSays(t, s.turn, i);
+      assert.ok(q.length > 10);
+      assert.equal(sunTzuSays(t, s.turn, i), q, "same saying on every refresh");
+    });
+  }
+  assert.ok(sunTzuOpening(1, true, true).length > 10);
+  assert.ok(sunTzuOpening(-3, false, false).length > 10, "handles any turn number");
 });

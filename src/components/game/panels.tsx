@@ -19,7 +19,11 @@ import {
   type HeroId,
   type UnitType,
 } from "@/game/rules";
+import { costLabel, fillCost } from "@/game/advisor";
+import { canReplay } from "@/game/battleScript";
+import { attackOdds, type Odds } from "@/game/odds";
 import { Avatar } from "../Avatar";
+import { Race } from "./Race";
 import { CostChips, Stepper, affordable, times } from "./bits";
 
 export type Ctx = {
@@ -58,6 +62,83 @@ const rested = (r: RegionView): Units => {
 };
 const unitLine = (u?: Partial<Units>) =>
   UNIT_TYPES.filter((t) => (u?.[t] ?? 0) > 0).map((t) => `${u![t]} ${UNITS[t].icon}`).join("  ") || "nobody";
+
+// ---------------------------------------------------------------- shared
+
+// Buys whatever resources are missing (with Coin), then does the action. Returns false if anything failed.
+export async function buyThen(ctx: Ctx, cost: Cost, action: Action) {
+  const me = meOf(ctx.view);
+  const plan = fillCost(me.goods ?? {}, cost, ctx.view.prices.buyPrice);
+  if (!plan) return false;
+  for (const [g, n] of Object.entries(plan.buy)) {
+    if (!(await ctx.act({ type: "buy", good: g as Resource, count: n as number }))) return false;
+  }
+  return Boolean(await ctx.act(action));
+}
+
+// A button for anything that costs goods. Short on resources but rich in Coin? One tap buys them first.
+export function DoButton({
+  ctx,
+  cost,
+  action,
+  children,
+  className = "btn small",
+  disabled,
+  onDone,
+}: {
+  ctx: Ctx;
+  cost: Cost;
+  action: Action;
+  children: React.ReactNode;
+  className?: string;
+  disabled?: boolean;
+  onDone?: () => void;
+}) {
+  const goods = meOf(ctx.view).goods ?? {};
+  const can = affordable(cost, goods);
+  const fill = can ? null : fillCost(goods, cost, ctx.view.prices.buyPrice);
+  const off = disabled || ctx.busy || !ctx.myTurn || (!can && !fill);
+  return (
+    <button
+      className={className}
+      disabled={off}
+      title={!can && fill ? `Buys ${costLabel(fill.buy)} for ${fill.coin} 🪙 first` : undefined}
+      onClick={async () => {
+        const ok = can ? Boolean(await ctx.act(action)) : await buyThen(ctx, cost, action);
+        if (ok) onDone?.();
+      }}
+    >
+      {!can && fill ? (
+        <>
+          🛒 Buy {costLabel(fill.buy)} ({fill.coin} 🪙) &amp; {children}
+        </>
+      ) : (
+        children
+      )}
+    </button>
+  );
+}
+
+function OddsInline({ odds }: { odds: Odds | null }) {
+  if (!odds) return null;
+  const pct = Math.round(odds.win * 100);
+  return <span className={`odds-chip ${pct >= 75 ? "good" : pct >= 45 ? "fair" : "bad"}`}>{pct}% with everyone rested</span>;
+}
+
+export function OddsLine({ odds }: { odds: Odds | null }) {
+  if (!odds) return <p className="small muted">Odds unknown: you can&rsquo;t see who&rsquo;s defending.</p>;
+  const pct = Math.round(odds.win * 100);
+  const tone = pct >= 75 ? "good" : pct >= 45 ? "fair" : "bad";
+  return (
+    <p className={`odds ${tone}`}>
+      <strong>{pct}% chance to win</strong>
+      <span className="small">
+        {" "}
+        · you&rsquo;d lose about {odds.attackerLoss.toFixed(1)}, they&rsquo;d lose about {odds.defenderLoss.toFixed(1)}
+      </span>
+    </p>
+  );
+}
 
 // ---------------------------------------------------------------- region
 
@@ -196,6 +277,12 @@ function SendTroops({ ctx, from, dest, setDest }: { ctx: Ctx; from: RegionView; 
                   </label>
                 ))}
               </div>
+              {invading && (
+                <>
+                  <OddsLine odds={attackOdds(view, from.id, target.id, total ? pick : avail)} />
+                  {!total && <p className="muted small">That&rsquo;s with everyone rested here. Pick who goes, or tap All.</p>}
+                </>
+              )}
               <div className="form-actions">
                 <button type="button" className="btn ghost small" onClick={() => setPick({ ...avail })}>All</button>
                 <button
@@ -220,7 +307,7 @@ function SendTroops({ ctx, from, dest, setDest }: { ctx: Ctx; from: RegionView; 
 }
 
 function Gondolas({ ctx, from }: { ctx: Ctx; from: RegionView }) {
-  const { view, busy, act } = ctx;
+  const { view } = ctx;
   const me = meOf(view);
   const strike = view.modifiers.some((m) => m.kind === "gondolaStrike");
   return (
@@ -239,9 +326,9 @@ function Gondolas({ ctx, from }: { ctx: Ctx; from: RegionView }) {
               {line ? (
                 <span className="muted small">{line.owner === view.me ? "✅ your line" : `${playerName(view, line.owner)}'s line`}</span>
               ) : (
-                <button className="btn small" disabled={busy || strike || !affordable(view.prices.gondola, me.goods)} onClick={() => act({ type: "gondola", from: from.id, to: n })}>
+                <DoButton ctx={ctx} cost={view.prices.gondola} action={{ type: "gondola", from: from.id, to: n }} disabled={strike}>
                   Build
-                </button>
+                </DoButton>
               )}
             </li>
           );
@@ -252,8 +339,7 @@ function Gondolas({ ctx, from }: { ctx: Ctx; from: RegionView }) {
 }
 
 function Recruit({ ctx, region }: { ctx: Ctx; region: RegionView }) {
-  const { view, busy, act } = ctx;
-  const me = meOf(view);
+  const { view } = ctx;
   const [n, setN] = useState<Record<string, number>>({ panda: 1, nacam: 1, cam: 1, armedPanda: 1 });
   const rows: UnitType[] = ["panda", "nacam", "cam"];
   return (
@@ -275,9 +361,9 @@ function Recruit({ ctx, region }: { ctx: Ctx; region: RegionView }) {
             </div>
             <div className="recruit-buy">
               <Stepper value={n[t]} min={1} max={20} onChange={(v) => setN({ ...n, [t]: v })} label={UNITS[t].plural} />
-              <button className="btn small" disabled={busy || needsGym || !affordable(cost, me.goods)} onClick={() => act({ type: "recruit", region: region.id, unit: t as "panda" | "nacam" | "cam", count: n[t] })}>
+              <DoButton ctx={ctx} cost={cost} action={{ type: "recruit", region: region.id, unit: t as "panda" | "nacam" | "cam", count: n[t] }} disabled={needsGym}>
                 <CostChips cost={cost} />
-              </button>
+              </DoButton>
             </div>
           </div>
         );
@@ -290,13 +376,13 @@ function Recruit({ ctx, region }: { ctx: Ctx; region: RegionView }) {
           </div>
           <div className="recruit-buy">
             <Stepper value={Math.min(n.armedPanda, region.units!.panda)} min={1} max={region.units!.panda} onChange={(v) => setN({ ...n, armedPanda: v })} label="pandas to arm" />
-            <button
-              className="btn small"
-              disabled={busy || !affordable(times(UNITS.armedPanda.cost, Math.min(n.armedPanda, region.units!.panda)), me.goods)}
-              onClick={() => act({ type: "arm", region: region.id, count: Math.min(n.armedPanda, region.units!.panda) })}
+            <DoButton
+              ctx={ctx}
+              cost={times(UNITS.armedPanda.cost, Math.min(n.armedPanda, region.units!.panda))}
+              action={{ type: "arm", region: region.id, count: Math.min(n.armedPanda, region.units!.panda) }}
             >
               <CostChips cost={times(UNITS.armedPanda.cost, Math.min(n.armedPanda, region.units!.panda))} />
-            </button>
+            </DoButton>
           </div>
         </div>
       )}
@@ -305,8 +391,6 @@ function Recruit({ ctx, region }: { ctx: Ctx; region: RegionView }) {
 }
 
 function Build({ ctx, region }: { ctx: Ctx; region: RegionView }) {
-  const { view, busy, act } = ctx;
-  const me = meOf(view);
   const todo = BUILDING_TYPES.filter((b) => !region.buildings?.includes(b));
   if (!todo.length) return null;
   return (
@@ -320,9 +404,9 @@ function Build({ ctx, region }: { ctx: Ctx; region: RegionView }) {
             </strong>
             <p className="muted small">{BUILDINGS[b].blurb}</p>
           </div>
-          <button className="btn small" disabled={busy || !affordable(BUILDINGS[b].cost, me.goods)} onClick={() => act({ type: "build", region: region.id, building: b })}>
+          <DoButton ctx={ctx} cost={BUILDINGS[b].cost} action={{ type: "build", region: region.id, building: b }}>
             <CostChips cost={BUILDINGS[b].cost} />
-          </button>
+          </DoButton>
         </div>
       ))}
     </section>
@@ -373,9 +457,12 @@ function InvadeHint({ ctx, target, planAttack }: { ctx: Ctx; target: RegionView;
         <p key={f} className="small">
           From {regionName(f)}:{" "}
           {usableLine(view, f, target.id) ? (
-            <button className="btn small danger" onClick={() => planAttack(f, target.id)}>
-              Plan attack
-            </button>
+            <>
+              <button className="btn small danger" onClick={() => planAttack(f, target.id)}>
+                Plan attack
+              </button>{" "}
+              <OddsInline odds={attackOdds(view, f, target.id, rested(regionView(view, f)))} />
+            </>
           ) : (
             <span className="muted">build a gondola line first (select {regionName(f)})</span>
           )}
@@ -388,7 +475,7 @@ function InvadeHint({ ctx, target, planAttack }: { ctx: Ctx; target: RegionView;
 // ---------------------------------------------------------------- heroes
 
 export function HeroesPanel({ ctx, selected }: { ctx: Ctx; selected: string | null }) {
-  const { view, myTurn, busy, act } = ctx;
+  const { view } = ctx;
   const me = meOf(view);
   const home = selected && regionView(view, selected).owner === view.me ? selected : me.capital!;
   return (
@@ -414,9 +501,9 @@ export function HeroesPanel({ ctx, selected }: { ctx: Ctx; selected: string | nu
                 </p>
               ) : (
                 <div className="form-actions">
-                  <button className="btn small" disabled={!myTurn || busy || !affordable(cost, me.goods)} onClick={() => act({ type: "recruitHero", hero: h, region: home })}>
+                  <DoButton ctx={ctx} cost={cost} action={{ type: "recruitHero", hero: h, region: home }}>
                     Recruit <CostChips cost={cost} have={me.goods} />
-                  </button>
+                  </DoButton>
                 </div>
               )}
             </div>
@@ -470,6 +557,7 @@ export function DiplomacyPanel({ ctx, selected }: { ctx: Ctx; selected: string |
         </section>
       )}
 
+      <Race ctx={ctx} />
       <section className="act">
         <h3>🌍 The Kirds</h3>
         {view.players.map((p) => {
@@ -599,10 +687,33 @@ export function BankPanel({ ctx }: { ctx: Ctx }) {
   const me = meOf(view);
   const [give, setGive] = useState<Resource>("bamboo");
   const [get, setGet] = useState<Resource>("iron");
+  const [buyGood, setBuyGood] = useState<Resource>("stone");
+  const [buyN, setBuyN] = useState(1);
   const rate = view.prices.bankRate;
+  const price = view.prices.buyPrice;
+  const maxBuy = Math.max(1, Math.min(20, Math.floor((me.goods?.coin ?? 0) / price)));
   return (
     <div className="panel-body">
       <h2>World Bank</h2>
+      <section className="act">
+        <h3>🛒 Buy resources with Coin ({price} 🪙 each)</h3>
+        <p className="muted small">Missing one card for a gondola or an army? Buy it. A Market drops the price to 2 🪙.</p>
+        <div className="bank-row">
+          <select value={buyGood} onChange={(e) => setBuyGood(e.target.value as Resource)} aria-label="Resource to buy">
+            {RESOURCES.map((g) => (
+              <option key={g} value={g}>{GOOD_INFO[g].icon} {GOOD_INFO[g].label}</option>
+            ))}
+          </select>
+          <Stepper value={Math.min(buyN, maxBuy)} min={1} max={maxBuy} onChange={setBuyN} label="how many to buy" />
+          <button
+            className="btn small"
+            disabled={!myTurn || busy || (me.goods?.coin ?? 0) < price * Math.min(buyN, maxBuy)}
+            onClick={() => act({ type: "buy", good: buyGood, count: Math.min(buyN, maxBuy) })}
+          >
+            Buy for {price * Math.min(buyN, maxBuy)} 🪙
+          </button>
+        </div>
+      </section>
       <section className="act">
         <h3>🔁 Trade resources ({rate}:1)</h3>
         <p className="muted small">
@@ -707,7 +818,7 @@ export function LogPanel({
               {header && <p className="log-round">Round {e.round}</p>}
               <div className="log-row">
                 <button type="button" onClick={() => onPick(e)} disabled={!e.regions.length}>{e.text}</button>
-                {e.type === "battle" && (
+                {canReplay(e) && (
                   <button type="button" className="chip" onClick={() => onWatch(e)}>▶ Watch</button>
                 )}
               </div>

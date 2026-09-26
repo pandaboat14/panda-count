@@ -1,7 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import { BUILDINGS, BUILDING_TYPES, GONDOLA_COST, GOODS, GOOD_INFO, GOOD_SOURCE, HEROES, HERO_IDS, UNITS, UNIT_TYPES, type Cost, type Good } from "@/game/rules";
+import type { Resource } from "@/game/regions";
+import {
+  BUILDINGS,
+  BUILDING_TYPES,
+  BUY_PRICE,
+  BUY_PRICE_MARKET,
+  GONDOLA_COST,
+  GOODS,
+  GOOD_INFO,
+  GOOD_SOURCE,
+  HEROES,
+  HERO_IDS,
+  RESOURCES,
+  UNITS,
+  UNIT_TYPES,
+  type Cost,
+  type Good,
+} from "@/game/rules";
 
 export function CostChips({ cost, have }: { cost: Cost; have?: Partial<Record<Good, number>> }) {
   const parts = GOODS.filter((g) => (cost[g] ?? 0) > 0);
@@ -83,6 +100,9 @@ export function Glossary() {
               </dt>
               <dd>
                 <p>{GOOD_SOURCE[g]}</p>
+                {RESOURCES.includes(g as Resource) && (
+                  <p className="small">Short? Buy it at the Bank for {BUY_PRICE} 🪙 ({BUY_PRICE_MARKET} with a Market), or trade 4 of another resource for it (3 with a Market, 2 with Ping).</p>
+                )}
                 <p className="muted small">Used for: {usesOf(g).join(", ") || "trading"}</p>
               </dd>
             </div>

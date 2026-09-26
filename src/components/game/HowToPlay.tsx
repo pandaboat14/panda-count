@@ -14,8 +14,13 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
         <button className="close" onClick={onClose} aria-label="Close">&times;</button>
         <h2>How to play Panda Diplomacy</h2>
         <p>
-          It&rsquo;s Risk meets Catan on a 3D globe, and <strong>it never ends</strong>. Grow your empire, make friends, betray them, and
-          chase Casey. When it gets boring, new seasons bring new events.
+          It&rsquo;s Risk meets Catan on a 3D globe. Grow your empire, make friends, betray them, and chase Casey.{" "}
+          <strong>How you win</strong> is picked when the world starts: be the first to hold 10, 15 or 20 regions, or play an{" "}
+          <strong>Endless</strong> world that never stops.
+        </p>
+        <p>
+          <strong>Stuck?</strong> Open the <strong>💡 Plan</strong> tab and ask Sun Tzu. On your turn he suggests your best next moves
+          (with a saying or two), and one tap does them. You also start with a gondola line to a soft neighbour, so your first invasion is ready on turn one.
         </p>
         <h3>Your turn</h3>
         <ol>
@@ -30,7 +35,11 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
           </li>
           <li>
             <strong>Ogre quarry.</strong> Each NACAM ogre you own has a 1 in 3 chance to haul in 1 🪨 Stone (up to 3 a turn), so the more
-            ogres you keep, the more Stone turns up. Stone also comes from stone regions and from the Bank (4 of any resource for 1).
+            ogres you keep, the more Stone turns up. Stone also comes from stone regions and from the Bank.
+          </li>
+          <li>
+            <strong>The World Bank</strong> sells any resource for 3 🪙 (2 🪙 once you own a Market), swaps resources 4 for 1 (3 with a
+            Market, 2 with Ping), and changes currencies. Any button you&rsquo;re short for offers to buy what&rsquo;s missing first.
           </li>
           <li>
             <strong>Do anything, in any order:</strong> build gondolas, recruit, build, move, invade, trade, hire heroes, loan pandas.
@@ -57,7 +66,8 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
         <p>
           Risk rules: up to 3 attacking dice against 2 defending dice, highest against highest, ties to the defender, fought to the last
           unit. Each die adds the unit&rsquo;s bonus. Forts add +1 to defenders; heroes add their bonus to battles fought from or in their
-          region. Win and the region, its buildings and any heroes there are yours (heroes flee, but Casey gets captured).
+          region. Win and the region, its buildings and any heroes there are yours (heroes flee, but Casey gets captured). Before you
+          invade, the game shows your <strong>chance to win</strong> and the losses to expect.
         </p>
         <h3>Units</h3>
         <ul>
@@ -92,7 +102,7 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
         <h3>🌍 The world fights back</h3>
         <p>
           The Panda Nation guards Sichuan and Qinling, the NACAM Ogre Nation holds the cold and empty places, and the CAM Nation owns the
-          beaches. They regrow over time. Every round a world event shakes things up. Lose everything and you get Panda Asylum somewhere new.
+          beaches. They regrow over time, but only up to a limit, so they never outgrow you. Every round a world event shakes things up. Lose everything and you get Panda Asylum somewhere new.
           No one ever wins. Everyone keeps playing.
         </p>
         <h3>☁️ Fog of war</h3>

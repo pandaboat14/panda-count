@@ -74,7 +74,9 @@ async function commit(
 ): Promise<boolean> {
   const rows = await sql().query(
     `WITH upd AS (
-       UPDATE games SET state = $1::jsonb, version = version + 1, updated_at = now()
+       UPDATE games SET state = $1::jsonb, version = version + 1, updated_at = now(),
+         status = CASE WHEN $8::boolean THEN 'complete' ELSE status END,
+         ended_at = CASE WHEN $8::boolean THEN coalesce(ended_at, now()) ELSE ended_at END
        WHERE id = $2 AND version = $3
        RETURNING id
      ),
@@ -90,7 +92,8 @@ async function commit(
        RETURNING 1
      )
      SELECT (SELECT count(*) FROM upd)::int AS updated`,
-    [JSON.stringify(state), row.id, row.version, JSON.stringify(events), newPlayer?.userId ?? null, newPlayer?.name ?? null, newPlayer?.email ?? null],
+    // A win ends the game in the same save that records it.
+    [JSON.stringify(state), row.id, row.version, JSON.stringify(events), newPlayer?.userId ?? null, newPlayer?.name ?? null, newPlayer?.email ?? null, Boolean(state.winner)],
   );
   return rows[0]?.updated === 1;
 }
@@ -100,12 +103,18 @@ const newCode = () => Array.from({ length: 6 }, () => CODE_CHARS[randomInt(CODE_
 
 type Who = { id: string; name: string; email?: string | null };
 
-export async function createNewGame(name: string, host: Who, bots: BotLevel[] = []) {
-  const state = createGame(randomInt(2 ** 31), Date.now());
+export async function createNewGame(name: string, host: Who, bots: BotLevel[] = [], goal: number | null = null) {
+  const state = createGame(randomInt(2 ** 31), Date.now(), goal);
   const events = addPlayer(state, host.id, host.name);
   // Computer Kirds take the seats after the host; people invited later sit after them.
-  const names = [...BOT_NAMES].sort(() => randomInt(3) - 1);
+  const names = [...BOT_NAMES];
+  for (let i = names.length - 1; i > 0; i--) {
+    const j = randomInt(i + 1);
+    [names[i], names[j]] = [names[j], names[i]];
+  }
   bots.slice(0, 7).forEach((level, i) => events.push(...addPlayer(state, `bot-${i + 1}`, names[i % names.length], level)));
+  // The host watched the world being made, so there's nothing to "catch up on" at the start.
+  state.players[0].lastTurnEndSeq = state.seq;
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
       const rows = await sql().query(
@@ -260,6 +269,8 @@ export async function myGames(userId: string) {
       code: r.code as string,
       host: r.hostId === userId,
       round: s.round,
+      goal: s.goal ?? null,
+      winnerName: s.players.find((p) => p.id === s.winner)?.name ?? null,
       status: r.status as GameStatus,
       players: s.players.map((p) => ({ id: p.id, name: p.name, color: p.color, avatar: avatars[p.id], bot: p.bot ?? null })),
       activeName: active?.name ?? "",

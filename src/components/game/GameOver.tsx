@@ -8,7 +8,9 @@ import { Avatar } from "../Avatar";
 // Final standings for a finished game: most regions first, then resource cards as the tie-break.
 export function GameOver({ view, avatars, endedAt }: { view: GameView; avatars: Record<string, string>; endedAt: string | null }) {
   const [open, setOpen] = useState(true);
-  const ranked = [...view.players].sort((a, b) => b.regions - a.regions || b.cards - a.cards);
+  // The winner (if the game had a goal) comes first; then most regions, with resource cards as the tie-break.
+  const ranked = [...view.players].sort((a, b) => Number(b.id === view.winner) - Number(a.id === view.winner) || b.regions - a.regions || b.cards - a.cards);
+  const champ = view.players.find((p) => p.id === view.winner);
   if (!open) {
     return (
       <button className="btn small game-over-reopen" onClick={() => setOpen(true)}>
@@ -19,6 +21,12 @@ export function GameOver({ view, avatars, endedAt }: { view: GameView; avatars: 
   return (
     <section className="game-over" aria-label="Final standings">
       <p className="eyebrow">🏁 Game over{endedAt ? ` · ${new Date(endedAt).toLocaleDateString([], { month: "short", day: "numeric" })}` : ""}</p>
+      {champ && (
+        <h2 className="game-over-title">
+          {champ.id === view.me ? "🏆 You won the world!" : `🏆 ${champ.name} won the world`}
+          {view.goal ? <span className="muted small"> · first to {view.goal} regions</span> : null}
+        </h2>
+      )}
       <ol>
         {ranked.map((p, i) => (
           <li key={p.id}>

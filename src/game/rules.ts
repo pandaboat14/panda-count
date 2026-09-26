@@ -24,11 +24,11 @@ export type Cost = Partial<Record<Good, number>>;
 export const GOOD_SOURCE: Record<Good, string> = {
   bamboo: "Grows in bamboo regions: each one you hold gives 1 at the start of your turn, and more whenever the dice roll its number.",
   stone:
-    "Quarried in stone regions (1 a turn each, plus dice rolls). Your NACAM ogres also haul it in: each ogre has a 1 in 3 chance to bring 1 Stone at the start of your turn (up to 3). Or trade 4 of any resource for 1 at the Bank (3 with a Market, 2 with Ping).",
+    "Quarried in stone regions (1 a turn each, plus dice rolls). Your NACAM ogres also haul it in: each ogre has a 1 in 3 chance to bring 1 Stone at the start of your turn (up to 3).",
   iron: "Mined in iron regions: 1 a turn from each one you hold, plus dice rolls.",
   rice: "Grown in rice regions: 1 a turn from each one you hold, plus dice rolls.",
   gems: "Dug up in gem regions: 1 a turn from each one you hold, plus dice rolls.",
-  coin: "2 Coin a turn for every region you hold, +2 for each Market. Ogres cost 1 Coin a turn each in wages.",
+  coin: "2 Coin a turn for every region you hold, +2 for each Market. Ogres cost 1 Coin a turn each in wages. Spend it at the Bank on any resource you're missing.",
   pandaCoin: "1 a turn for every 3 pandas you own, +2 per Panda Sanctuary, +2 with Ping, and +1 per panda on loan (to or from you).",
   camCoin: "+1 a turn per CAM Gym. Or exchange at the Bank: 6 Coin or 3 PandaCoin for 1 CamCoin.",
 };
@@ -150,6 +150,22 @@ export const NACAM_UPKEEP = 1;
 export const QUARRY_CHANCE = 1 / 3;
 export const QUARRY_MAX = 3;
 export const RAID_THRESHOLD = 9;
+
+// The World Bank sells any resource for Coin, so no Kird is ever stuck waiting on the dice for one missing card.
+export const BUY_PRICE = 3;
+export const BUY_PRICE_MARKET = 2;
+
+// Native garrisons never grow past these, so the world around you can't outgrow you forever.
+export const NATIVE_CAP: Record<string, Partial<Record<UnitType, number>>> = {
+  pandas: { panda: 10, armedPanda: 3 },
+  nacams: { nacam: 8 },
+  cams: { cam: 6 },
+  wild: { panda: 3 },
+};
+
+// Game length: first Kird to hold this many regions wins. null plays forever.
+export const GOAL_CHOICES = [10, 15, 20] as const;
+export const DEFAULT_GOAL = 15;
 
 // Currency exchange at the World Bank: pay `pay` of one currency, receive `get` of another.
 export const EXCHANGE: { from: Currency; to: Currency; pay: number; get: number }[] = [
