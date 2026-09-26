@@ -165,7 +165,8 @@ export const NATIVE_CAP: Record<string, Partial<Record<UnitType, number>>> = {
 
 // Game length: hold this many regions at the start of your turn to win (null plays forever).
 // Sized from simulated four-player games to the finish: 25 takes about 40 rounds, 30 about 45 or more.
-export const GOAL_CHOICES = [25, 30, 35] as const;
+// (35 was tried and dropped: four-sided wars at that size often stalemate for 150+ rounds.)
+export const GOAL_CHOICES = [25, 30] as const;
 export const DEFAULT_GOAL = 25;
 
 // Currency exchange at the World Bank: pay `pay` of one currency, receive `get` of another.

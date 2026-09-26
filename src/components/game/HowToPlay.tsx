@@ -15,7 +15,7 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
         <h2>How to play Panda Diplomacy</h2>
         <p>
           It&rsquo;s Risk meets Catan on a 3D globe. Grow your empire, make friends, betray them, and chase Casey.{" "}
-          <strong>How you win</strong> is picked when the world starts: hold 25, 30 or 35 regions, or play an <strong>Endless</strong>{" "}
+          <strong>How you win</strong> is picked when the world starts: hold 25 or 30 regions, or play an <strong>Endless</strong>{" "}
           world that never stops. Reaching the goal sounds the alarm: you win only if you still hold it when your next turn starts, so
           everyone gets one last round to stop you. Expect a long war, like Risk or Catan.
         </p>

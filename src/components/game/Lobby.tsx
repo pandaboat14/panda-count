@@ -72,7 +72,6 @@ export function Lobby({ games }: { games: GameSummary[] }) {
               <select name="goal" defaultValue="25">
                 <option value="25">Standard: hold 25 regions to win (about 40 rounds)</option>
                 <option value="30">Long: hold 30 regions to win (45+ rounds)</option>
-                <option value="35">Epic: hold 35 regions to win (a war that can run 100+ rounds)</option>
                 <option value="endless">Endless: it never ends (the Kirds&rsquo; classic)</option>
               </select>
               <span className="hint">To win, you must still hold the goal when your next turn starts, so everyone gets one last chance to stop you.</span>
