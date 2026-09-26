@@ -48,7 +48,9 @@ export type OddsSetup = {
   events?: WorldEventId[];
 };
 
-const BATTLE_SIMS = 100;
+// Real battles cost far more to play out than the old Risk sums, so previews play at most this many (enough to
+// rank fights and show a percentage, cheap enough for a phone), whatever a caller asks for.
+const PREVIEW_SIMS = 60;
 const MAX_CACHE = 500;
 const cache = new Map<string, Odds>();
 
@@ -70,19 +72,15 @@ function configFor(setup: OddsSetup, i: number): BattleConfig {
   };
 }
 
-// The move a side most likely makes (its best Strike, or a Guard if its doctrine prefers), or the computer's pick.
+// The move a side most likely makes (its best Strike, or a Guard if its doctrine prefers). likelyAction only ever
+// names moves the squad can make; when there are none it falls back to a Rice Ball, and then the computer picks.
 function likely(b: Battle, key: SideKey): BattleAction {
   const a = BE.likelyAction(b, key);
-  try {
-    BE.validate(b, key, a);
-    return a;
-  } catch {
-    return BE.aiAction(b, key);
-  }
+  return a.kind === "item" && !b.sides[key].bag[a.id] ? BE.aiAction(b, key) : a;
 }
 
 // Plays the battle out `sims` times with fixed seeds, so the same matchup always shows the same number.
-export function simulateOdds(setup: OddsSetup, sims = BATTLE_SIMS): Odds {
+export function simulateOdds(setup: OddsSetup, sims = PREVIEW_SIMS): Odds {
   if (unitTotal(setup.atk.units) === 0 && !setup.atk.heroes?.length) return { win: 0, attackerLoss: 0, defenderLoss: 0 };
   // Nobody home: the region is captured unopposed.
   if (unitTotal(setup.def.units) === 0) return { win: 1, attackerLoss: 0, defenderLoss: 0 };
@@ -127,7 +125,7 @@ export function armoryGear(armory: Armory | undefined): Partial<Record<UnitType,
 }
 
 // Odds of sending `send` from one region into another, as far as this player can see.
-export function attackOdds(view: GameView, from: string, to: string, send: Units, sims = BATTLE_SIMS): Odds | null {
+export function attackOdds(view: GameView, from: string, to: string, send: Units, sims = PREVIEW_SIMS): Odds | null {
   const target = view.regions.find((r) => r.id === to);
   if (!target || target.fog || !target.units) return null;
   const me = view.players.find((p) => p.id === view.me);
@@ -139,12 +137,12 @@ export function attackOdds(view: GameView, from: string, to: string, send: Units
       buildings: target.buildings ?? [],
       events: activeEvents(view),
     },
-    sims,
+    Math.min(sims, PREVIEW_SIMS),
   );
 }
 
 // Odds of a neighbour's army taking one of your regions, fought by your Standing Orders there.
-export function defenseOdds(view: GameView, attacker: string, from: string, send: Units, to: string, sims = BATTLE_SIMS): Odds | null {
+export function defenseOdds(view: GameView, attacker: string, from: string, send: Units, to: string, sims = PREVIEW_SIMS): Odds | null {
   const mine = view.regions.find((r) => r.id === to);
   if (!mine || !mine.units) return null;
   const me = view.players.find((p) => p.id === view.me);
@@ -163,7 +161,7 @@ export function defenseOdds(view: GameView, attacker: string, from: string, send
       buildings: mine.buildings ?? [],
       events: activeEvents(view),
     },
-    sims,
+    Math.min(sims, PREVIEW_SIMS),
   );
 }
 
