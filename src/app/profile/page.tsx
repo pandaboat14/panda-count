@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { hasDatabase } from "@/db";
 import { Avatar } from "@/components/Avatar";
+import { SiteFooter } from "@/components/SiteFooter";
 import { TopBar } from "@/components/TopBar";
 import { getUser, hasAuth } from "@/lib/auth/server";
 import { AVATAR_COLORS, AVATAR_KINDS, AVATAR_KIND_LABEL } from "@/lib/avatars";
@@ -57,6 +58,7 @@ export default async function ProfilePage({ searchParams }: PageProps<"/profile"
           )}
         </p>
       </main>
+      <SiteFooter />
     </>
   );
 }
