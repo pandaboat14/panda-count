@@ -694,3 +694,50 @@ test("fuzz: with bots and a goal, warnings, comebacks and wins stay consistent t
   }
   assert.ok(finished >= 3, `games reached a winner: ${finished}/6`);
 });
+
+// ---------------------------------------------------------------- army tab
+
+import { armySummary, battleRecord, regionReports } from "./army";
+
+test("army: totals, ready troops, wages and heroes add up to what's on the map", () => {
+  const { s } = newGame(2, 12);
+  const me = s.players[0];
+  const cap = s.regions[me.capital];
+  cap.units = { panda: 4, armedPanda: 1, nacam: 2, cam: 0 };
+  cap.tired = { panda: 1, armedPanda: 0, nacam: 0, cam: 0 };
+  s.heroes.ping = { owner: me.id, region: cap.id, movedTurn: 0 };
+  const sum = armySummary(viewFor(s, me.id));
+  assert.deepEqual(sum.total, { panda: 4, armedPanda: 1, nacam: 2, cam: 0 });
+  assert.deepEqual(sum.ready, { panda: 3, armedPanda: 1, nacam: 2, cam: 0 });
+  assert.equal(sum.upkeep, 2);
+  assert.equal(sum.pandaCoinFromPandas, 1);
+  assert.deepEqual(sum.heroes, [{ id: "ping", region: cap.id }]);
+});
+
+test("army: a big enemy army next door is flagged as a danger; allies and natives never are", () => {
+  const { s } = newGame(2, 12);
+  const [a, b] = s.players;
+  const n = NEIGHBORS.get(a.capital)!.find((x) => !s.regions[x].owner)!;
+  Object.assign(s.regions[n], { owner: b.id, native: null, units: { panda: 0, armedPanda: 0, nacam: 9, cam: 3 } });
+  s.regions[a.capital].units = { panda: 1, armedPanda: 0, nacam: 0, cam: 0 };
+  const home = regionReports(viewFor(s, a.id)).find((r) => r.region.id === a.capital)!;
+  assert.ok(home.danger && home.danger.owner === b.id && home.danger.win > 0.9, JSON.stringify(home.danger));
+  s.pacts.push({ a: a.id, b: b.id, sinceRound: 1 });
+  assert.equal(regionReports(viewFor(s, a.id)).find((r) => r.region.id === a.capital)!.danger, null);
+});
+
+test("army: the battle record shows wins and losses from your side of the table", () => {
+  const { s } = newGame(2, 12);
+  const [a, b] = s.players;
+  const n = NEIGHBORS.get(a.capital)!.find((x) => !s.regions[x].owner)!;
+  Object.assign(s.regions[n], { owner: b.id, native: null, units: { panda: 1, armedPanda: 0, nacam: 0, cam: 0 } });
+  s.regions[a.capital].units = { panda: 9, armedPanda: 0, nacam: 3, cam: 0 };
+  s.lines[lineId(a.capital, n)] = { owner: a.id, builtTurn: 0 };
+  const events = applyAction(s, a.id, { type: "move", from: a.capital, to: n, units: { panda: 8, nacam: 3 } }, NOW);
+  const mine = battleRecord(viewFor(s, a.id), events);
+  const theirs = battleRecord(viewFor(s, b.id), events);
+  assert.equal(mine.length, 1);
+  assert.equal(mine[0].role, "attack");
+  assert.equal(theirs[0].role, "defend");
+  assert.equal(mine[0].won, !theirs[0].won, "one side's win is the other's loss");
+});

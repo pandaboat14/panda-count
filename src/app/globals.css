@@ -855,3 +855,36 @@ i.heat { background: radial-gradient(circle, #d64828 0%, #e97846 55%, #e9b8a8 10
 @media (max-width: 760px) {
   .panel-grip { display: flex; }
 }
+
+/* Army tab */
+.army-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 4px 0 6px; }
+.army-stat { display: grid; justify-items: center; padding: 8px 4px; border-radius: 12px; background: var(--cream); text-align: center; }
+.army-stat.warn { background: #f6d2c8; }
+.army-stat-value { font: 800 1.3rem var(--serif); }
+.army-stat-label { font-weight: 800; font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--forest-deep); }
+.army-stat-note { font-size: .66rem; color: var(--ink-soft); }
+.army-units, .army-heroes, .army-regions, .army-record { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 8px; }
+.army-units li { display: grid; grid-template-columns: 34px 1fr; gap: 8px; }
+.army-units li.none { opacity: .6; }
+.army-units p { margin: 2px 0; }
+.army-unit-icon { font-size: 1.6rem; line-height: 1.2; }
+.army-heroes li p { margin: 2px 0 4px; }
+.army-region {
+  width: 100%; text-align: left; display: grid; gap: 2px; padding: 8px 10px; border-radius: 12px; cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--bamboo-deep) 30%, transparent); background: var(--paper); font: inherit; color: inherit;
+}
+.army-region:hover, .army-region:focus-visible { border-color: var(--forest); outline: none; }
+.army-region.watch { border-color: #d9a441; }
+.army-region.danger { border-color: #a24a30; background: #fbeae4; }
+.army-region-head { display: flex; gap: 6px; align-items: center; }
+.army-risk { font-size: .78rem; font-weight: 700; color: #6b5210; }
+.army-risk.high { color: #a24a30; }
+.army-rules { margin: 4px 0 8px; padding-left: 18px; display: grid; gap: 4px; }
+.army-calc summary { cursor: pointer; font-weight: 800; color: var(--forest); padding: 4px 0; }
+.army-calc-mods { display: grid; gap: 4px; margin: 6px 0; }
+.army-record li { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: start; }
+.army-record p { margin: 2px 0; }
+.army-record .result { font-size: .7rem; font-weight: 800; padding: 2px 8px; border-radius: 99px; margin-top: 2px; }
+.army-record .result.won { background: #d9efdc; color: #1d5b2c; }
+.army-record .result.lost { background: #f6d2c8; color: #6b2d1c; }
+@media (max-width: 420px) { .army-stats { grid-template-columns: repeat(2, 1fr); } }

@@ -66,6 +66,10 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
         </p>
         <h3>⚔️ Battles</h3>
         <p>
+          Open the <strong>⚔️ Army</strong> tab to see all your troops, where they are and which regions are at risk, your battle record,
+          and a calculator to try any fight before you pick it.
+        </p>
+        <p>
           Risk rules: up to 3 attacking dice against 2 defending dice, highest against highest, ties to the defender, fought to the last
           unit. Each die adds the unit&rsquo;s bonus. Forts add +1 to defenders; heroes add their bonus to battles fought from or in their
           region. Win and the region, its buildings and any heroes there are yours (heroes flee, but Casey gets captured). Before you
