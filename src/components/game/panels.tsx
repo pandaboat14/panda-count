@@ -571,6 +571,7 @@ export function DiplomacyPanel({ ctx, selected }: { ctx: Ctx; selected: string |
                 </span>
                 <strong>{p.id === view.me ? `${p.name} (you)` : p.name}</strong>
                 {p.bot && <span className="badge">🤖 computer · {p.bot}</span>}
+                {p.autopilot && <span className="badge">🤖 on autopilot</span>}
                 {active && <span className="badge">playing</span>}
                 {pact && <span className="badge">🤝 pact</span>}
                 {p.oathbreaker && <span className="badge warn">💔 oathbreaker</span>}

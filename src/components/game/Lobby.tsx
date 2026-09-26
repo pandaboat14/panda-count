@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useState } from "react";
-import { createGameAction, deleteGameAction, endGameAction, joinByCodeAction, leaveGameAction, type LobbyState } from "@/app/game/actions";
+import { autopilotAllAction, createGameAction, deleteGameAction, endGameAction, joinByCodeAction, leaveGameAction, type LobbyState } from "@/app/game/actions";
 import { BOT_LEVELS, type BotLevel } from "@/game/engine";
 import { Avatar } from "../Avatar";
 
@@ -18,6 +18,7 @@ type GameSummary = {
   players: { id: string; name: string; color: string; avatar: string; bot: BotLevel | null }[];
   activeName: string;
   myTurn: boolean;
+  autopilot: BotLevel | null;
   updatedAt: string;
   endedAt: string | null;
 };
@@ -38,6 +39,23 @@ export function Lobby({ games }: { games: GameSummary[] }) {
     <div className="lobby-grid">
       <section>
         <h2>In progress</h2>
+        {active.length > 0 && (
+          <form action={autopilotAllAction} className="autopilot-all">
+            {active.every((g) => g.autopilot) ? (
+              <>
+                <input type="hidden" name="on" value="0" />
+                <p className="small">🤖 Autopilot is playing all your games.</p>
+                <button className="btn small">🙋 Take back command of all games</button>
+              </>
+            ) : (
+              <>
+                <input type="hidden" name="on" value="1" />
+                <p className="small">Going offline? The computer can play your turns in every game until you&rsquo;re back.</p>
+                <button className="btn ghost small">🤖 Autopilot all my games</button>
+              </>
+            )}
+          </form>
+        )}
         {active.length === 0 ? (
           <p className="lede">No games going. Start one: play the computer, or send the Kirds the invite link.</p>
         ) : (
@@ -156,6 +174,7 @@ function GameRow({ g }: { g: GameSummary }) {
       <Link href={`/game/${g.id}`} className={`game-card${g.myTurn ? " my-turn" : ""}${complete ? " complete" : ""}`}>
         <span className="game-name">
           {g.name} <span className={`status-pill${complete ? " done" : ""}`}>{complete ? "Complete" : "In progress"}</span>
+          {!complete && g.autopilot && <span className="status-pill auto">🤖 Autopilot</span>}
         </span>
         <span className="game-meta">
           Round {g.round} · {g.goal ? `🏁 ${g.goal}` : "♾️"} ·{" "}

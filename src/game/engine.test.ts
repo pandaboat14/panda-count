@@ -741,3 +741,54 @@ test("army: the battle record shows wins and losses from your side of the table"
   assert.equal(theirs[0].role, "defend");
   assert.equal(mine[0].won, !theirs[0].won, "one side's win is the other's loss");
 });
+
+// ---------------------------------------------------------------- autopilot
+
+test("autopilot: switch it on any time; the computer plays your turns and leaves you a private recap", () => {
+  const s = newWorld(21, NOW);
+  addPlayer(s, "taylor", "Taylor");
+  addPlayer(s, "alex", "Alex");
+  // Not Taylor's turn? Doesn't matter: Alex switches on while Taylor plays.
+  const seenBefore = s.players[1].lastTurnEndSeq;
+  const on = applyAction(s, "alex", { type: "autopilot", on: true, level: "hard" }, NOW);
+  assert.ok(on.some((e) => e.type === "autopilot" && e.public));
+  assert.equal(s.players[1].autopilot, "hard");
+  assert.equal(viewFor(s, "taylor").players[1].autopilot, "hard");
+  // Taylor ends the turn; Alex's turn is played at once and it's Taylor's turn again.
+  const events = applyAction(s, "taylor", { type: "endTurn" }, NOW);
+  events.push(...runBots(s, NOW));
+  assert.equal(activePlayer(s).id, "taylor");
+  assert.ok(events.some((e) => e.type === "endTurn" && e.actor === "alex"));
+  const recap = events.find((e) => e.type === "autopilotRecap")!;
+  assert.deepEqual(recap.only, ["alex"]);
+  assert.ok(!eventVisible(s, recap, "taylor"), "nobody else sees the recap");
+  assert.equal(s.players[1].lastTurnEndSeq, seenBefore, "the replay still starts from before the autopilot turns");
+  // Back in command.
+  applyAction(s, "alex", { type: "autopilot", on: false }, NOW);
+  assert.equal(s.players[1].autopilot, null);
+  assert.throws(() => applyAction(s, "alex", { type: "autopilot", on: false }, NOW), /already off/);
+});
+
+test("autopilot: rounds keep going with people away, but a game where everyone's away waits for someone", () => {
+  const s = newWorld(22, NOW);
+  addPlayer(s, "a", "A");
+  addPlayer(s, "b", "B");
+  addPlayer(s, "c", "C");
+  const events: GameEvent[] = [];
+  events.push(...applyAction(s, "b", { type: "autopilot", on: true }, NOW));
+  events.push(...applyAction(s, "c", { type: "autopilot", on: true }, NOW));
+  for (let round = 0; round < 30; round++) {
+    events.push(...applyAction(s, "a", { type: "endTurn" }, NOW));
+    events.push(...runBots(s, NOW));
+    assert.equal(activePlayer(s).id, "a");
+    checkInvariants(s, events);
+  }
+  applyAction(s, "a", { type: "autopilot", on: true }, NOW);
+  assert.deepEqual(runBots(s, NOW), [], "nobody in command: nothing auto-plays");
+  assert.throws(() => applyAction(s, "a", { type: "autopilot", on: true, level: "godlike" as never }, NOW), GameError);
+});
+
+test("autopilot: computer players can't switch it off", () => {
+  const { s } = botGame(["easy"]);
+  assert.throws(() => applyAction(s, "bot0", { type: "autopilot", on: false }, NOW), /always/);
+});

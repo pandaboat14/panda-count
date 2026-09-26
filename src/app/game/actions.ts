@@ -1,13 +1,14 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { hasDatabase } from "@/db";
 import { BOT_LEVELS, type BotLevel } from "@/game/engine";
 import { GOAL_CHOICES } from "@/game/rules";
 import { getUser } from "@/lib/auth/server";
 import { displayName } from "@/lib/game/names";
 import { revalidatePath } from "next/cache";
-import { createNewGame, deleteGame, endGame, gameIdForCode, leaveGame } from "@/lib/game/store";
+import { act, createNewGame, deleteGame, endGame, gameIdForCode, leaveGame, myGames } from "@/lib/game/store";
 
 export type LobbyState = { error?: string };
 
@@ -51,4 +52,23 @@ export async function endGameAction(form: FormData) {
 
 export async function deleteGameAction(form: FormData) {
   await lobbyStep(form, deleteGame);
+}
+
+// Switch autopilot on or off in every game you're still playing (for flights, holidays and busy weeks).
+export async function autopilotAllAction(form: FormData) {
+  const user = await getUser();
+  if (!user) redirect("/auth/sign-in?redirectTo=/game");
+  const on = form.get("on") === "1";
+  const origin = process.env.SITE_URL || "https://pandacount.net";
+  for (const g of await myGames(user.id)) {
+    if (g.status !== "active" || Boolean(g.autopilot) === on) continue;
+    try {
+      const followUp = await act(g.id, user.id, { type: "autopilot", on }, origin);
+      if (followUp) after(() => followUp().catch(() => {}));
+    } catch {
+      // A game that just ended or changed hands is skipped; the others still switch.
+    }
+  }
+  revalidatePath("/game");
+  redirect("/game");
 }

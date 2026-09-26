@@ -275,6 +275,7 @@ export async function myGames(userId: string) {
       players: s.players.map((p) => ({ id: p.id, name: p.name, color: p.color, avatar: avatars[p.id], bot: p.bot ?? null })),
       activeName: active?.name ?? "",
       myTurn: r.status === "active" && active?.id === userId,
+      autopilot: s.players.find((p) => p.id === userId)?.autopilot ?? null,
       updatedAt: r.updatedAt as string,
       endedAt: (r.endedAt as string | null) ?? null,
     };
