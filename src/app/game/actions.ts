@@ -13,7 +13,7 @@ export async function createGameAction(_prev: LobbyState, form: FormData): Promi
   if (!user) redirect("/auth/sign-in?redirectTo=/game");
   if (!hasDatabase()) return { error: "The game needs the database set up." };
   const name = String(form.get("name") ?? "").trim().slice(0, 60) || "The Kirds' World";
-  const id = await createNewGame(name, { id: user.id, name: displayName(user) });
+  const id = await createNewGame(name, { id: user.id, name: displayName(user), email: user.email });
   redirect(`/game/${id}`);
 }
 

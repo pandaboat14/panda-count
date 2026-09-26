@@ -52,6 +52,16 @@ export function GameClient({ initial }: { initial: GamePayload }) {
   const [help, setHelp] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
+  const [emailOn, setEmailOn] = useState(initial.notify.on);
+
+  const toggleEmail = async () => {
+    const on = !emailOn;
+    const res = await fetch(`/api/game/${game.id}/notify`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ on }) });
+    if (res.ok) {
+      setEmailOn(on);
+      setToast(on ? `📧 We'll email ${initial.notify.email ?? "you"} when it's your turn.` : "🔕 Turn emails off.");
+    }
+  };
 
   const focusOn = useCallback((id: string) => {
     const d = REGION_BY_ID.get(id);
@@ -191,6 +201,16 @@ export function GameClient({ initial }: { initial: GamePayload }) {
         </div>
         <div className="game-top-actions">
           <button className="btn ghost small" onClick={invite}>Invite</button>
+          {initial.notify.available && initial.notify.email && (
+            <button
+              className="btn ghost small"
+              onClick={toggleEmail}
+              aria-pressed={emailOn}
+              title={emailOn ? `Emailing ${initial.notify.email} on your turn. Click to stop.` : "Get an email when it's your turn"}
+            >
+              {emailOn ? "🔔" : "🔕"}
+            </button>
+          )}
           <button className="btn ghost small" onClick={() => setHelp(true)} aria-label="How to play">?</button>
         </div>
       </header>

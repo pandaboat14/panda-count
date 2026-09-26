@@ -11,6 +11,6 @@ export default async function JoinPage({ params }: PageProps<"/game/join/[code]"
   if (!user) redirect(`/auth/sign-up?redirectTo=/game/join/${code}`);
   const id = await gameIdForCode(code);
   if (!id) notFound();
-  await joinGame(id, { id: user.id, name: displayName(user) });
+  await joinGame(id, { id: user.id, name: displayName(user), email: user.email });
   redirect(`/game/${id}`);
 }

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { hasDatabase } from "@/db";
 import { GameError, type Action } from "@/game/engine";
 import { getUser } from "@/lib/auth/server";
@@ -42,7 +42,8 @@ export async function POST(req: Request, ctx: Ctx) {
   }
   if (!body.action || typeof body.action !== "object") return NextResponse.json({ error: "Missing action." }, { status: 400 });
   try {
-    await act(w.id, w.user.id, body.action);
+    const followUp = await act(w.id, w.user.id, body.action, process.env.SITE_URL || new URL(req.url).origin);
+    if (followUp) after(() => followUp().catch((e) => console.error("Turn email failed", e)));
   } catch (e) {
     if (e instanceof GameError) return NextResponse.json({ error: e.message }, { status: 422 });
     throw e;

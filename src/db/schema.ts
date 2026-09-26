@@ -1,4 +1,4 @@
-import { doublePrecision, integer, jsonb, pgEnum, pgTable, primaryKey, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { boolean, doublePrecision, integer, jsonb, pgEnum, pgTable, primaryKey, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
 export const pandaStatus = pgEnum("panda_status", ["resident", "incoming"]);
 export const pandaSex = pgEnum("panda_sex", ["Male", "Female"]);
@@ -106,6 +106,9 @@ export const gamePlayers = pgTable(
       .references(() => games.id, { onDelete: "cascade" }),
     userId: text("user_id").notNull(),
     name: text("name").notNull(),
+    // For "it's your turn" emails; players can switch them off in the game.
+    email: text("email"),
+    notify: boolean("notify").notNull().default(true),
     joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.gameId, t.userId] })],

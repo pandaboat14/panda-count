@@ -1,8 +1,10 @@
 import "server-only";
 import { neon } from "@neondatabase/serverless";
 import { randomInt } from "node:crypto";
+import { emailEnabled, escapeHtml, sendEmail } from "./email";
 import {
   GameError,
+  activePlayer,
   addPlayer,
   applyAction,
   createGame,
@@ -26,6 +28,8 @@ export type GamePayload = {
   version: number;
   view: GameView;
   events: GameEvent[];
+  // Turn emails for this player.
+  notify: { on: boolean; email: string | null; available: boolean };
 };
 
 export async function loadGame(id: number): Promise<GameRow | null> {
@@ -51,7 +55,7 @@ async function commit(
   row: GameRow,
   state: GameState,
   events: GameEvent[],
-  newPlayer?: { userId: string; name: string },
+  newPlayer?: { userId: string; name: string; email: string | null },
 ): Promise<boolean> {
   const rows = await sql().query(
     `WITH upd AS (
@@ -65,13 +69,13 @@ async function commit(
        RETURNING 1
      ),
      pl AS (
-       INSERT INTO game_players (game_id, user_id, name)
-       SELECT upd.id, $5, $6 FROM upd WHERE $5::text IS NOT NULL
+       INSERT INTO game_players (game_id, user_id, name, email)
+       SELECT upd.id, $5, $6, $7 FROM upd WHERE $5::text IS NOT NULL
        ON CONFLICT DO NOTHING
        RETURNING 1
      )
      SELECT (SELECT count(*) FROM upd)::int AS updated`,
-    [JSON.stringify(state), row.id, row.version, JSON.stringify(events), newPlayer?.userId ?? null, newPlayer?.name ?? null],
+    [JSON.stringify(state), row.id, row.version, JSON.stringify(events), newPlayer?.userId ?? null, newPlayer?.name ?? null, newPlayer?.email ?? null],
   );
   return rows[0]?.updated === 1;
 }
@@ -79,7 +83,9 @@ async function commit(
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const newCode = () => Array.from({ length: 6 }, () => CODE_CHARS[randomInt(CODE_CHARS.length)]).join("");
 
-export async function createNewGame(name: string, host: { id: string; name: string }) {
+type Who = { id: string; name: string; email?: string | null };
+
+export async function createNewGame(name: string, host: Who) {
   const state = createGame(randomInt(2 ** 31), Date.now());
   const events = addPlayer(state, host.id, host.name);
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -93,10 +99,10 @@ export async function createNewGame(name: string, host: { id: string; name: stri
            SELECT g.id, (e->>'seq')::int, e FROM g, jsonb_array_elements($5::jsonb) AS e
          ),
          pl AS (
-           INSERT INTO game_players (game_id, user_id, name) SELECT g.id, $3, $6 FROM g
+           INSERT INTO game_players (game_id, user_id, name, email) SELECT g.id, $3, $6, $7 FROM g
          )
          SELECT id FROM g`,
-        [name, newCode(), host.id, JSON.stringify(state), JSON.stringify(events), host.name],
+        [name, newCode(), host.id, JSON.stringify(state), JSON.stringify(events), host.name, host.email ?? null],
       );
       return rows[0].id as number;
     } catch (e) {
@@ -111,25 +117,77 @@ export async function createNewGame(name: string, host: { id: string; name: stri
 async function mutate(
   gameId: number,
   step: (s: GameState) => GameEvent[],
-  newPlayer?: { userId: string; name: string },
+  newPlayer?: { userId: string; name: string; email: string | null },
 ) {
   for (let attempt = 0; attempt < 4; attempt++) {
     const row = await loadGame(gameId);
     if (!row) throw new GameError("That game doesn't exist.");
-    const state = row.state;
+    const before = { turn: row.state.turn, active: activePlayer(row.state)?.id ?? null };
+    const state = structuredClone(row.state);
     const events = step(state);
-    if (await commit(row, state, events, newPlayer)) return;
+    if (await commit(row, state, events, newPlayer)) return { row, before, state };
   }
   throw new GameError("Lots going on right now. Try that again.");
 }
 
-export async function joinGame(gameId: number, user: { id: string; name: string }) {
+export async function joinGame(gameId: number, user: Who) {
   if (await isMember(gameId, user.id)) return;
-  await mutate(gameId, (s) => addPlayer(s, user.id, user.name), { userId: user.id, name: user.name });
+  await mutate(gameId, (s) => addPlayer(s, user.id, user.name), { userId: user.id, name: user.name, email: user.email ?? null });
 }
 
-export async function act(gameId: number, userId: string, action: Action) {
-  await mutate(gameId, (s) => applyAction(s, userId, action, Date.now()));
+// Applies a move. Returns a follow-up to run after the response: emailing whoever's turn it is now.
+export async function act(gameId: number, userId: string, action: Action, origin: string) {
+  const { row, before, state } = await mutate(gameId, (s) => applyAction(s, userId, action, Date.now()));
+  const next = activePlayer(state);
+  const changed = state.turn !== before.turn && next && next.id !== before.active;
+  return changed ? () => emailTurn(row, state, next.id, origin) : null;
+}
+
+// Keeps a player's email current (people sign up, then change it) without a write on every load.
+export async function rememberEmail(gameId: number, userId: string, email: string | null | undefined) {
+  if (!email) return;
+  await sql().query(
+    `UPDATE game_players SET email = $3 WHERE game_id = $1 AND user_id = $2 AND email IS DISTINCT FROM $3`,
+    [gameId, userId, email],
+  );
+}
+
+export async function setNotify(gameId: number, userId: string, on: boolean) {
+  await sql().query(`UPDATE game_players SET notify = $3 WHERE game_id = $1 AND user_id = $2`, [gameId, userId, on]);
+}
+
+async function emailTurn(row: GameRow, state: GameState, playerId: string, origin: string) {
+  if (!emailEnabled()) return;
+  const rows = await sql().query(`SELECT email, notify FROM game_players WHERE game_id = $1 AND user_id = $2`, [row.id, playerId]);
+  const to = rows[0]?.email as string | undefined;
+  if (!to || !rows[0]?.notify) return;
+  const p = state.players.find((q) => q.id === playerId)!;
+  const evRows = await sql().query(
+    `SELECT event FROM game_events WHERE game_id = $1 AND seq > $2 ORDER BY seq`,
+    [row.id, p.lastTurnEndSeq],
+  );
+  const news = (evRows.map((r) => r.event) as GameEvent[])
+    .filter((e) => e.actor !== playerId && !["endTurn", "turn"].includes(e.type) && eventVisible(state, e, playerId))
+    .slice(-12)
+    .map((e) => e.text);
+  const url = `${origin}/game/${row.id}`;
+  const subject = `🎲 Your turn in ${row.name} (round ${state.round})`;
+  const text = [
+    `Hi ${p.name}, it's your turn in ${row.name}.`,
+    "",
+    ...(news.length ? ["Since your last turn:", ...news.map((t) => `• ${t}`), ""] : []),
+    `Take your turn: ${url}`,
+    "",
+    "Turn these emails off with the 🔔 button in the game.",
+  ].join("\n");
+  const html = `<div style="font-family:system-ui,sans-serif;max-width:520px;margin:auto;color:#1c1b17">
+  <h2 style="font-family:Georgia,serif;margin:0 0 8px">🎲 It's your turn, ${escapeHtml(p.name)}</h2>
+  <p style="margin:0 0 16px;color:#57544a">${escapeHtml(row.name)} · round ${state.round}</p>
+  ${news.length ? `<p style="margin:0 0 6px;font-weight:700">Since your last turn:</p><ul style="padding-left:18px;margin:0 0 18px">${news.map((t) => `<li style="margin:4px 0">${escapeHtml(t)}</li>`).join("")}</ul>` : ""}
+  <p><a href="${escapeHtml(url)}" style="display:inline-block;background:#1f4b35;color:#fffaf3;padding:12px 22px;border-radius:99px;text-decoration:none;font-weight:700">Take your turn</a></p>
+  <p style="font-size:12px;color:#57544a;margin-top:24px">Panda Diplomacy on pandacount.net · Turn these emails off with the 🔔 button in the game.</p>
+</div>`;
+  await sendEmail({ to, subject, html, text });
 }
 
 export async function payloadFor(gameId: number, userId: string, sinceSeq?: number): Promise<GamePayload | null> {
@@ -144,7 +202,17 @@ export async function payloadFor(gameId: number, userId: string, sinceSeq?: numb
     [gameId, from],
   );
   const events = (rows.map((r) => r.event) as GameEvent[]).reverse().filter((e) => eventVisible(row.state, e, userId));
-  return { id: row.id, name: row.name, code: row.code, hostId: row.hostId, version: row.version, view: viewFor(row.state, userId), events };
+  const pref = await sql().query(`SELECT email, notify FROM game_players WHERE game_id = $1 AND user_id = $2`, [gameId, userId]);
+  return {
+    id: row.id,
+    name: row.name,
+    code: row.code,
+    hostId: row.hostId,
+    version: row.version,
+    view: viewFor(row.state, userId),
+    events,
+    notify: { on: Boolean(pref[0]?.notify ?? true), email: (pref[0]?.email as string | null) ?? null, available: emailEnabled() },
+  };
 }
 
 export async function myGames(userId: string) {

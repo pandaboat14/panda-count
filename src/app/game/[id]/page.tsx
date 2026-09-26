@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
 import { GameClient } from "@/components/game/GameClient";
 import { getUser } from "@/lib/auth/server";
-import { loadGame, payloadFor } from "@/lib/game/store";
+import { loadGame, payloadFor, rememberEmail } from "@/lib/game/store";
 
 export const metadata = { title: "Panda Diplomacy · Panda Count" };
 
@@ -13,6 +13,7 @@ export default async function GamePage({ params }: PageProps<"/game/[id]">) {
   if (!Number.isInteger(id)) notFound();
   const user = await getUser();
   if (!user) redirect(`/auth/sign-in?redirectTo=/game/${id}`);
+  await rememberEmail(id, user.id, user.email);
   const payload = await payloadFor(id, user.id);
   if (!payload) {
     const row = await loadGame(id);

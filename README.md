@@ -55,6 +55,7 @@ Its data lives in the `world_places` and `wild_ranges` tables. The starting data
   - `engine.ts`: the pure rules engine, including fog of war.
 - **Where it runs:** the engine runs only on the server (`src/lib/game/store.ts`, `src/app/api/game/[id]`). Browsers get a fog-filtered view, and every move is validated and saved atomically with optimistic locking.
 - **Tests:** `npm test` runs the engine tests, including a fuzzer that plays thousands of random actions and checks the world never breaks.
+- **Turn emails:** when a turn passes, the next player gets an email with a "since your last turn" summary, sent through [Resend](https://resend.com). Set `RESEND_API_KEY` (and optionally `EMAIL_FROM`, default `Panda Diplomacy <turns@pandacount.net>`) in Vercel, and verify pandacount.net in Resend. Without the key, emails are simply skipped. Players can switch emails off with the 🔔 button in a game.
 - **Adding a season:** add cards to `worldEvents.ts` with a higher `season`, then bump `season` in a game's state to put them in its deck.
 
 ## Everyday use
