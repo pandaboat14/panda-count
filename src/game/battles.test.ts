@@ -5,10 +5,12 @@ import {
   addPlayer,
   applyAction,
   battle,
+  bloodthirst,
   createGame,
   emptyUnits,
   eventVisible,
   removePlayer,
+  trialFor,
   unitTotal,
   upgradeState,
   viewFor,
@@ -622,4 +624,65 @@ test("odds: previews play the real battle rules (type match-ups count now)", () 
   assert.ok(ogres.win < 0.6, `ogres against a CAM gym: ${ogres.win} (Risk sums said about 90%)`);
   assert.ok(pandas.win > ogres.win, `Glam beats Brute, Fluff beats Glam: pandas ${pandas.win}, ogres ${ogres.win}`);
   assert.deepEqual(attackOdds(viewFor(s, "a"), from, to, { ...emptyUnits(), panda: 5 }), pandas, "the same match-up, the same number");
+});
+
+// ---------------------------------------------------------------- war crimes
+
+test("battles and war crimes: Bloodthirst as the invasion starts, Ceasefire, arms embargo, heroes on strike", () => {
+  // The invasion counts the moment the battle opens, and the conqueror may rename what they win.
+  {
+    const { s, from, to } = duel(53, { cam: 6 }, { panda: 2 });
+    const before = bloodthirst(player(s, "a"), s.round);
+    invade(s, from, to, { cam: 6 });
+    assert.ok(s.battle);
+    assert.equal(bloodthirst(player(s, "a"), s.round), before + 1, "booked as it starts");
+    const e = battleEvent(act(s, "a", { type: "battleAuto" }));
+    assert.match(e.text, /🩸\+1/);
+    assert.equal(dataOf(e).place, REGION_BY_ID.get(to)!.name);
+    assert.equal(bloodthirst(player(s, "a"), s.round), before + 1, "and only once");
+    assert.equal(s.regions[to].conqueror, "a", "a conqueror may rename it");
+  }
+  // During a trial, the invasion joins the charges.
+  {
+    const { s, from, to } = duel(55, { cam: 6 }, { panda: 2 });
+    s.trials = [{ id: "t1", accused: "a", openedRound: s.round, charges: [{ round: s.round, victim: "b", region: to, kind: "invasion", points: 1 }], votes: {} }];
+    invade(s, from, to, { cam: 6 });
+    assert.equal(trialFor(s, "a")!.charges.length, 2);
+  }
+  // A Ceasefire stops the invasion before any battle opens (natives are still fair game).
+  {
+    const { s, from, to } = duel(57, { cam: 6 }, { panda: 2 });
+    player(s, "a").sentence = { sanctions: ["ceasefire"], turnsLeft: 2 };
+    assert.throws(() => invade(s, from, to, { cam: 6 }), /Ceasefire/);
+    assert.equal(s.battle, null);
+    Object.assign(s.regions[to], { owner: null, native: "wild" });
+    invade(s, from, to, { cam: 6 });
+    assert.ok(s.battle);
+  }
+  // An arms embargo closes the Bag and the Armory too.
+  {
+    const { s } = duel(59, { panda: 1 }, { panda: 1 });
+    player(s, "a").goods = { ...RICH };
+    player(s, "a").sentence = { sanctions: ["arms"], turnsLeft: 2 };
+    assert.throws(() => act(s, "a", { type: "buyItem", item: "riceBall", count: 1 }), /Arms embargo/);
+    assert.throws(() => act(s, "a", { type: "buyGear", item: "ironHelm", unit: "panda" }), /Arms embargo/);
+  }
+  // Heroes on strike sit the battle out, attacking or defending: no squad, no aura.
+  {
+    const { s, from, to } = duel(61, { cam: 3 }, { panda: 2 });
+    s.heroes.casey = { owner: "a", region: from, movedTurn: 0 };
+    s.heroes.ping = { owner: "b", region: to, movedTurn: 0 };
+    player(s, "a").sentence = { sanctions: ["heroes"], turnsLeft: 2 };
+    player(s, "b").sentence = { sanctions: ["heroes"], turnsLeft: 2 };
+    invade(s, from, to, { cam: 3 });
+    const b = s.battle!.b;
+    assert.deepEqual(s.battle!.heroes, { atk: [], def: [] });
+    for (const k of ["atk", "def"] as const) {
+      assert.ok(b.sides[k].squads.every((q) => !q.hero));
+      assert.equal(BE.squadStats(b, b.sides[k], b.sides[k].squads[0]).aura, 0);
+    }
+    const d = dataOf(battleEvent(act(s, "a", { type: "battleAuto" })));
+    assert.deepEqual([d.atkBonus, d.defBonus], [0, 0]);
+    assert.equal(s.heroes.casey.owner, "a", "a hero who sat it out can't be knocked out");
+  }
 });
