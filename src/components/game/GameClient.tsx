@@ -13,7 +13,8 @@ import { SceneBoundary } from "../SceneBoundary";
 import { BattleView } from "./BattleView";
 import { ChatPanel, channelOf, type Channel } from "./ChatPanel";
 import type { Highlight } from "./Board";
-import { GoodsBar } from "./bits";
+import { Glossary, GoodsBar } from "./bits";
+import { GameOver } from "./GameOver";
 import { BankPanel, DiplomacyPanel, HeroesPanel, LogPanel, RegionPanel, meOf, playerName, regionName, regionView, usableLine, type Ctx } from "./panels";
 import { HowToPlay } from "./HowToPlay";
 import { useGame } from "./useGame";
@@ -21,6 +22,11 @@ import { useGame } from "./useGame";
 const Board = dynamic(() => import("./Board"), { ssr: false, loading: () => null });
 
 type Tab = "region" | "heroes" | "diplomacy" | "chat" | "bank" | "log";
+
+// How long each of the other Kirds' moves stays on screen, so there's time to read it.
+const FEED_MS = 8500;
+// Routine bookkeeping that isn't worth a caption.
+const QUIET = new Set(["endTurn", "turn", "income"]);
 
 const TONE: Record<string, Highlight["tone"]> = {
   battle: "battle",
@@ -39,12 +45,13 @@ const TONE: Record<string, Highlight["tone"]> = {
 };
 
 export function GameClient({ initial }: { initial: GamePayload }) {
-  const { game, act: rawAct, send, loadOlder, olderDone, busy, error, clearError } = useGame(initial);
+  const { game, act: rawAct, send, loadOlder, olderDone, busy, error, savedAt, clearError } = useGame(initial);
   const router = useRouter();
   const { view } = game;
   const me = meOf(view);
   const active = view.players.find((p) => p.seat === view.activeSeat)!;
-  const myTurn = active.id === view.me;
+  const over = game.status === "complete";
+  const myTurn = !over && active.id === view.me;
   const still = useReducedMotion();
 
   const [selected, setSelected] = useState<string | null>(me.capital ?? null);
@@ -62,14 +69,17 @@ export function GameClient({ initial }: { initial: GamePayload }) {
   const [menu, setMenu] = useState(false);
 
   // Every move goes through here so a battle you just fought plays out on screen.
-  const act: typeof rawAct = async (a) => {
-    const evs = await rawAct(a);
-    if (evs) {
-      const fought = evs.find((e) => e.type === "battle" && e.actor === view.me);
-      if (fought) setBattle(fought);
-    }
-    return evs;
-  };
+  const act: typeof rawAct = useCallback(
+    async (a) => {
+      const evs = await rawAct(a);
+      if (evs) {
+        const fought = evs.find((e) => e.type === "battle" && e.actor === view.me);
+        if (fought) setBattle(fought);
+      }
+      return evs;
+    },
+    [rawAct, view.me],
+  );
 
   // ---- chat: which conversation is open, and what's unread ----
   const [channel, setChannel] = useState<Channel>("all");
@@ -117,7 +127,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
 
   const leave = async (end: boolean) => {
     const msg = end
-      ? `End "${game.name}" for everyone? The world and its history will be deleted.`
+      ? `End "${game.name}" for everyone? It moves to Complete in the lobby and nobody can make moves any more.`
       : `Leave "${game.name}"? Your land goes back to the wild pandas.`;
     if (!confirm(msg)) return;
     const res = await fetch(end ? `/api/game/${game.id}` : `/api/game/${game.id}/leave`, { method: end ? "DELETE" : "POST" });
@@ -141,7 +151,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
 
   // ---- replay of everything since your last turn ----
   const unseen = useMemo(
-    () => game.events.filter((e) => e.seq > (me.lastTurnEndSeq ?? 0) && e.actor !== view.me && e.type !== "endTurn"),
+    () => game.events.filter((e) => e.seq > (me.lastTurnEndSeq ?? 0) && e.actor !== view.me && !QUIET.has(e.type)),
     [game.events, me.lastTurnEndSeq, view.me],
   );
   const [replay, setReplay] = useState<{ list: GameEvent[]; i: number } | null>(null);
@@ -157,6 +167,18 @@ export function GameClient({ initial }: { initial: GamePayload }) {
     }
   }
 
+  // Live feed: when other Kirds (or the computer players) move, their moves play as captions.
+  const newestSeq = game.events.at(-1)?.seq ?? 0;
+  const [feedSeen, setFeedSeen] = useState(newestSeq);
+  if (newestSeq > feedSeen) {
+    setFeedSeen(newestSeq);
+    const fresh = game.events.filter((e) => e.seq > feedSeen && e.actor !== view.me && !QUIET.has(e.type));
+    if (fresh.length) {
+      setReplayOffered(true);
+      setReplay((r) => (r ? { ...r, list: [...r.list, ...fresh] } : { list: fresh, i: 0 }));
+    }
+  }
+
   const replayEvent = replay?.list[replay.i] ?? null;
   const nextReplay = () => setReplay((r) => (r && r.i + 1 < r.list.length ? { ...r, i: r.i + 1 } : null));
   useEffect(() => {
@@ -167,7 +189,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
       const t = setTimeout(() => setBattle(e), 900);
       return () => clearTimeout(t);
     }
-    const t = setTimeout(nextReplay, e?.regions.length ? 2600 : 1800);
+    const t = setTimeout(nextReplay, FEED_MS);
     return () => clearTimeout(t);
   }, [replay, battle]);
 
@@ -191,7 +213,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
     return NEIGHBORS.get(selected)!.filter((n) => usableLine(view, selected, n));
   }, [thunder, myTurn, selected, sel?.owner, view]);
 
-  const onSelect = (id: string) => {
+  const onSelect = useCallback((id: string) => {
     if (thunder) {
       if (moveTargets.includes(id) && confirm(`Call Casey's thunder down on ${regionName(id)}?`)) {
         act({ type: "thunder", target: id });
@@ -208,9 +230,10 @@ export function GameClient({ initial }: { initial: GamePayload }) {
     setDest(null);
     setTab("region");
     setPanelOpen(true);
-  };
+  }, [thunder, moveTargets, selected, dest, act]);
+  const onReady = useCallback(() => setReady(true), []);
 
-  const ctx: Ctx = { view, myTurn, busy, act, avatars: game.avatars };
+  const ctx: Ctx = { view, myTurn, busy, act, avatars: game.avatars, over };
   const pendingOffers = view.offers.filter((o) => o.to === view.me).length;
 
   const invite = async () => {
@@ -231,12 +254,20 @@ export function GameClient({ initial }: { initial: GamePayload }) {
   // During a replay the board follows the replay; otherwise it shows your own picks.
   const replayRegion = replayEvent?.regions.at(-1);
   const replayDef = replayRegion ? REGION_BY_ID.get(replayRegion) : undefined;
-  const boardFocus = replayEvent && replayDef ? { lat: replayDef.lat, lng: replayDef.lng, seq: replayEvent.seq } : focus;
-  const boardHighlight: Highlight | null = replayEvent
-    ? replayEvent.regions.length
-      ? { regions: replayEvent.regions, tone: TONE[replayEvent.type] ?? "info" }
-      : null
-    : highlight ?? (dest ? { regions: [dest], tone: regionView(view, dest).owner === view.me ? "move" : "battle" } : null);
+  const boardFocus = useMemo(
+    () => (replayEvent && replayDef ? { lat: replayDef.lat, lng: replayDef.lng, seq: replayEvent.seq } : focus),
+    [replayEvent, replayDef, focus],
+  );
+  const boardHighlight: Highlight | null = useMemo(
+    () =>
+      replayEvent
+        ? replayEvent.regions.length
+          ? { regions: replayEvent.regions, tone: TONE[replayEvent.type] ?? "info" }
+          : null
+        : highlight ?? (dest ? { regions: [dest], tone: regionView(view, dest).owner === view.me ? "move" : "battle" } : null),
+    [replayEvent, highlight, dest, view],
+  );
+  const boardTargets = useMemo(() => (thunder || dest === null ? moveTargets : [dest]), [thunder, dest, moveTargets]);
 
   return (
     <main className="game">
@@ -246,12 +277,12 @@ export function GameClient({ initial }: { initial: GamePayload }) {
           <Board
             view={view}
             selected={selected}
-            targets={thunder || dest === null ? moveTargets : [dest]}
+            targets={boardTargets}
             highlight={boardHighlight}
             focus={boardFocus}
             still={still}
             onSelect={onSelect}
-            onReady={() => setReady(true)}
+            onReady={onReady}
           />
         </SceneBoundary>
       </div>
@@ -267,14 +298,15 @@ export function GameClient({ initial }: { initial: GamePayload }) {
                 {" "}· 🎲 {view.lastRoll[0]}+{view.lastRoll[1]}={view.lastRoll[0] + view.lastRoll[1]}
               </>
             )}
+            <span className="saved" title="Every move is saved as you make it">{over ? " · 🏁 Complete" : savedAt ? " · ✓ Saved" : " · Auto-saves"}</span>
           </span>
         </div>
         <div className={`turn-banner${myTurn ? " mine" : ""}`} style={{ borderColor: active.color }}>
           <Avatar value={game.avatars[active.id]} userId={active.id} size={24} />
-          {myTurn ? "Your turn" : `${active.name}'s turn`}
+          {over ? "Game over" : myTurn ? "Your turn" : `${active.bot ? "🤖 " : ""}${active.name}'s turn`}
         </div>
         <div className="game-top-actions">
-          <button className="btn ghost small" onClick={invite}>Invite</button>
+          {!over && <button className="btn ghost small" onClick={invite}>Invite</button>}
           {initial.notify.available && initial.notify.email && (
             <button
               className="btn ghost small"
@@ -296,8 +328,8 @@ export function GameClient({ initial }: { initial: GamePayload }) {
                 <Link role="menuitem" href="/game">🎲 All your games</Link>
                 <Link role="menuitem" href="/releases">📰 Release notes</Link>
                 <button role="menuitem" className="danger" onClick={() => leave(false)}>🚪 Leave this game</button>
-                {game.hostId === view.me && (
-                  <button role="menuitem" className="danger" onClick={() => leave(true)}>🗑️ End game for everyone</button>
+                {game.hostId === view.me && !over && (
+                  <button role="menuitem" className="danger" onClick={() => leave(true)}>🏁 End game for everyone</button>
                 )}
               </div>
             )}
@@ -307,9 +339,12 @@ export function GameClient({ initial }: { initial: GamePayload }) {
 
       <div className="game-goods">
         <GoodsBar goods={me.goods} />
+        <Glossary />
       </div>
 
-      {unseen.length > 0 && !replay && !replayOffered && (
+      {over && <GameOver view={view} avatars={game.avatars} endedAt={game.endedAt} />}
+
+      {!over && unseen.length > 0 && !replay && !replayOffered && (
         <div className="replay-offer">
           <p>
             <strong>{unseen.length}</strong> thing{unseen.length === 1 ? "" : "s"} happened since your last turn.
@@ -327,13 +362,14 @@ export function GameClient({ initial }: { initial: GamePayload }) {
             {replay.i + 1} / {replay.list.length} · Round {replay.list[replay.i].round}
           </p>
           <p>{replay.list[replay.i].text}</p>
+          {replay.list[replay.i].type !== "battle" && !still && <span key={`${replay.i}-${replay.list[replay.i].seq}`} className="feed-timer" style={{ animationDuration: `${FEED_MS}ms` }} />}
           {replay.list[replay.i].type === "battle" && !battle && (
             <button className="btn small" onClick={() => setBattle(replay.list[replay.i])}>⚔️ Watch the battle</button>
           )}
           <div className="form-actions">
             <button className="btn ghost small" onClick={() => setReplay({ ...replay, i: Math.max(0, replay.i - 1) })} disabled={replay.i === 0}>◀</button>
             <button className="btn ghost small" onClick={nextReplay}>▶</button>
-            <button className="btn small" onClick={() => setReplay(null)}>Done</button>
+            <button className="btn small" onClick={() => setReplay(null)}>{replay.i + 1 < replay.list.length ? "Skip all ⏭" : "Done"}</button>
           </div>
         </div>
       )}
@@ -412,7 +448,9 @@ export function GameClient({ initial }: { initial: GamePayload }) {
       </aside>
 
       <div className="game-bottom">
-        {myTurn ? (
+        {over ? (
+          <Link className="btn end-turn" href="/game">🎲 Start a new game</Link>
+        ) : myTurn ? (
           <button
             className="btn end-turn"
             disabled={busy}
@@ -427,7 +465,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
           </button>
         ) : (
           <p className="waiting">
-            Waiting for {active.name}…
+            Waiting for {active.bot ? "🤖 " : ""}{active.name}…
             {game.hostId === view.me && hoursWaiting >= 12 && (
               <button className="btn ghost small" disabled={busy} onClick={() => act({ type: "skipTurn" })}>Skip their turn</button>
             )}

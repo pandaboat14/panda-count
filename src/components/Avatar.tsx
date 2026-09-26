@@ -88,6 +88,21 @@ function Face({ kind }: { kind: AvatarKind }) {
           <rect x="24" y="70" width="52" height="4" fill="#a8391f" />
         </>
       );
+    case "robot":
+      return (
+        <>
+          <path d="M50 10 v12" stroke={INK} strokeWidth="3" />
+          <circle cx="50" cy="9" r="5" fill="#d64a2b" />
+          <rect x="12" y="44" width="8" height="18" rx="3" fill="#8a8f98" />
+          <rect x="80" y="44" width="8" height="18" rx="3" fill="#8a8f98" />
+          <rect x="20" y="22" width="60" height="62" rx="14" fill="#b9c2cc" />
+          <rect x="28" y="36" width="44" height="22" rx="8" fill={INK} />
+          <circle cx="40" cy="47" r="5" fill="#7ee0c3" />
+          <circle cx="60" cy="47" r="5" fill="#7ee0c3" />
+          <rect x="34" y="66" width="32" height="8" rx="3" fill="#8a8f98" />
+          <path d="M42 66 v8 M50 66 v8 M58 66 v8" stroke="#b9c2cc" strokeWidth="2" />
+        </>
+      );
   }
 }
 

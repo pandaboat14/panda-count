@@ -28,6 +28,7 @@ export type Ctx = {
   busy: boolean;
   act: (a: Action) => Promise<GameEvent[] | false>;
   avatars: Record<string, string>;
+  over?: boolean; // the game has ended: look, don't touch
 };
 
 export const regionName = (id: string) => REGION_BY_ID.get(id)?.name ?? id;
@@ -135,7 +136,8 @@ export function RegionPanel({
         </>
       )}
       {!mine && myTurn && !r.fog && <InvadeHint ctx={ctx} target={r} planAttack={planAttack} />}
-      {!myTurn && <p className="muted">It&rsquo;s {playerName(view, view.players.find((p) => p.seat === view.activeSeat)?.id)}&rsquo;s turn. You can look around; your moves open up on your turn.</p>}
+      {ctx.over && <p className="muted">🏁 This game is over. You can still look around.</p>}
+      {!myTurn && !ctx.over && <p className="muted">It&rsquo;s {playerName(view, view.players.find((p) => p.seat === view.activeSeat)?.id)}&rsquo;s turn. You can look around; your moves open up on your turn.</p>}
       {busy && <p className="muted">…</p>}
       <p className="muted small">Neighbours: {NEIGHBORS.get(id)!.map(regionName).join(", ")}</p>
     </div>
@@ -480,6 +482,7 @@ export function DiplomacyPanel({ ctx, selected }: { ctx: Ctx; selected: string |
                   <Avatar value={ctx.avatars[p.id]} userId={p.id} size={26} />
                 </span>
                 <strong>{p.id === view.me ? `${p.name} (you)` : p.name}</strong>
+                {p.bot && <span className="badge">🤖 computer · {p.bot}</span>}
                 {active && <span className="badge">playing</span>}
                 {pact && <span className="badge">🤝 pact</span>}
                 {p.oathbreaker && <span className="badge warn">💔 oathbreaker</span>}
@@ -517,6 +520,7 @@ export function DiplomacyPanel({ ctx, selected }: { ctx: Ctx; selected: string |
             </div>
           );
         })}
+        {view.players.some((p) => p.bot) && <p className="muted small">🤖 Computer players answer offers at the start of their turn.</p>}
         <p className="muted small">Loaned pandas earn both sides 1 🐼 PandaCoin per panda every turn and come with a pact. Breaking a pact makes you an Oathbreaker (half PandaCoin for 3 rounds).</p>
       </section>
 
@@ -601,7 +605,10 @@ export function BankPanel({ ctx }: { ctx: Ctx }) {
       <h2>World Bank</h2>
       <section className="act">
         <h3>🔁 Trade resources ({rate}:1)</h3>
-        <p className="muted small">Markets drop the rate to 3:1, and Ping the Panda Diplomat gets you 2:1.</p>
+        <p className="muted small">
+          Swap any resource for any other, 🪨 Stone included. Markets drop the rate to 3:1, and Ping the Panda Diplomat gets you 2:1. NACAM
+          ogres also quarry Stone for you each turn.
+        </p>
         <div className="bank-row">
           <select value={give} onChange={(e) => setGive(e.target.value as Resource)} aria-label="Give">
             {RESOURCES.map((g) => (

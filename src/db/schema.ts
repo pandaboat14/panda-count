@@ -94,6 +94,9 @@ export const games = pgTable("games", {
   state: jsonb("state").notNull(),
   // Bumped on every change; used for optimistic locking and cheap polling.
   version: integer("version").notNull().default(1),
+  // "active" while people are playing; "complete" once the host ends it (kept so it can be looked back on).
+  status: text("status").notNull().default("active"),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -151,3 +154,17 @@ export const userProfiles = pgTable("user_profiles", {
   avatar: text("avatar").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// Errors from the game (server exceptions and what browsers ran into), so problems players hit can be traced.
+export const appErrors = pgTable(
+  "app_errors",
+  {
+    id: serial("id").primaryKey(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    userId: text("user_id"),
+    source: text("source").notNull(),
+    message: text("message").notNull(),
+    detail: jsonb("detail"),
+  },
+  (t) => [index("app_errors_at").on(t.at)],
+);

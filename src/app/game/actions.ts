@@ -2,10 +2,11 @@
 
 import { redirect } from "next/navigation";
 import { hasDatabase } from "@/db";
+import { BOT_LEVELS, type BotLevel } from "@/game/engine";
 import { getUser } from "@/lib/auth/server";
 import { displayName } from "@/lib/game/names";
 import { revalidatePath } from "next/cache";
-import { createNewGame, deleteGame, gameIdForCode, leaveGame } from "@/lib/game/store";
+import { createNewGame, deleteGame, endGame, gameIdForCode, leaveGame } from "@/lib/game/store";
 
 export type LobbyState = { error?: string };
 
@@ -14,7 +15,10 @@ export async function createGameAction(_prev: LobbyState, form: FormData): Promi
   if (!user) redirect("/auth/sign-in?redirectTo=/game");
   if (!hasDatabase()) return { error: "The game needs the database set up." };
   const name = String(form.get("name") ?? "").trim().slice(0, 60) || "The Kirds' World";
-  const id = await createNewGame(name, { id: user.id, name: displayName(user), email: user.email });
+  // Each extra seat is "human" (invite someone later) or a computer difficulty.
+  const seats = form.getAll("seat").map(String).slice(0, 7);
+  const bots = seats.filter((v): v is BotLevel => (BOT_LEVELS as string[]).includes(v));
+  const id = await createNewGame(name, { id: user.id, name: displayName(user), email: user.email }, bots);
   redirect(`/game/${id}`);
 }
 
@@ -25,18 +29,22 @@ export async function joinByCodeAction(_prev: LobbyState, form: FormData): Promi
   redirect(`/game/join/${code}`);
 }
 
-export async function leaveGameAction(form: FormData) {
+async function lobbyStep(form: FormData, step: (id: number, userId: string) => Promise<void>) {
   const user = await getUser();
   if (!user) redirect("/auth/sign-in?redirectTo=/game");
-  await leaveGame(Number(form.get("id")), user.id);
+  await step(Number(form.get("id")), user.id);
   revalidatePath("/game");
   redirect("/game");
 }
 
+export async function leaveGameAction(form: FormData) {
+  await lobbyStep(form, leaveGame);
+}
+
 export async function endGameAction(form: FormData) {
-  const user = await getUser();
-  if (!user) redirect("/auth/sign-in?redirectTo=/game");
-  await deleteGame(Number(form.get("id")), user.id);
-  revalidatePath("/game");
-  redirect("/game");
+  await lobbyStep(form, endGame);
+}
+
+export async function deleteGameAction(form: FormData) {
+  await lobbyStep(form, deleteGame);
 }

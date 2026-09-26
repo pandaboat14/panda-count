@@ -11,16 +11,19 @@ import {
   eventVisible,
   viewFor,
   type Action,
+  type BotLevel,
   type GameEvent,
   type GameState,
   type GameView,
 } from "@/game/engine";
+import { BOT_NAMES, runBots } from "@/game/bot";
 
 import { messagesFor, type ChatMessage } from "./chat";
 import { avatarsFor } from "./profiles";
 import { sql } from "./sql";
 
-export type GameRow = { id: number; name: string; code: string; hostId: string; state: GameState; version: number };
+export type GameStatus = "active" | "complete";
+export type GameRow = { id: number; name: string; code: string; hostId: string; state: GameState; version: number; status: GameStatus; endedAt: string | null };
 
 export type GamePayload = {
   id: number;
@@ -28,6 +31,8 @@ export type GamePayload = {
   code: string;
   hostId: string;
   version: number;
+  status: GameStatus;
+  endedAt: string | null;
   view: GameView;
   events: GameEvent[];
   // Turn emails for this player.
@@ -38,10 +43,16 @@ export type GamePayload = {
 
 export async function loadGame(id: number): Promise<GameRow | null> {
   const rows = await sql().query(
-    `SELECT id, name, code, host_id AS "hostId", state, version FROM games WHERE id = $1`,
+    `SELECT id, name, code, host_id AS "hostId", state, version, status, ended_at AS "endedAt" FROM games WHERE id = $1`,
     [id],
   );
   return (rows[0] as GameRow | undefined) ?? null;
+}
+
+// Just the version, for cheap polling: the whole world only travels when something changed.
+export async function gameVersion(id: number): Promise<number | null> {
+  const rows = await sql().query(`SELECT version FROM games WHERE id = $1`, [id]);
+  return (rows[0]?.version as number | undefined) ?? null;
 }
 
 export async function gameIdForCode(code: string): Promise<number | null> {
@@ -89,9 +100,12 @@ const newCode = () => Array.from({ length: 6 }, () => CODE_CHARS[randomInt(CODE_
 
 type Who = { id: string; name: string; email?: string | null };
 
-export async function createNewGame(name: string, host: Who) {
+export async function createNewGame(name: string, host: Who, bots: BotLevel[] = []) {
   const state = createGame(randomInt(2 ** 31), Date.now());
   const events = addPlayer(state, host.id, host.name);
+  // Computer Kirds take the seats after the host; people invited later sit after them.
+  const names = [...BOT_NAMES].sort(() => randomInt(3) - 1);
+  bots.slice(0, 7).forEach((level, i) => events.push(...addPlayer(state, `bot-${i + 1}`, names[i % names.length], level)));
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
       const rows = await sql().query(
@@ -126,9 +140,12 @@ async function mutate(
   for (let attempt = 0; attempt < 4; attempt++) {
     const row = await loadGame(gameId);
     if (!row) throw new GameError("That game doesn't exist.");
+    if (row.status === "complete") throw new GameError("This game is over. Start a new one from the lobby.");
     const before = { turn: row.state.turn, active: activePlayer(row.state)?.id ?? null };
     const state = structuredClone(row.state);
     const events = step(state);
+    // Whenever it lands on a computer Kird, it plays right away, in the same save.
+    events.push(...runBots(state, Date.now()));
     if (await commit(row, state, events, newPlayer)) return { row, before, state };
   }
   throw new GameError("Lots going on right now. Try that again.");
@@ -213,26 +230,29 @@ export async function payloadFor(gameId: number, userId: string, sinceSeq?: numb
     code: row.code,
     hostId: row.hostId,
     version: row.version,
+    status: row.status,
+    endedAt: row.endedAt,
     view: viewFor(row.state, userId),
     events,
     notify: { on: Boolean(pref[0]?.notify ?? true), email: (pref[0]?.email as string | null) ?? null, available: emailEnabled() },
     messages: await messagesFor(gameId, userId),
-    avatars: await avatarsFor(row.state.players.map((p) => p.id)),
+    avatars: withBotFaces(row.state, await avatarsFor(row.state.players.map((p) => p.id))),
   };
 }
 
 export async function myGames(userId: string) {
   const rows = await sql().query(
-    `SELECT g.id, g.name, g.code, g.host_id AS "hostId", g.state, g.updated_at AS "updatedAt"
+    `SELECT g.id, g.name, g.code, g.host_id AS "hostId", g.state, g.status, g.updated_at AS "updatedAt", g.ended_at AS "endedAt"
        FROM games g JOIN game_players p ON p.game_id = g.id
       WHERE p.user_id = $1
-      ORDER BY g.updated_at DESC
-      LIMIT 50`,
+      ORDER BY g.status = 'active' DESC, g.updated_at DESC
+      LIMIT 60`,
     [userId],
   );
   const avatars = await avatarsFor([...new Set(rows.flatMap((r) => (r.state as GameState).players.map((p) => p.id)))]);
   return rows.map((r) => {
     const s = r.state as GameState;
+    withBotFaces(s, avatars);
     const active = s.players.find((p) => p.seat === s.activeSeat);
     return {
       id: r.id as number,
@@ -240,10 +260,12 @@ export async function myGames(userId: string) {
       code: r.code as string,
       host: r.hostId === userId,
       round: s.round,
-      players: s.players.map((p) => ({ id: p.id, name: p.name, color: p.color, avatar: avatars[p.id] })),
+      status: r.status as GameStatus,
+      players: s.players.map((p) => ({ id: p.id, name: p.name, color: p.color, avatar: avatars[p.id], bot: p.bot ?? null })),
       activeName: active?.name ?? "",
-      myTurn: active?.id === userId,
+      myTurn: r.status === "active" && active?.id === userId,
       updatedAt: r.updatedAt as string,
+      endedAt: (r.endedAt as string | null) ?? null,
     };
   });
 }
@@ -260,24 +282,43 @@ export async function olderEvents(gameId: number, userId: string, beforeSeq: num
   return { events, more: rows.length === limit };
 }
 
-// Leave a game for good. The last Kird out turns off the lights (the game is deleted).
+// Computer Kirds wear robot faces, darker the harder they play.
+const BOT_FACE: Record<BotLevel, string> = { easy: "robot:#cfe0cf", medium: "robot:#f3e3a2", hard: "robot:#2b2a5c" };
+function withBotFaces(s: GameState, avatars: Record<string, string>) {
+  for (const p of s.players) if (p.bot) avatars[p.id] = BOT_FACE[p.bot];
+  return avatars;
+}
+
+// Leave a game for good. If no other person is left, the game ends instead (and stays in your list as complete).
 export async function leaveGame(gameId: number, userId: string) {
   const row = await loadGame(gameId);
   if (!row || !row.state.players.some((p) => p.id === userId)) throw new GameError("You're not in that game.");
-  if (row.state.players.length === 1) {
-    await deleteGame(gameId, userId);
+  if (row.status === "complete" || !row.state.players.some((p) => p.id !== userId && !p.bot)) {
+    await sql().query(`DELETE FROM game_players WHERE game_id = $1 AND user_id = $2`, [gameId, userId]);
+    await sql().query(`UPDATE games SET status = 'complete', ended_at = coalesce(ended_at, now()) WHERE id = $1`, [gameId]);
+    await sql().query(`DELETE FROM games WHERE id = $1 AND NOT EXISTS (SELECT 1 FROM game_players WHERE game_id = $1)`, [gameId]);
     return;
   }
   const { state } = await mutate(gameId, (s) => removePlayer(s, userId, Date.now()));
+  const nextHost = state.players.find((p) => !p.bot)!;
   await sql().query(
     `WITH gone AS (DELETE FROM game_players WHERE game_id = $1 AND user_id = $2)
      UPDATE games SET host_id = $3 WHERE id = $1 AND host_id = $2`,
-    [gameId, userId, state.players[0].id],
+    [gameId, userId, nextHost.id],
   );
 }
 
-// Only the host can end a game outright.
-export async function deleteGame(gameId: number, userId: string) {
-  const rows = await sql().query(`DELETE FROM games WHERE id = $1 AND host_id = $2 RETURNING id`, [gameId, userId]);
+// The host ends a game: nobody can move any more, but everyone can still look back at it.
+export async function endGame(gameId: number, userId: string) {
+  const rows = await sql().query(
+    `UPDATE games SET status = 'complete', ended_at = now(), version = version + 1 WHERE id = $1 AND host_id = $2 AND status = 'active' RETURNING id`,
+    [gameId, userId],
+  );
   if (!rows.length) throw new GameError("Only the host can end this game.");
+}
+
+// Removes a finished game from everyone's list for good (host only).
+export async function deleteGame(gameId: number, userId: string) {
+  const rows = await sql().query(`DELETE FROM games WHERE id = $1 AND host_id = $2 AND status = 'complete' RETURNING id`, [gameId, userId]);
+  if (!rows.length) throw new GameError("Only the host can delete a finished game.");
 }

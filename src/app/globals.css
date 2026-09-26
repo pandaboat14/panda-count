@@ -719,3 +719,53 @@ i.heat { background: radial-gradient(circle, #d64828 0%, #e97846 55%, #e9b8a8 10
 .release-list ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
 .release-date { margin: 0; font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); }
 .release-date a { color: var(--forest); }
+
+/* Goods glossary (hidden until asked for) */
+.glossary { margin-top: 4px; max-width: min(360px, calc(100vw - 20px)); }
+.glossary-toggle {
+  font: 700 .74rem var(--sans); color: var(--forest); cursor: pointer;
+  background: color-mix(in srgb, var(--paper) 92%, transparent); border: 0; border-radius: 99px; padding: 3px 10px;
+  box-shadow: 0 4px 14px -8px rgba(0,0,0,.4);
+}
+.glossary-list {
+  margin: 6px 0 0; padding: 10px 12px; background: var(--paper); border-radius: 14px;
+  box-shadow: 0 10px 30px -12px rgba(0,0,0,.45); max-height: min(60vh, 480px); overflow-y: auto;
+  display: grid; gap: 10px; font-size: .84rem; position: relative; z-index: 5;
+}
+.glossary-list dt { font-weight: 800; }
+.glossary-list dd { margin: 2px 0 0; }
+.glossary-list dd p { margin: 0 0 2px; }
+
+/* Live feed of other players' moves: a bar that runs down while each one is on screen */
+.feed-timer { display: block; height: 3px; border-radius: 3px; background: var(--bamboo); margin: -2px 0 8px; transform-origin: left; animation: feed-run linear forwards; }
+@keyframes feed-run { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+.game-title .saved { color: var(--forest); font-weight: 700; }
+
+/* Finished games */
+.game-over {
+  position: absolute; left: 50%; top: 64px; transform: translateX(-50%); z-index: 4;
+  width: min(420px, calc(100vw - 20px)); background: var(--paper); border-radius: 18px; padding: 14px 18px;
+  box-shadow: 0 16px 40px -16px rgba(0,0,0,.6);
+}
+.game-over ol { list-style: none; margin: 6px 0 8px; padding: 0; display: grid; gap: 6px; }
+.game-over li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.game-over .place { width: 1.6em; font-weight: 800; }
+.game-over-reopen { position: absolute; left: 50%; top: 64px; transform: translateX(-50%); z-index: 4; }
+
+/* Lobby: player seats and game status */
+.seat-list { display: grid; gap: 6px; }
+.seat-head { margin: 0; font-weight: 700; }
+.seat { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.seat-name { min-width: 3.2em; font-weight: 700; }
+.seat-kind { font-weight: 600; }
+.panda-form .seat select { width: auto; flex: 0 1 auto; padding: 6px 10px; }
+.seat-remove { margin-left: auto; border: 0; background: transparent; cursor: pointer; font-size: .9rem; color: var(--ink-soft); padding: 4px 8px; }
+.seat-remove:hover { color: #a24a30; }
+.lobby-sub { margin-top: 28px; }
+.status-pill { font: 800 .64rem var(--sans); text-transform: uppercase; letter-spacing: .08em; padding: 2px 8px; border-radius: 99px; background: color-mix(in srgb, var(--bamboo) 55%, var(--paper)); color: var(--forest-deep); vertical-align: middle; }
+.status-pill.done { background: var(--cream); color: var(--ink-soft); }
+.game-card.complete { opacity: .85; }
+@media (max-width: 760px) {
+  .game-over, .game-over-reopen { top: 110px; }
+  .glossary-list { max-height: 50vh; }
+}

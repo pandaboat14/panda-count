@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html, OrbitControls, Text } from "@react-three/drei";
 import { CatmullRomCurve3, Quaternion, Vector3, type Group, type Mesh, type MeshBasicMaterial, type PerspectiveCamera } from "three";
@@ -37,7 +37,8 @@ type Props = {
   onReady: () => void;
 };
 
-export default function Board({ onReady, focus, still, ...props }: Props) {
+// Memoised: switching panel tabs re-renders the game screen, but the globe only redraws when its own props change.
+export default memo(function Board({ onReady, focus, still, ...props }: Props) {
   const start = useMemo(() => {
     const cap = props.view.players.find((p) => p.id === props.view.me)?.capital;
     const def = cap ? REGION_BY_ID.get(cap) : undefined;
@@ -54,7 +55,7 @@ export default function Board({ onReady, focus, still, ...props }: Props) {
       <World {...props} still={still} />
     </Canvas>
   );
-}
+});
 
 function Fly({ focus, still }: { focus: Props["focus"]; still: boolean }) {
   const { camera, controls } = useThree();
