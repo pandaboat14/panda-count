@@ -10,6 +10,7 @@ import {
   emptyUnits,
   eventVisible,
   lineUsable,
+  nameKey,
   ownedRegions,
   removePlayer,
   unitTotal,
@@ -268,8 +269,12 @@ function randomAction(s: GameState, rnd: () => number): Action {
     if (mineOffers.length) return { type: "respond", offerId: pickFrom(mineOffers).id, accept: rnd() < 0.7 };
   }
   if (roll < 0.96 && others.length) return { type: "breakPact", with: pickFrom(others).id };
+  if (roll < 0.98) return { type: "rename", region, name: pickFrom(FUZZ_NAMES) };
   return { type: "endTurn" };
 }
+
+// Good names, bad names, real names and near-duplicates.
+const FUZZ_NAMES = ["Pandaland", "Fort Bamboo", "  Bao   Town ", "Kirdistan", "pandaland!", "x", "Texas", "Sichuan", "🐼🐼", "A".repeat(30)];
 
 function checkInvariants(s: GameState, events: GameEvent[]) {
   const ids = new Set(s.players.map((p) => p.id));
@@ -295,6 +300,22 @@ function checkInvariants(s: GameState, events: GameEvent[]) {
     } else assert.equal(hero.region, null);
   }
   for (const id of Object.keys(s.lines)) for (const e of lineEnds(id)) assert.ok(s.regions[e]);
+  // Only a conqueror who still holds a region may rename it; names on the map are tidy and never clash,
+  // and a renamed region's old name stays reserved for it.
+  const taken = new Map<string, string>();
+  for (const d of REGIONS) {
+    const r = s.regions[d.id];
+    if (r.conqueror !== undefined) assert.equal(r.conqueror, r.owner, `${r.id}'s conqueror holds it`);
+    if (r.name !== undefined) {
+      assert.notEqual(r.name, d.name, `${r.id} forgets a new name rather than storing its real one`);
+      assert.ok(r.name === r.name.trim() && [...r.name].length >= 2 && [...r.name].length <= 24, `"${r.name}" is tidy`);
+    }
+    for (const n of r.name ? [r.name, d.name] : [d.name]) {
+      const k = nameKey(n);
+      assert.ok((taken.get(k) ?? d.id) === d.id, `"${n}" clashes with ${taken.get(k)}`);
+      taken.set(k, d.id);
+    }
+  }
   for (let i = 1; i < events.length; i++) assert.equal(events[i].seq, events[i - 1].seq + 1, "event seq is contiguous");
   assert.equal(s.seq, events.at(-1)?.seq ?? 0);
   assert.ok(s.activeSeat >= 0 && s.activeSeat < s.players.length);
@@ -308,6 +329,7 @@ function lcg(seed: number) {
 test("fuzz: thousands of random actions never break the world", () => {
   let applied = 0;
   let rejected = 0;
+  let renamed = 0;
   for (const [seed, players] of [[1, 2], [2, 3], [3, 4], [4, 6], [5, 8], [6, 1]] as const) {
     const { s, events } = newGame(players, seed);
     const rnd = lcg(seed * 7919);
@@ -331,6 +353,7 @@ test("fuzz: thousands of random actions never break the world", () => {
       checkInvariants(s, events);
     }
     assert.ok(s.round > 5, `seed ${seed}: the game kept going (round ${s.round})`);
+    renamed += events.filter((e) => e.type === "rename").length;
     // Every player can always load their view, and event filtering never throws.
     for (const p of s.players) {
       viewFor(s, p.id);
@@ -338,6 +361,7 @@ test("fuzz: thousands of random actions never break the world", () => {
     }
   }
   assert.ok(applied > 5000, `applied ${applied}, rejected ${rejected}`);
+  assert.ok(renamed > 10, `conquerors renamed ${renamed} regions`);
 });
 
 test("determinism: same seed and same actions give the same world", () => {
@@ -932,4 +956,105 @@ test("dice physics: a seed throws the same tumble every time, and it lands on th
     assert.deepEqual(throwIt(), record, `seed ${seed}: replays tumble the same way`);
     assert.deepEqual(restingValues(record), values, `seed ${seed}: lands on the roll`);
   }
+});
+
+// ---------------------------------------------------------------- names
+
+import { checkRegionName, regionName, type BattleData } from "./engine";
+
+// Kird 0 rides into an empty neighbour and claims it.
+function conquest(seed = 3) {
+  const { s } = newGame(2, seed);
+  const [a, b] = s.players;
+  const from = a.capital;
+  const to = NEIGHBORS.get(from)!.find((n) => !s.regions[n].owner)!;
+  Object.assign(s.regions[to], { units: emptyUnits(), native: null });
+  s.lines[lineId(from, to)] = { owner: a.id, builtTurn: 0 };
+  applyAction(s, a.id, { type: "move", from, to, units: { panda: 1 } }, NOW);
+  assert.equal(s.regions[to].owner, a.id);
+  return { s, a, b, to };
+}
+
+test("names: conquerors rename what they take, and everyone sees the new name", () => {
+  const { s, a, b, to } = conquest();
+  const old = REGION_BY_ID.get(to)!.name;
+  const [e] = applyAction(s, a.id, { type: "rename", region: to, name: "  Fort   Bamboo " }, NOW);
+  assert.equal(s.regions[to].name, "Fort Bamboo");
+  assert.equal(e.text, `🚩 Kird 0 renamed ${old} to Fort Bamboo.`);
+  assert.ok(eventVisible(s, e, b.id), "renaming is public news");
+  // The name shows through the fog, but only the conqueror may change it.
+  const seen = [a.id, b.id].map((id) => viewFor(s, id).regions.find((r) => r.id === to)!);
+  assert.deepEqual(seen.map((r) => [r.fog, r.name, r.renamable]), [[false, "Fort Bamboo", true], [true, "Fort Bamboo", undefined]]);
+  // Everything that happens there from now on uses the new name…
+  Object.assign(s.players[0].goods, { bamboo: 5, rice: 5 });
+  const [recruit] = applyAction(s, a.id, { type: "recruit", region: to, unit: "panda", count: 1 }, NOW);
+  assert.match(recruit.text, /in Fort Bamboo\.$/);
+  // …until the old name is given back.
+  const [back] = applyAction(s, a.id, { type: "rename", region: to, name: old }, NOW);
+  assert.equal(s.regions[to].name, undefined);
+  assert.equal(back.text, `🚩 Kird 0 gave Fort Bamboo back its old name, ${old}.`);
+});
+
+test("names: only a conqueror renames, only while they hold it, and only on their turn", () => {
+  const { s, a, b, to } = conquest();
+  assert.throws(() => applyAction(s, a.id, { type: "rename", region: a.capital, name: "Homeland" }, NOW), /conquerors/, "land you were given wasn't conquered");
+  assert.throws(() => applyAction(s, b.id, { type: "rename", region: to, name: "Mine Now" }, NOW), /turn/);
+  applyAction(s, a.id, { type: "endTurn" }, NOW);
+  assert.throws(() => applyAction(s, b.id, { type: "rename", region: to, name: "Mine Now" }, NOW), /hold/);
+});
+
+test("names: tidy, sensible, and never another region's name, now or once", () => {
+  const { s, a, to } = conquest();
+  const rename = (name: unknown) => applyAction(s, a.id, { type: "rename", region: to, name } as Action, NOW);
+  assert.throws(() => rename("x"), /at least 2/);
+  assert.throws(() => rename("x".repeat(25)), /up to 24/);
+  assert.throws(() => rename("!!"), /letter or number/);
+  assert.throws(() => rename(42), GameError);
+  const other = REGIONS.find((r) => r.id !== to)!;
+  assert.throws(() => rename(` ${other.name.toUpperCase()}!`), /already on the map/, "capitals and punctuation don't make a new name");
+  // Invisible and right-to-left characters can't disguise a name.
+  rename("Pan\u202Eda\u200Bland");
+  assert.equal(s.regions[to].name, "Pandaland");
+  assert.throws(() => rename("Pandaland"), /already called/);
+  // A renamed region's real name stays taken, so nobody can pose as it.
+  s.regions[other.id].name = "Kirdistan";
+  assert.throws(() => rename(other.name), /once called/);
+  assert.throws(() => rename("KIRDISTAN"), /Kirdistan is already on the map/);
+  assert.equal(s.regions[to].name, "Pandaland", "failed renames change nothing");
+  // The rename box runs the very same check.
+  assert.deepEqual(checkRegionName(to, "  Bao  Town ", (id) => regionName(s, id)), { name: "Bao Town" });
+});
+
+test("names: a name outlasts its namer, and the right to rename passes to whoever takes it next", () => {
+  const { s, b, to } = conquest();
+  applyAction(s, s.players[0].id, { type: "rename", region: to, name: "Pandaland" }, NOW);
+  applyAction(s, s.players[0].id, { type: "endTurn" }, NOW);
+  const from = NEIGHBORS.get(to)!.find((n) => s.regions[n].owner !== s.players[0].id)!;
+  Object.assign(s.regions[from], { owner: b.id, native: null, units: { ...emptyUnits(), cam: 12 }, tired: emptyUnits() });
+  s.lines[lineId(from, to)] = { owner: b.id, builtTurn: 0 };
+  const fight = applyAction(s, b.id, { type: "move", from, to, units: { cam: 12 } }, NOW).find((e) => e.type === "battle")!;
+  assert.equal((fight.data as unknown as BattleData).place, "Pandaland", "the battle remembers what the place was called");
+  assert.equal(s.regions[to].owner, b.id);
+  assert.equal(s.regions[to].name, "Pandaland", "a new owner keeps the name until they change it");
+  applyAction(s, b.id, { type: "rename", region: to, name: "Bo's Bay" }, NOW);
+  assert.equal(s.regions[to].name, "Bo's Bay");
+  // When a conqueror leaves, their land goes wild but its name stays on the map.
+  removePlayer(s, b.id, NOW);
+  assert.equal(s.regions[to].name, "Bo's Bay");
+  assert.equal(s.regions[to].conqueror, undefined);
+});
+
+test("names: in games from before renaming, any region you hold except your home counts as conquered", () => {
+  const { s } = newGame(2, 3);
+  const [a] = s.players;
+  const old = NEIGHBORS.get(a.capital)!.find((n) => !s.regions[n].owner)!;
+  // An old save: a region taken long ago, with no record of who took it.
+  Object.assign(s.regions[old], { owner: a.id, native: null });
+  assert.equal(s.regions[old].conqueror, undefined);
+  const view = viewFor(s, a.id);
+  assert.equal(view.regions.find((r) => r.id === old)!.renamable, true);
+  assert.equal(view.regions.find((r) => r.id === a.capital)!.renamable, undefined);
+  applyAction(s, a.id, { type: "rename", region: old, name: "Old Conquest" }, NOW);
+  assert.equal(s.regions[old].name, "Old Conquest");
+  assert.throws(() => applyAction(s, a.id, { type: "rename", region: a.capital, name: "Homeland" }, NOW), /conquerors/);
 });

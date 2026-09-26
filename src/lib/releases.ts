@@ -9,6 +9,17 @@ export type Release = {
 export const RELEASES: Release[] = [
   {
     date: "2026-09-26",
+    title: "Plant your flag",
+    notes: [
+      "Your land is unmistakable now: every region you hold flies your flag (your colour with a white star) and glows with a thick border in your colour. Other Kirds' flags carry their initial.",
+      "Tap \"Your land\" under your goods to fly around your regions one by one.",
+      "Conquerors rename what they take. When you capture a region, give it a new name or keep the old one, and rename it again from its panel while you hold it. Everyone sees the new name, and the old one is shown underneath.",
+      "Moving troops has a clear start and finish: tap 🚡 Move troops next to End turn, pick one of your regions, pick where to send them, choose who goes, and send. ✕ Stop moving (or Esc) ends it.",
+      "While you move, the map rings every choice: gold for your regions with troops ready, blue for your own land, red for invasions with your chance to win, and a dashed ring where you'd need a gondola first, one tap away.",
+    ],
+  },
+  {
+    date: "2026-09-26",
     title: "Throw your dice onto the map",
     pr: 14,
     notes: [

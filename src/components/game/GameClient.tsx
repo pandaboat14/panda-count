@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { GameEvent } from "@/game/engine";
+import { unitTotal, type BattleData, type GameEvent } from "@/game/engine";
 import { NEIGHBORS, REGION_BY_ID } from "@/game/regions";
 import { rollShow, type RollShow } from "@/game/rollReport";
 import type { GamePayload } from "@/lib/game/store";
@@ -15,12 +15,16 @@ import { canReplay } from "@/game/battleScript";
 import { BattleView } from "./BattleView";
 import { DiceRoll } from "./DiceRoll";
 import { ChatPanel, channelOf, type Channel } from "./ChatPanel";
-import type { Highlight } from "./Board";
+import type { BoardLabel, Highlight, MarkKind } from "./Board";
+import { FlagIcon } from "./Flag";
 import { Glossary, GoodsBar } from "./bits";
 import { GameOver } from "./GameOver";
-import { BankPanel, DiplomacyPanel, HeroesPanel, LogPanel, RegionPanel, meOf, playerName, regionName, regionView, usableLine, type Ctx } from "./panels";
+import { BankPanel, DiplomacyPanel, HeroesPanel, LogPanel, RegionPanel, RenameCard, meOf, playerName, regionName, regionView, usableLine, type Ctx } from "./panels";
+import { restedIn } from "@/game/army";
+import { attackOdds } from "@/game/odds";
 import { HowToPlay } from "./HowToPlay";
 import { ArmyPanel } from "./ArmyPanel";
+import { MoveBar, moveOptions, moveSources } from "./MoveBar";
 import { PlanPanel } from "./PlanPanel";
 import { useGame } from "./useGame";
 
@@ -47,7 +51,11 @@ const TONE: Record<string, Highlight["tone"]> = {
   arm: "build",
   move: "move",
   loan: "move",
+  rename: "build",
 };
+
+// Moving troops: where from, then where to (either can still be unpicked).
+type Move = { from: string | null; to: string | null };
 
 export function GameClient({ initial }: { initial: GamePayload }) {
   const { game, act: rawAct, send, loadOlder, olderDone, busy, error, savedAt, clearError } = useGame(initial);
@@ -60,7 +68,13 @@ export function GameClient({ initial }: { initial: GamePayload }) {
   const still = useReducedMotion();
 
   const [selected, setSelected] = useState<string | null>(me.capital ?? null);
-  const [dest, setDest] = useState<string | null>(null);
+  // Move mode: null when you're not moving troops.
+  const [move, setMove] = useState<Move | null>(null);
+  const [moveNote, setMoveNote] = useState<string | null>(null);
+  // Phones tuck the panel away while you move troops, and bring it back when you stop.
+  const [restorePanel, setRestorePanel] = useState(false);
+  // A region you just took, waiting to hear if you'd like to rename it.
+  const [renameAsk, setRenameAsk] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>(myTurn ? "plan" : "region");
   const [thunder, setThunder] = useState(false);
   const [focus, setFocus] = useState<{ lat: number; lng: number; seq: number } | null>(null);
@@ -73,13 +87,18 @@ export function GameClient({ initial }: { initial: GamePayload }) {
   const [battle, setBattle] = useState<GameEvent | null>(null);
   const [menu, setMenu] = useState(false);
 
-  // Every move goes through here so a battle you just fought plays out on screen.
+  // Every move goes through here so a battle you just fought plays out on screen, and a region you
+  // just took gets offered a new name once it has.
   const act: typeof rawAct = useCallback(
     async (a) => {
       const evs = await rawAct(a);
       if (evs) {
         const fought = evs.find((e) => canReplay(e) && e.actor === view.me);
         if (fought) setBattle(fought);
+        const took = evs.find((e) => e.actor === view.me && (e.type === "capture" || (e.type === "battle" && (e.data as Partial<BattleData> | undefined)?.won)));
+        if (took) setRenameAsk((took.data as Partial<BattleData> | undefined)?.to ?? took.regions.at(-1) ?? null);
+        const renamed = evs.find((e) => e.type === "rename" && e.actor === view.me);
+        if (renamed) setToast(renamed.text);
       }
       return evs;
     },
@@ -149,9 +168,21 @@ export function GameClient({ initial }: { initial: GamePayload }) {
     }
   };
 
-  const focusOn = useCallback((id: string) => {
-    const d = REGION_BY_ID.get(id);
-    if (d) setFocus({ lat: d.lat, lng: d.lng, seq: Date.now() });
+  const focusOn = useCallback((id: string, also?: string | null) => {
+    const a = REGION_BY_ID.get(id);
+    const b = also ? REGION_BY_ID.get(also) : undefined;
+    if (!a) return;
+    if (!b) {
+      setFocus({ lat: a.lat, lng: a.lng, seq: Date.now() });
+      return;
+    }
+    // Halfway along the great circle, so both regions stay on screen.
+    const v = (d: { lat: number; lng: number }) => {
+      const [lat, lng] = [(d.lat * Math.PI) / 180, (d.lng * Math.PI) / 180];
+      return [Math.cos(lat) * Math.cos(lng), Math.cos(lat) * Math.sin(lng), Math.sin(lat)];
+    };
+    const [x, y, z] = v(a).map((n, i) => n + v(b)[i]);
+    setFocus({ lat: (Math.atan2(z, Math.hypot(x, y)) * 180) / Math.PI, lng: (Math.atan2(y, x) * 180) / Math.PI, seq: Date.now() });
   }, []);
 
   // ---- replay of everything since your last turn ----
@@ -191,6 +222,14 @@ export function GameClient({ initial }: { initial: GamePayload }) {
   const [seenTurn, setSeenTurn] = useState(view.turn);
   if (view.turn !== seenTurn) {
     setSeenTurn(view.turn);
+    // A turn change always ends any troop move or rename that was under way.
+    setMove(null);
+    setMoveNote(null);
+    setRenameAsk(null);
+    if (restorePanel) {
+      setPanelOpen(true);
+      setRestorePanel(false);
+    }
     if (myTurn) {
       setToast("🎲 It's your turn!");
       setReplayOffered(false);
@@ -253,45 +292,103 @@ export function GameClient({ initial }: { initial: GamePayload }) {
     return () => clearTimeout(t);
   }, [toast]);
 
+  // ---- moving troops ----
+  const startMove = useCallback(
+    (from: string | null, to: string | null = null) => {
+      setThunder(false);
+      setReplay(null);
+      setMove({ from, to });
+      setMoveNote(null);
+      if (from) setSelected(from);
+      if (from) focusOn(from, to);
+      // Phones: tuck the panel away so the whole map is free to tap.
+      if (panelOpen && window.matchMedia("(max-width: 760px)").matches) {
+        setPanelOpen(false);
+        setRestorePanel(true);
+      }
+    },
+    [focusOn, panelOpen],
+  );
+  const stopMove = useCallback(() => {
+    setMove(null);
+    setMoveNote(null);
+    if (restorePanel) {
+      setPanelOpen(true);
+      setRestorePanel(false);
+    }
+  }, [restorePanel]);
+  // The bar's buttons can name regions anywhere on the globe, so the camera follows them there.
+  const pickMove = useCallback(
+    (from: string | null, to: string | null) => {
+      setMove({ from, to });
+      if (from) setSelected(from);
+      if (from) focusOn(from, to);
+    },
+    [focusOn],
+  );
+
+  // Esc stops moving troops (or calling thunder), unless a dialog is open and wants the key itself.
+  useEffect(() => {
+    if (!move && !thunder) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || document.querySelector("dialog[open]")) return;
+      if (thunder) setThunder(false);
+      else stopMove();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [move, thunder, stopMove]);
+
   // ---- clicking the board ----
   const sel = selected ? regionView(view, selected) : null;
-  const moveTargets = useMemo(() => {
-    if (thunder) return view.regions.filter((r) => !r.fog && r.owner !== view.me).map((r) => r.id);
-    if (!myTurn || !selected || sel?.owner !== view.me) return [];
-    return NEIGHBORS.get(selected)!.filter((n) => usableLine(view, selected, n));
-  }, [thunder, myTurn, selected, sel?.owner, view]);
+  const thunderTargets = useMemo(
+    () => (thunder ? view.regions.filter((r) => !r.fog && r.owner !== view.me).map((r) => r.id) : []),
+    [thunder, view],
+  );
 
-  const onSelect = useCallback((id: string) => {
-    if (thunder) {
-      if (moveTargets.includes(id) && confirm(`Call Casey's thunder down on ${regionName(id)}?`)) {
-        act({ type: "thunder", target: id });
+  const onSelect = useCallback(
+    (id: string) => {
+      if (thunder) {
+        if (thunderTargets.includes(id) && confirm(`Call Casey's thunder down on ${regionName(view, id)}?`)) {
+          act({ type: "thunder", target: id });
+        }
+        setThunder(false);
+        return;
       }
-      setThunder(false);
-      return;
-    }
-    if (selected && moveTargets.includes(id)) {
-      setDest(dest === id ? null : id);
+      if (move) {
+        const r = regionView(view, id);
+        const from = move.from;
+        setMoveNote(null);
+        if (from && id === from) {
+          // Tapping where you're moving from again lets you pick somewhere else.
+          setMove({ from: null, to: null });
+        } else if (from && NEIGHBORS.get(from)!.includes(id) && !(r.owner === view.me && !usableLine(view, from, id))) {
+          setMove({ from, to: move.to === id ? null : id });
+        } else if (r.owner === view.me) {
+          setMove({ from: id, to: null });
+          setSelected(id);
+        } else {
+          setMoveNote(
+            from
+              ? `${regionName(view, id)} isn't next to ${regionName(view, from)}: troops ride one gondola line at a time.`
+              : `${regionName(view, id)} isn't yours. Start from one of your regions: they fly your flag.`,
+          );
+        }
+        return;
+      }
+      setSelected(id);
       setTab("region");
-      return;
-    }
-    setSelected(id);
-    setDest(null);
-    setTab("region");
-    setPanelOpen(true);
-  }, [thunder, moveTargets, selected, dest, act]);
+      setPanelOpen(true);
+    },
+    [thunder, thunderTargets, move, view, act],
+  );
   const onReady = useCallback(() => setReady(true), []);
 
   const ctx: Ctx = { view, myTurn, busy, act, avatars: game.avatars, over };
   const closeDice = useCallback(() => setDice(null), []);
 
-  // Pick an attack: show the source region's panel with the target lined up.
-  const planAttack = (from: string, to: string) => {
-    setSelected(from);
-    setDest(to);
-    setTab("region");
-    setPanelOpen(true);
-    focusOn(to);
-  };
+  // Pick an attack (Sun Tzu's, or from a region's panel): straight into move mode, ready to choose who goes.
+  const planAttack = (from: string, to: string) => startMove(from, to);
 
   const setAutopilot = async (on: boolean, level: "medium" | "hard" = "medium") => {
     if (
@@ -306,7 +403,6 @@ export function GameClient({ initial }: { initial: GamePayload }) {
 
   const endTurn = async () => {
     if (await act({ type: "endTurn" })) {
-      setDest(null);
       setToast(view.players.some((p) => p.bot) ? "Turn ended. The computer players are moving…" : "Turn ended. The Kirds have been summoned.");
     }
   };
@@ -327,6 +423,15 @@ export function GameClient({ initial }: { initial: GamePayload }) {
 
   const hoursWaiting = (now - view.turnStartedAt) / 3600000;
 
+  // "Your land": each tap flies on to the next region you hold.
+  const myLand = useMemo(() => view.regions.filter((r) => r.owner === view.me).map((r) => r.id), [view.regions, view.me]);
+  const showMyLand = () => {
+    if (!myLand.length) return;
+    const id = myLand[(myLand.indexOf(selected ?? "") + 1) % myLand.length];
+    setSelected(id);
+    focusOn(id);
+  };
+
   // During a replay the board follows the replay; otherwise it shows your own picks.
   const replayRegion = replayEvent?.regions.at(-1);
   const replayDef = replayRegion ? REGION_BY_ID.get(replayRegion) : undefined;
@@ -340,10 +445,50 @@ export function GameClient({ initial }: { initial: GamePayload }) {
         ? replayEvent.regions.length
           ? { regions: replayEvent.regions, tone: TONE[replayEvent.type] ?? "info" }
           : null
-        : highlight ?? (dest ? { regions: [dest], tone: regionView(view, dest).owner === view.me ? "move" : "battle" } : null),
-    [replayEvent, highlight, dest, view],
+        : highlight ?? (move?.to ? { regions: [move.to], tone: regionView(view, move.to).owner === view.me ? "move" : "battle" } : null),
+    [replayEvent, highlight, move, view],
   );
-  const boardTargets = useMemo(() => (thunder || dest === null ? moveTargets : [dest]), [thunder, dest, moveTargets]);
+  // Rings for whatever you're doing: where troops can leave from, where they can go, or what thunder can hit.
+  const boardMarks = useMemo(() => {
+    const marks: Record<string, MarkKind> = {};
+    if (thunder) {
+      for (const id of thunderTargets) marks[id] = "thunder";
+    } else if (move && myTurn) {
+      if (!move.from) {
+        for (const r of moveSources(view)) marks[r.id] = "source";
+      } else if (move.to) {
+        marks[move.to] = !usableLine(view, move.from, move.to) ? "build" : regionView(view, move.to).owner === view.me ? "move" : "attack";
+      } else {
+        const { lines, build } = moveOptions(view, move.from);
+        for (const n of build) marks[n] = "build";
+        for (const n of lines) marks[n] = regionView(view, n).owner === view.me ? "move" : "attack";
+      }
+    }
+    return marks;
+  }, [thunder, thunderTargets, move, myTurn, view]);
+  // Name tags: where troops are moving from and to (with your odds), what a replay is about, or what you picked.
+  const boardLabels = useMemo<BoardLabel[]>(() => {
+    if (replayRegion) return [{ id: replayRegion, text: regionName(view, replayRegion) }];
+    if (thunder) return [];
+    if (!move) {
+      const named: BoardLabel[] = view.regions.filter((r) => r.name).map((r) => ({ id: r.id, text: r.name!, tone: "named" }));
+      return selected && !named.some((l) => l.id === selected) ? [...named, { id: selected, text: regionName(view, selected) }] : named;
+    }
+    if (!move.from) return [];
+    const from = move.from;
+    const labels: BoardLabel[] = [{ id: from, text: `From ${regionName(view, from)}`, tone: "source" }];
+    const ready = restedIn(regionView(view, from));
+    for (const [id, kind] of Object.entries(boardMarks)) {
+      if (kind === "move") labels.push({ id, text: `➡️ ${regionName(view, id)}`, tone: kind });
+      else if (kind === "attack") {
+        // The odds of sending everyone ready; once you pick who goes, the bar has the exact number.
+        const odds = !move.to && unitTotal(ready) ? attackOdds(view, from, id, ready, 120) : null;
+        labels.push({ id, text: `⚔️ ${regionName(view, id)}${odds ? ` · ${Math.round(odds.win * 100)}%` : ""}`, tone: kind });
+      } else if (id === move.to) labels.push({ id, text: `🚡 ${regionName(view, id)}`, tone: kind });
+    }
+    return labels;
+  }, [replayRegion, thunder, move, selected, view, boardMarks]);
+  const renaming = renameAsk && myTurn && !battle && !dice && view.regions.some((r) => r.id === renameAsk && r.renamable) ? renameAsk : null;
 
   return (
     <main className="game">
@@ -353,7 +498,8 @@ export function GameClient({ initial }: { initial: GamePayload }) {
           <Board
             view={view}
             selected={selected}
-            targets={boardTargets}
+            marks={boardMarks}
+            labels={boardLabels}
             highlight={boardHighlight}
             focus={boardFocus}
             still={still}
@@ -451,49 +597,61 @@ export function GameClient({ initial }: { initial: GamePayload }) {
               : `⚠️ ${playerName(view, view.threat)} holds ${view.players.find((p) => p.id === view.threat)?.regions ?? view.goal} regions. Take some before their next turn, or they win!`}
           </p>
         )}
-        <Glossary />
+        <div className="goods-extras">
+          <button type="button" className="your-land" onClick={showMyLand} title="Fly to each of your regions in turn">
+            <FlagIcon color={me.color} mine size={22} />
+            <span>
+              Your land: <strong>{me.regions}</strong> region{me.regions === 1 ? "" : "s"}
+            </span>
+          </button>
+          <Glossary />
+        </div>
       </div>
 
       {over && <GameOver view={view} avatars={game.avatars} endedAt={game.endedAt} />}
 
-      {!over && unseen.length > 0 && !replay && !replayOffered && (
-        <div className="replay-offer">
-          <p>
-            <strong>{unseen.length}</strong> thing{unseen.length === 1 ? "" : "s"} happened since your last turn.
-          </p>
-          <div className="form-actions">
-            <button className="btn small" onClick={() => { setReplay({ list: unseen, i: 0 }); setReplayOffered(true); }}>▶ Watch replay</button>
-            <button className="btn ghost small" onClick={() => { setReplayOffered(true); setTab("log"); }}>Read it</button>
+      <div className="game-prompts">
+        {!over && unseen.length > 0 && !replay && !replayOffered && (
+          <div className="replay-offer">
+            <p>
+              <strong>{unseen.length}</strong> thing{unseen.length === 1 ? "" : "s"} happened since your last turn.
+            </p>
+            <div className="form-actions">
+              <button className="btn small" onClick={() => { setReplay({ list: unseen, i: 0 }); setReplayOffered(true); }}>▶ Watch replay</button>
+              <button className="btn ghost small" onClick={() => { setReplayOffered(true); setTab("log"); }}>Read it</button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {replay && replay.list[replay.i] && (
-        <div className="replay-caption" role="status">
-          <p className="muted small">
-            {replay.i + 1} / {replay.list.length} · Round {replay.list[replay.i].round}
-          </p>
-          <p>{replay.list[replay.i].text}</p>
-          {!canReplay(replay.list[replay.i]) && !still && <span key={`${replay.i}-${replay.list[replay.i].seq}`} className="feed-timer" style={{ animationDuration: `${FEED_MS}ms` }} />}
-          {canReplay(replay.list[replay.i]) && !battle && (
-            <button className="btn small" onClick={() => setBattle(replay.list[replay.i])}>⚔️ Watch the battle</button>
-          )}
-          <div className="form-actions">
-            <button className="btn ghost small" onClick={() => setReplay({ ...replay, i: Math.max(0, replay.i - 1) })} disabled={replay.i === 0}>◀</button>
-            <button className="btn ghost small" onClick={nextReplay}>▶</button>
-            <button className="btn small" onClick={() => setReplay(null)}>{replay.i + 1 < replay.list.length ? "Skip all ⏭" : "Done"}</button>
+        {replay && replay.list[replay.i] && (
+          <div className="replay-caption" role="status">
+            <p className="muted small">
+              {replay.i + 1} / {replay.list.length} · Round {replay.list[replay.i].round}
+            </p>
+            <p>{replay.list[replay.i].text}</p>
+            {!canReplay(replay.list[replay.i]) && !still && <span key={`${replay.i}-${replay.list[replay.i].seq}`} className="feed-timer" style={{ animationDuration: `${FEED_MS}ms` }} />}
+            {canReplay(replay.list[replay.i]) && !battle && (
+              <button className="btn small" onClick={() => setBattle(replay.list[replay.i])}>⚔️ Watch the battle</button>
+            )}
+            <div className="form-actions">
+              <button className="btn ghost small" onClick={() => setReplay({ ...replay, i: Math.max(0, replay.i - 1) })} disabled={replay.i === 0}>◀</button>
+              <button className="btn ghost small" onClick={nextReplay}>▶</button>
+              <button className="btn small" onClick={() => setReplay(null)}>{replay.i + 1 < replay.list.length ? "Skip all ⏭" : "Done"}</button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {thunder && (
-        <div className="replay-caption">
-          <p>⚡ Pick a region you can see for Casey to strike.</p>
-          <button className="btn ghost small" onClick={() => setThunder(false)}>Cancel</button>
-        </div>
-      )}
+        {thunder && (
+          <div className="replay-caption">
+            <p>⚡ Pick a region you can see for Casey to strike.</p>
+            <button className="btn ghost small" onClick={() => setThunder(false)}>Cancel</button>
+          </div>
+        )}
 
-      {!panelOpen && (
+        {renaming && <RenameCard key={renaming} ctx={ctx} id={renaming} onClose={() => setRenameAsk(null)} />}
+      </div>
+
+      {!panelOpen && !move && (
         <button className="panel-restore" onClick={() => setPanelOpen(true)} aria-label="Show the actions panel">
           ▴ Actions
           {pendingOffers + unreadTotal > 0 && <span className="dot-count">{pendingOffers + unreadTotal}</span>}
@@ -535,9 +693,11 @@ export function GameClient({ initial }: { initial: GamePayload }) {
                   key={selected}
                   ctx={ctx}
                   id={selected}
-                  dest={dest}
-                  setDest={setDest}
-                  startThunder={() => setThunder(true)}
+                  startMove={(from) => startMove(from)}
+                  startThunder={() => {
+                    stopMove();
+                    setThunder(true);
+                  }}
                   planAttack={planAttack}
                 />
               ) : (
@@ -557,7 +717,6 @@ export function GameClient({ initial }: { initial: GamePayload }) {
                 events={game.events}
                 onManage={(id) => {
                   setSelected(id);
-                  setDest(null);
                   setTab("region");
                   setPanelOpen(true);
                   focusOn(id);
@@ -590,13 +749,20 @@ export function GameClient({ initial }: { initial: GamePayload }) {
         )}
       </aside>
 
-      <div className="game-bottom">
+      <div className={`game-bottom${move ? " moving" : ""}`}>
         {over ? (
           <Link className="btn end-turn" href="/game">🎲 Start a new game</Link>
+        ) : myTurn && move ? (
+          <MoveBar ctx={ctx} from={move.from} to={move.to} note={moveNote} pick={pickMove} setNote={setMoveNote} onStop={stopMove} />
         ) : myTurn ? (
-          <button className="btn end-turn" disabled={busy} onClick={endTurn}>
-            End turn ⏭
-          </button>
+          <div className="turn-actions">
+            <button className="btn move-troops" disabled={busy} onClick={() => startMove(sel?.owner === view.me ? selected : null)}>
+              🚡 Move troops
+            </button>
+            <button className="btn end-turn" disabled={busy} onClick={endTurn}>
+              End turn ⏭
+            </button>
+          </div>
         ) : (
           <p className="waiting">
             Waiting for {active.bot ? "🤖 " : ""}{active.name}…

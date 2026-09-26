@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { BattleData, GameEvent, GameView } from "@/game/engine";
 import { battleScript } from "@/game/battleScript";
-import { REGION_BY_ID } from "@/game/regions";
+import { placeName } from "@/game/regions";
 import { UNITS, UNIT_TYPES } from "@/game/rules";
 import { SceneBoundary } from "../SceneBoundary";
 
@@ -41,7 +41,7 @@ export function BattleView({ event, view, still, onClose }: { event: GameEvent; 
   const current = step > 0 ? steps[step - 1] : null;
   const meWon = (event.actor === view.me && data.won) || (data.defender === view.me && !data.won);
   const meInvolved = event.actor === view.me || data.defender === view.me;
-  const place = REGION_BY_ID.get(data.to)?.name ?? data.to;
+  const place = data.place ?? placeName(data.to, view.regions.find((r) => r.id === data.to)?.name);
 
   return (
     <dialog ref={dialog} className="battle-dialog" onClose={onClose} aria-label={`Battle for ${place}`}>

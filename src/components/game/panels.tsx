@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Action, GameEvent, GameView, RegionView, Units } from "@/game/engine";
-import { NEIGHBORS, REGION_BY_ID, lineId, type Resource } from "@/game/regions";
+import { NAME_MAX, checkRegionName, type Action, type GameEvent, type GameView, type RegionView, type Units } from "@/game/engine";
+import { NEIGHBORS, REGION_BY_ID, lineId, placeName, type Resource } from "@/game/regions";
 import {
   BUILDINGS,
   BUILDING_TYPES,
@@ -25,6 +25,7 @@ import { attackOdds, type Odds } from "@/game/odds";
 import { Avatar } from "../Avatar";
 import { Race } from "./Race";
 import { CostChips, Stepper, affordable, times } from "./bits";
+import { FlagIcon, initialOf, inkOn } from "./Flag";
 
 export type Ctx = {
   view: GameView;
@@ -35,8 +36,9 @@ export type Ctx = {
   over?: boolean; // the game has ended: look, don't touch
 };
 
-export const regionName = (id: string) => REGION_BY_ID.get(id)?.name ?? id;
-const NATIVE_LABEL = { pandas: "the Panda Nation 🐼", nacams: "the NACAM Ogre Nation 👹", cams: "the CAM Nation 💪", wild: "wild pandas" } as const;
+// What a region is called now: a conqueror may have renamed it.
+export const regionName = (view: GameView, id: string) => placeName(id, view.regions.find((r) => r.id === id)?.name);
+export const NATIVE_LABEL = { pandas: "the Panda Nation 🐼", nacams: "the NACAM Ogre Nation 👹", cams: "the CAM Nation 💪", wild: "wild pandas" } as const;
 
 export function meOf(view: GameView) {
   return view.players.find((p) => p.id === view.me)!;
@@ -140,51 +142,146 @@ export function OddsLine({ odds }: { odds: Odds | null }) {
   );
 }
 
+// ---------------------------------------------------------------- names
+
+// A new name for land you conquered. It runs the rules' own check as you type, so what it accepts, the game accepts.
+export function RenameForm({
+  ctx,
+  id,
+  onDone,
+  onCancel,
+  cancelLabel = "Cancel",
+  autoFocus,
+}: {
+  ctx: Ctx;
+  id: string;
+  onDone: () => void;
+  onCancel?: () => void;
+  cancelLabel?: string;
+  autoFocus?: boolean;
+}) {
+  const { view, busy, act, myTurn } = ctx;
+  const [draft, setDraft] = useState("");
+  const check = useMemo(() => checkRegionName(id, draft, (x) => regionName(view, x)), [id, draft, view]);
+  const current = regionName(view, id);
+  return (
+    <form
+      className="rename-form"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        if (check.name && (await act({ type: "rename", region: id, name: check.name }))) onDone();
+      }}
+    >
+      <div className="rename-row">
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape" && onCancel) {
+              e.stopPropagation();
+              onCancel();
+            }
+          }}
+          placeholder="New name"
+          aria-label={`New name for ${current}`}
+          maxLength={NAME_MAX * 2}
+          autoComplete="off"
+          enterKeyHint="done"
+          autoFocus={autoFocus}
+        />
+        <button className="btn small" disabled={busy || !myTurn || !check.name}>
+          🚩 Rename
+        </button>
+        {onCancel && (
+          <button type="button" className="btn ghost small" onClick={onCancel}>
+            {cancelLabel}
+          </button>
+        )}
+      </div>
+      <p className="rename-hint small" aria-live="polite">
+        {draft.trim() ? (check.problem ?? `It'll be ${check.name} on everyone's map.`) : `Up to ${NAME_MAX} characters. Everyone in this world will see it.`}
+      </p>
+    </form>
+  );
+}
+
+// Shown after you take a region: conquerors get to name what they take.
+export function RenameCard({ ctx, id, onClose }: { ctx: Ctx; id: string; onClose: () => void }) {
+  const name = regionName(ctx.view, id);
+  // Typing straight away suits a keyboard; on a phone the keyboard would cover the map, so wait for a tap.
+  const [fine] = useState(() => window.matchMedia("(pointer: fine)").matches);
+  return (
+    <section className="rename-card" aria-label={`Rename ${name}`}>
+      <p className="rename-title">
+        🚩 <strong>{name}</strong> is yours!
+      </p>
+      <p className="small">Conquerors get to rename what they take. Give it a new name, or keep this one.</p>
+      <RenameForm ctx={ctx} id={id} onDone={onClose} onCancel={onClose} cancelLabel="Keep the name" autoFocus={fine} />
+    </section>
+  );
+}
+
 // ---------------------------------------------------------------- region
 
 export function RegionPanel({
   ctx,
   id,
-  dest,
-  setDest,
+  startMove,
   startThunder,
   planAttack,
 }: {
   ctx: Ctx;
   id: string;
-  dest: string | null;
-  setDest: (id: string | null) => void;
+  startMove: (from: string) => void;
   startThunder: () => void;
   planAttack: (from: string, to: string) => void;
 }) {
-  const { view, myTurn, busy } = ctx;
+  const { view, myTurn, busy, act } = ctx;
   const r = regionView(view, id);
   const def = REGION_BY_ID.get(id)!;
   const me = meOf(view);
   const mine = r.owner === view.me;
+  const owner = view.players.find((p) => p.id === r.owner);
   const heroesHere = HERO_IDS.filter((h) => view.heroes[h].region === id);
+  const [renaming, setRenaming] = useState(false);
 
   return (
     <div className="panel-body">
       <header className="region-head">
-        <h2>{def.name}</h2>
+        <h2>{regionName(view, id)}</h2>
+        {r.name && <p className="region-once muted small">Once called {def.name}</p>}
         <p className="region-sub">
           {GOOD_INFO[def.resource].icon} {GOOD_INFO[def.resource].label} · number <strong className={r.token === 6 || r.token === 8 ? "hot" : ""}>{r.token}</strong>
         </p>
         <p className="region-owner">
           {r.fog ? (
             "☁️ Hidden in the fog of war"
-          ) : r.owner ? (
-            <>
-              <span className="player-dot" style={{ background: view.players.find((p) => p.id === r.owner)?.color }} /> {mine ? "Yours" : playerName(view, r.owner)}
-              {r.owner === me.id && me.capital === id && " · capital"}
-            </>
+          ) : owner ? (
+            <span className={`owner-pill${mine ? " mine" : ""}`} style={mine ? { borderColor: owner.color, background: owner.color, color: inkOn(owner.color) } : { borderColor: owner.color }}>
+              <FlagIcon color={owner.color} mine={mine} initial={initialOf(owner.name)} size={20} />
+              {mine ? "Yours" : `${owner.name}'s`}
+              {mine && me.capital === id && " · your capital"}
+            </span>
           ) : r.native ? (
             <>Held by {NATIVE_LABEL[r.native]}</>
           ) : (
             "Empty. Anyone can claim it"
           )}
         </p>
+        {r.renamable && myTurn && !ctx.over && (
+          renaming ? (
+            <RenameForm ctx={ctx} id={id} onDone={() => setRenaming(false)} onCancel={() => setRenaming(false)} autoFocus />
+          ) : (
+            <div className="form-actions">
+              <button type="button" className="btn ghost small" onClick={() => setRenaming(true)}>✏️ Rename</button>
+              {r.name && (
+                <button type="button" className="btn ghost small" disabled={busy} onClick={() => act({ type: "rename", region: id, name: def.name })}>
+                  ↺ Call it {def.name} again
+                </button>
+              )}
+            </div>
+          )
+        )}
         {!r.fog && (
           <p className="region-units">
             {unitLine(r.units)}
@@ -207,7 +304,7 @@ export function RegionPanel({
 
       {mine && myTurn && (
         <>
-          <SendTroops ctx={ctx} from={r} dest={dest} setDest={setDest} />
+          <SendTroops ctx={ctx} from={r} startMove={startMove} />
           <Gondolas ctx={ctx} from={r} />
           <Recruit ctx={ctx} region={r} />
           <Build ctx={ctx} region={r} />
@@ -220,86 +317,33 @@ export function RegionPanel({
       {ctx.over && <p className="muted">🏁 This game is over. You can still look around.</p>}
       {!myTurn && !ctx.over && <p className="muted">It&rsquo;s {playerName(view, view.players.find((p) => p.seat === view.activeSeat)?.id)}&rsquo;s turn. You can look around; your moves open up on your turn.</p>}
       {busy && <p className="muted">…</p>}
-      <p className="muted small">Neighbours: {NEIGHBORS.get(id)!.map(regionName).join(", ")}</p>
+      <p className="muted small">Neighbours: {NEIGHBORS.get(id)!.map((n) => regionName(view, n)).join(", ")}</p>
     </div>
   );
 }
 
-function SendTroops({ ctx, from, dest, setDest }: { ctx: Ctx; from: RegionView; dest: string | null; setDest: (id: string | null) => void }) {
-  const { view, busy, act } = ctx;
+// Troops move in move mode (the bar along the bottom). This says what's possible from here and starts it.
+function SendTroops({ ctx, from, startMove }: { ctx: Ctx; from: RegionView; startMove: (from: string) => void }) {
+  const { view, busy } = ctx;
   const avail = rested(from);
-  const piecer = view.heroes.piecer.owner === view.me && view.heroes.piecer.region === from.id;
-  const options = NEIGHBORS.get(from.id)!.filter((n) => usableLine(view, from.id, n));
-  const [pick, setPick] = useState<Units>({ panda: 0, armedPanda: 0, nacam: 0, cam: 0 });
-  const total = UNIT_TYPES.reduce((n, t) => n + pick[t], 0);
-  const target = dest && options.includes(dest) ? regionView(view, dest) : null;
-  const invading = target && target.owner !== view.me;
-  const blocked = target?.owner && target.owner !== view.me && inPact(view, target.owner);
-  const anyone = UNIT_TYPES.some((t) => avail[t] > 0);
-
+  const ready = UNIT_TYPES.reduce((n, t) => n + avail[t], 0);
+  const lines = NEIGHBORS.get(from.id)!.filter((n) => usableLine(view, from.id, n));
   return (
     <section className="act">
-      <h3>🚡 Send troops</h3>
-      {!options.length ? (
-        <p className="muted">No gondola lines from here yet. Build one below: gondolas are the only way to move troops.</p>
-      ) : !anyone ? (
-        <p className="muted">Everyone here is resting this turn.</p>
+      <h3>🚡 Move troops</h3>
+      {!ready ? (
+        <p className="muted small">Everyone here is resting: troops that moved or were just recruited can go again next turn.</p>
       ) : (
         <>
-          <p className="muted small">Pick a destination on the globe (glowing tiles) or here{piecer ? ". The Piecer Captain is here: troops can ride on after arriving" : ""}.</p>
-          <div className="dest-list">
-            {options.map((n) => {
-              const rv = regionView(view, n);
-              const enemy = rv.owner !== view.me;
-              return (
-                <button key={n} className={`chip${dest === n ? " on" : ""}${enemy ? " enemy" : ""}`} onClick={() => setDest(dest === n ? null : n)}>
-                  {enemy ? "⚔️" : "➡️"} {regionName(n)}
-                </button>
-              );
-            })}
-          </div>
-          {target && (
-            <>
-              {invading && (
-                <p className="small">
-                  Defending: {target.fog ? "unknown" : unitLine(target.units)}
-                  {target.buildings?.includes("fort") && " · 🏰 fort (+1)"}
-                  {target.owner ? ` · ${playerName(view, target.owner)}` : target.native ? ` · ${NATIVE_LABEL[target.native]}` : ""}
-                </p>
-              )}
-              <div className="unit-pick">
-                {UNIT_TYPES.filter((t) => avail[t] > 0).map((t) => (
-                  <label key={t}>
-                    <span>
-                      {UNITS[t].icon} {UNITS[t].plural} <span className="muted">({avail[t]})</span>
-                    </span>
-                    <Stepper value={pick[t]} max={avail[t]} onChange={(n) => setPick({ ...pick, [t]: n })} label={UNITS[t].plural} />
-                  </label>
-                ))}
-              </div>
-              {invading && (
-                <>
-                  <OddsLine odds={attackOdds(view, from.id, target.id, total ? pick : avail)} />
-                  {!total && <p className="muted small">That&rsquo;s with everyone rested here. Pick who goes, or tap All.</p>}
-                </>
-              )}
-              <div className="form-actions">
-                <button type="button" className="btn ghost small" onClick={() => setPick({ ...avail })}>All</button>
-                <button
-                  className={`btn${invading ? " danger" : ""}`}
-                  disabled={busy || !total || Boolean(blocked)}
-                  onClick={async () => {
-                    if (await act({ type: "move", from: from.id, to: target.id, units: pick })) {
-                      setPick({ panda: 0, armedPanda: 0, nacam: 0, cam: 0 });
-                      setDest(null);
-                    }
-                  }}
-                >
-                  {blocked ? "You have a pact 🤝" : invading ? `Invade ${regionName(target.id)}` : `Send to ${regionName(target.id)}`}
-                </button>
-              </div>
-            </>
-          )}
+          <p className="small">
+            <strong>{ready} ready to go</strong> ({unitLine(avail)}).{" "}
+            {lines.length
+              ? `Gondola lines to ${lines.map((n) => regionName(view, n)).join(", ")}.`
+              : "No gondola lines from here yet: gondolas are the only way to move troops, and you can build one on the way."}
+          </p>
+          <button className="btn" disabled={busy} onClick={() => startMove(from.id)}>
+            🚡 Move troops from {regionName(view, from.id)}
+          </button>
         </>
       )}
     </section>
@@ -322,7 +366,7 @@ function Gondolas({ ctx, from }: { ctx: Ctx; from: RegionView }) {
           const line = view.lines.find((l) => l.id === lineId(from.id, n));
           return (
             <li key={n}>
-              <span>{regionName(n)}</span>
+              <span>{regionName(view, n)}</span>
               {line ? (
                 <span className="muted small">{line.owner === view.me ? "✅ your line" : `${playerName(view, line.owner)}'s line`}</span>
               ) : (
@@ -431,7 +475,7 @@ function HeroMoves({ ctx, region, heroes, startThunder }: { ctx: Ctx; region: Re
           <div className="dest-list">
             {dests.map((d) => (
               <button key={d} className="chip" disabled={busy || view.heroes[h].movedTurn === view.turn} onClick={() => act({ type: "moveHero", hero: h, to: d })}>
-                ➡️ {regionName(d)}
+                ➡️ {regionName(view, d)}
               </button>
             ))}
             {h === "casey" && (
@@ -449,13 +493,13 @@ function HeroMoves({ ctx, region, heroes, startThunder }: { ctx: Ctx; region: Re
 function InvadeHint({ ctx, target, planAttack }: { ctx: Ctx; target: RegionView; planAttack: (from: string, to: string) => void }) {
   const { view } = ctx;
   const from = NEIGHBORS.get(target.id)!.filter((n) => regionView(view, n).owner === view.me);
-  if (!from.length) return <p className="muted">You don&rsquo;t border {regionName(target.id)} yet.</p>;
+  if (!from.length) return <p className="muted">You don&rsquo;t border {regionName(view, target.id)} yet.</p>;
   return (
     <section className="act">
-      <h3>⚔️ Invade {regionName(target.id)}</h3>
+      <h3>⚔️ Invade {regionName(view, target.id)}</h3>
       {from.map((f) => (
         <p key={f} className="small">
-          From {regionName(f)}:{" "}
+          From {regionName(view, f)}:{" "}
           {usableLine(view, f, target.id) ? (
             <>
               <button className="btn small danger" onClick={() => planAttack(f, target.id)}>
@@ -464,7 +508,7 @@ function InvadeHint({ ctx, target, planAttack }: { ctx: Ctx; target: RegionView;
               <OddsInline odds={attackOdds(view, f, target.id, rested(regionView(view, f)))} />
             </>
           ) : (
-            <span className="muted">build a gondola line first (select {regionName(f)})</span>
+            <span className="muted">build a gondola line first (select {regionName(view, f)})</span>
           )}
         </p>
       ))}
@@ -481,7 +525,7 @@ export function HeroesPanel({ ctx, selected }: { ctx: Ctx; selected: string | nu
   return (
     <div className="panel-body">
       <h2>Hall of Heroes</h2>
-      <p className="muted small">One of each in the whole world. Heroes arrive in {regionName(home)} (select one of your regions to change that). Beaten heroes flee back here, except Casey, who is captured.</p>
+      <p className="muted small">One of each in the whole world. Heroes arrive in {regionName(view, home)} (select one of your regions to change that). Beaten heroes flee back here, except Casey, who is captured.</p>
       {HERO_IDS.map((h) => {
         const hero = view.heroes[h];
         const info = HEROES[h];
@@ -497,7 +541,7 @@ export function HeroesPanel({ ctx, selected }: { ctx: Ctx; selected: string | nu
               {hero.owner ? (
                 <p className="small">
                   Fights for <strong>{playerName(view, hero.owner)}</strong>
-                  {hero.region ? ` in ${regionName(hero.region)}` : ""}
+                  {hero.region ? ` in ${regionName(view, hero.region)}` : ""}
                 </p>
               ) : (
                 <div className="form-actions">
@@ -598,7 +642,7 @@ export function DiplomacyPanel({ ctx, selected }: { ctx: Ctx; selected: string |
               )}
               {p.id !== view.me && myTurn && (
                 <div className="loan-row">
-                  <span className="small">🐼 Loan pandas from {regionName(loanFrom)}</span>
+                  <span className="small">🐼 Loan pandas from {regionName(view, loanFrom)}</span>
                   <Stepper value={Math.min(loanN, Math.max(1, loanAvail))} min={1} max={Math.max(1, loanAvail)} onChange={setLoanN} label="pandas to loan" />
                   <button className="btn small" disabled={busy || loanAvail < 1} onClick={() => act({ type: "offerLoan", to: p.id, region: loanFrom, count: Math.min(loanN, loanAvail) })}>
                     Offer loan
@@ -775,7 +819,7 @@ const LOG_FILTERS: Record<string, { label: string; types?: string[]; mine?: bool
   all: { label: "All" },
   battles: { label: "⚔️ Battles", types: ["battle", "capture", "thunder", "heroCaptured", "heroFled", "asylum"] },
   diplomacy: { label: "🤝 Diplomacy", types: ["offer", "pact", "loan", "betrayal", "trade", "decline", "pickpocket"] },
-  world: { label: "🌍 World", types: ["world", "roll", "raid", "join", "leave", "skip"] },
+  world: { label: "🌍 World", types: ["world", "roll", "raid", "join", "leave", "skip", "rename"] },
   mine: { label: "🙋 Mine", mine: true },
 };
 
