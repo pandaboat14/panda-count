@@ -9,6 +9,18 @@ export type Release = {
 export const RELEASES: Release[] = [
   {
     date: "2026-09-26",
+    title: "Buildings you can see, troops you can drag",
+    notes: [
+      "Buildings stand on the globe as little 3D models, each with a pin showing its icon: a pagoda with a panda in its bamboo, a gym with a giant barbell on the roof, a striped market stall, and stone walls round the whole region for a fort.",
+      "A new 🏗️ Build tab lists every building with what it does, what it costs and where you already have one. Pick one, tap a glowing region, and watch it rise out of the ground.",
+      "Troops are easy to spot. Zoomed out, each army is one big figure with a banner showing how many are there. Zoom in and you see the squad itself, mixed like the real army: pandas with bamboo, armed pandas in tin helmets, club-swinging ogres and flexing CAMs.",
+      "Drag your troops to move them: on your turn, grab an army and drop it on a glowing region it can reach by gondola. Red means invade, and you see your odds before anyone sets off.",
+      "The camera leans in as you zoom, so you see everything from the side. Each hex's number now sits at its front tip, where nothing can hide it, and gondola cables leave from a mast so they pass over the buildings.",
+      "Battle replays use the new figures.",
+    ],
+  },
+  {
+    date: "2026-09-26",
     title: "Autopilot",
     pr: 13,
     notes: [

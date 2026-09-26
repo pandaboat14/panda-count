@@ -64,6 +64,10 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
           your own land to reinforce, or into anyone else&rsquo;s to invade. Units can ride one line per turn, and fresh recruits rest until
           next turn.
         </p>
+        <p>
+          <strong>Drag to move:</strong> on your turn, grab one of your armies on the globe and drop it on a glowing region it can reach.
+          Red means invade. A card asks who goes (everyone rested, to start with) and shows your chance to win before anyone sets off.
+        </p>
         <h3>⚔️ Battles</h3>
         <p>
           Open the <strong>⚔️ Army</strong> tab to see all your troops, where they are and which regions are at risk, your battle record,
@@ -84,6 +88,10 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
           ))}
         </ul>
         <h3>Buildings</h3>
+        <p>
+          Open the <strong>🏗️ Build</strong> tab: pick a building, tap one of your glowing regions, and it goes up on the globe. Each region
+          holds one of each.
+        </p>
         <ul>
           {BUILDING_TYPES.map((b) => (
             <li key={b}>

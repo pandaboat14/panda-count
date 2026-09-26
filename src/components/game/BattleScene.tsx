@@ -68,9 +68,9 @@ function Trooper({ soldier, x, z, facing, step, color, still }: { soldier: Soldi
     ref.current.position.y += ((dead ? -0.03 : 0) - ref.current.position.y) * k;
   });
   return (
-    <group position={[x, 0, z]} rotation={[0, facing > 0 ? -Math.PI / 2 : Math.PI / 2, 0]}>
+    <group position={[x, 0, z]} rotation={[0, facing > 0 ? -Math.PI / 2 + 0.55 : Math.PI / 2 - 0.55, 0]}>
       <group ref={ref} scale={2.2}>
-        <Figure kind={soldier.type} />
+        <Figure kind={soldier.type} color={color} />
         <mesh position={[0, 0.005, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <circleGeometry args={[0.06, 16]} />
           <meshBasicMaterial color={color} />

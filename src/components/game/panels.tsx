@@ -36,7 +36,7 @@ export type Ctx = {
 };
 
 export const regionName = (id: string) => REGION_BY_ID.get(id)?.name ?? id;
-const NATIVE_LABEL = { pandas: "the Panda Nation 🐼", nacams: "the NACAM Ogre Nation 👹", cams: "the CAM Nation 💪", wild: "wild pandas" } as const;
+export const NATIVE_LABEL = { pandas: "the Panda Nation 🐼", nacams: "the NACAM Ogre Nation 👹", cams: "the CAM Nation 💪", wild: "wild pandas" } as const;
 
 export function meOf(view: GameView) {
   return view.players.find((p) => p.id === view.me)!;
@@ -55,12 +55,12 @@ export function usableLine(view: GameView, a: string, b: string) {
 export function inPact(view: GameView, other: string) {
   return view.pacts.some((p) => (p.a === view.me && p.b === other) || (p.b === view.me && p.a === other));
 }
-const rested = (r: RegionView): Units => {
+export const rested = (r: RegionView): Units => {
   const out = { panda: 0, armedPanda: 0, nacam: 0, cam: 0 };
   for (const t of UNIT_TYPES) out[t] = (r.units?.[t] ?? 0) - (r.tired?.[t] ?? 0);
   return out;
 };
-const unitLine = (u?: Partial<Units>) =>
+export const unitLine = (u?: Partial<Units>) =>
   UNIT_TYPES.filter((t) => (u?.[t] ?? 0) > 0).map((t) => `${u![t]} ${UNITS[t].icon}`).join("  ") || "nobody";
 
 // ---------------------------------------------------------------- shared
