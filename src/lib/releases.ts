@@ -9,6 +9,24 @@ export type Release = {
 export const RELEASES: Release[] = [
   {
     date: "2026-09-26",
+    title: "A clearer turn: the Actions menu",
+    notes: [
+      "Your turn starts with one question: What do you want to do? The 🎯 Actions menu lists Attack, Move troops, Build, Recruit, Heroes, Diplomacy, Bank and End turn, and says what each can do for you right now. It takes over from the Plan, Region, Build, Heroes, Kirds and Bank tabs, so everything is in one place.",
+      "Every action walks you through it a step at a time (Attack: target, where from, who goes, confirm), with a step bar you can tap to go back. Before you confirm you see exactly what will happen, what it costs and what you'll have left.",
+      "Every action ends with a result screen showing what changed, and the map lights up where it happened. Capture a region and the result screen offers to rename it there and then.",
+      "Build is one tap from the menu: pick a building by its picture, and see-through ones float over every region it could go in. Confirm, and it rises out of the ground.",
+      "🚡 Move troops next to End turn, and dragging an army on the globe, open the same steps. The globe rings every choice: gold for your regions, blue for your land, red to invade (with your chance to win), and dashed where a gondola line has to go first. A glowing arrow shows the move or attack you're planning.",
+      "Fixed: clicking from one of your regions to another sometimes kept showing the first one. A click on a region now always opens its page: who holds it, its troops and how many are ready, what it pays, what protects it, what's next door, and what you can do there. Rename land you conquered from its page too.",
+      "Your land lists every region you hold with its troops, how many are ready to move and which are at risk. Tap one to fly there, or use ‹ › on a region's page to hop between yours. On the globe your regions wear name tags, with a green dot when troops there are ready.",
+      "End turn shows what you haven't used yet (ready troops, attacks you could make, offers waiting) and what you'll collect next turn, including any ogres you can't pay.",
+      "The Kirds' Tribunal sits at the top of 🤝 Diplomacy, and the ⚖️ notes under your goods take you straight there. Attack steps show what an invasion will do to your 🩸 Bloodthirst, with a ⚖️ on any that would put you on trial, and anything a war crimes sentence forbids is greyed out with the reason.",
+      "A new 🗺️ Map key explains every colour, ring and marker.",
+      "Fixed: your chance to win is the same number in the attack list, on the map while you drag, and when you pick who goes.",
+      "Fixed: on phones, the buttons at the top of a game no longer land on top of your goods.",
+    ],
+  },
+  {
+    date: "2026-09-26",
     title: "War crimes and the Kirds' Tribunal",
     notes: [
       "Attack other Kirds too often and the rest of the world can put you on trial for war crimes. Every Kird has a 🩸 Bloodthirst meter: each invasion of another Kird's land, or Thunder on it, adds 1 (2 if they hold less than half as many regions as you), and it counts for 3 rounds.",

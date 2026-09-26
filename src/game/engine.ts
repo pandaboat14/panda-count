@@ -1579,6 +1579,7 @@ export type PlayerView = {
   thunderReadyTurn?: number;
   pickpocketTurn?: number;
   oathbreaker: boolean;
+  oathbreakerUntilRound?: number; // only your own: the last round your PandaCoin income is halved
   lastTurnEndSeq?: number;
   // War crimes are public: every attack between Kirds is announced anyway.
   bloodthirst: number;
@@ -1646,6 +1647,7 @@ export function viewFor(s: GameState, pid: string): GameView {
             capital: p.capital,
             thunderReadyTurn: p.thunderReadyTurn,
             pickpocketTurn: p.pickpocketTurn,
+            oathbreakerUntilRound: p.oathbreakerUntilRound,
             lastTurnEndSeq: p.lastTurnEndSeq,
             crimes: recentCrimes(p, s.round).map((c) => ({ ...c })),
             grudges: Object.fromEntries(

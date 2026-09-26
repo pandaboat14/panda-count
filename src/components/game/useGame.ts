@@ -148,6 +148,8 @@ export function useGame(initial: GamePayload) {
     async (action: Action): Promise<GameEvent[] | false> => {
       setBusy(true);
       setError(null);
+      // What was new before this move: a poll that lands while it's in flight mustn't hide the move's own events.
+      const top = newestSeq.current;
       try {
         const res = await robustFetch(`/api/game/${initial.id}`, {
           method: "POST",
@@ -161,7 +163,6 @@ export function useGame(initial: GamePayload) {
         }
         const payload = data as GamePayload;
         setSavedAt(Date.now());
-        const top = newestSeq.current;
         const fresh = payload.events.filter((e) => e.seq > top);
         merge(payload);
         return fresh;

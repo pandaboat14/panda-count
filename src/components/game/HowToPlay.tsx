@@ -34,8 +34,11 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
           everyone gets one last round to stop you. Expect a long war, like Risk or Catan.
         </p>
         <p>
-          <strong>Stuck?</strong> Open the <strong>💡 Plan</strong> tab and ask Sun Tzu. On your turn he suggests your best next moves
-          (with a saying or two), and one tap does them. Your first big choice is where to build your first gondola line.
+          <strong>Everything you can do</strong> is in the <strong>🎯 Actions</strong> menu, which asks one question:{" "}
+          <em>What do you want to do?</em> Attack, Move troops, Build, Recruit, Heroes, Diplomacy, Bank or End turn. Each one walks you
+          through it a step at a time, shows exactly what will happen (and what it costs) before you confirm, then shows you what
+          happened. <strong>Stuck?</strong> Sun Tzu suggests your best next move at the top of the menu. Your first big choice is where to
+          build your first gondola line.
         </p>
         <h3>Your turn</h3>
         <ol>
@@ -59,13 +62,24 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
             Market, 2 with Ping), and changes currencies. Any button you&rsquo;re short for offers to buy what&rsquo;s missing first.
           </li>
           <li>
-            <strong>Do anything, in any order:</strong> build gondolas, recruit, build, move troops and invade (tap 🚡 Move troops), trade,
-            hire heroes, loan pandas.
+            <strong>Do anything, in any order</strong> from the 🎯 Actions menu: build gondolas, recruit, build, move, invade, trade, hire
+            heroes, loan pandas.
           </li>
-          <li>Hit <strong>End turn</strong>. The next Kird gets a replay of everything they&rsquo;re allowed to see.</li>
+          <li>
+            Hit <strong>End turn</strong>. It first shows what you haven&rsquo;t used yet (ready troops, attacks, offers) and what you&rsquo;ll
+            collect next turn. The next Kird gets a replay of everything they&rsquo;re allowed to see.
+          </li>
         </ol>
         <p>
           Not sure what a 🎋 or 💪 is? Tap <strong>▾ What are these?</strong> under your goods for how to earn each one and what it buys.
+        </p>
+        <h3>🗺️ Finding your way</h3>
+        <p>
+          Tap any region on the globe to see everything about it: who holds it, the troops there and how many are ready to move, what it
+          pays, what protects it, what&rsquo;s next door, and what you can do there. Your regions wear name tags in your colour and a
+          white edge, and <strong>Your land</strong> (top left) lists them all with their troops and any danger: tap one to fly there, or use
+          ‹ › on a region to hop between yours. When a step asks you to pick a region, the ones you can pick glow, and an arrow shows the
+          attack or move you&rsquo;re planning. The <strong>🗺️ Map key</strong> explains every colour and marker.
         </p>
         <h3>🤖 Computer players</h3>
         <p>
@@ -76,44 +90,41 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
         </p>
         <h3>🚩 Your land</h3>
         <p>
-          Every region you hold flies your flag (your colour with a white star, on a gold pole) and wears a thick glowing border in your
-          colour. Other Kirds&rsquo; flags carry their initial. Tap <strong>Your land</strong> under your goods to visit your regions one by
-          one.
+          Every region you hold flies your flag (your colour with a white star, on a gold pole), wears a thick glowing border in your
+          colour and a name tag with its troops. Other Kirds&rsquo; flags carry their initial. <strong>Your land</strong> under your goods
+          lists every region you hold.
         </p>
-        <h3>🚡 Moving troops</h3>
+        <h3>🚡 Moving troops and invading</h3>
         <p>
           Urban gondolas are the <strong>only</strong> way to move troops. Build a line from one of your regions to a neighbour, then send
           troops along it: into your own land to reinforce, or into anyone else&rsquo;s to invade.
         </p>
         <ol>
           <li>
-            <strong>Start:</strong> tap <strong>🚡 Move troops</strong> next to End turn (or <strong>Move troops from here</strong> in a
-            region&rsquo;s panel).
+            <strong>Start:</strong> tap <strong>🚡 Move troops</strong> next to End turn, or <strong>⚔️ Attack</strong> in the 🎯 Actions
+            menu (a region&rsquo;s page has both too).
           </li>
           <li>
-            <strong>From:</strong> tap one of your regions. Gold rings show the ones with troops ready to go.
+            <strong>Pick where from and where to</strong>, on the globe or in the list. Gold rings are your regions with troops ready, blue
+            is your own land, red is an invasion (with your chance to win), and a dashed ring needs a gondola line first: the next step
+            builds it.
           </li>
           <li>
-            <strong>To:</strong> tap a ringed neighbour. Blue is your own land, red is an invasion, with your chance to win. A dashed ring
-            needs a gondola line first, and one tap builds it.
+            <strong>Who goes:</strong> pick the troops. Your chance to win changes as you pick.
           </li>
           <li>
-            <strong>Who goes:</strong> pick the troops, then press Send or Invade.
-          </li>
-          <li>
-            <strong>Stop:</strong> tap <strong>✕ Stop moving</strong> (or press Esc) when you&rsquo;re done.
+            <strong>Confirm</strong>, and see what happened. ← Back, ✕ or Esc steps out at any point.
           </li>
         </ol>
         <p>Units can ride one line per turn, and fresh recruits rest until next turn.</p>
         <p>
           <strong>Or drag them:</strong> on your turn, grab one of your armies on the globe and drop it on a ringed region it can reach.
-          The move bar opens at <strong>Who goes</strong>, with everyone who&rsquo;s ready picked and your chance to win if it&rsquo;s an
-          invasion.
+          You go straight to <strong>Who goes</strong>, with your chance to win if it&rsquo;s an invasion.
         </p>
         <h3>✏️ Renaming what you conquer</h3>
         <p>
           Conquerors name what they take. When you capture a region you&rsquo;re offered the chance to rename it, or keep its name, and you
-          can rename it again from its panel for as long as you hold it. Names are public, so everyone sees them, even through the fog, and
+          can rename it again from its page for as long as you hold it. Names are public, so everyone sees them, even through the fog, and
           whoever takes the region next can rename it in turn. The land you start with wasn&rsquo;t conquered, so it keeps its name.
         </p>
         <h3>⚔️ Battles</h3>
@@ -137,7 +148,8 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
         </ul>
         <h3>Buildings</h3>
         <p>
-          Open the <strong>🏗️ Build</strong> tab: pick a building, tap one of your glowing regions, and it goes up on the globe. Each region
+          Tap <strong>🏗️ Build</strong> in the 🎯 Actions menu and pick a building: each one shows a picture, what it does and what it
+          costs. See-through ones float over every region it could go in; tap one, confirm, and it rises out of the ground. Each region
           holds one of each.
         </p>
         <ul>
@@ -174,8 +186,8 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
             attacking the Kird about to win, and attacking a convicted war criminal. Natives never count.
           </li>
           <li>
-            <strong>⚖️ The trial.</strong> Reach {TRIAL_AT} and you&rsquo;re on trial. Everyone else votes Guilty or Not guilty in the 🤝 Kirds
-            tab, whenever they like, before your next turn starts; the verdict comes early once they all have. Ballots are secret and can
+            <strong>⚖️ The trial.</strong> Reach {TRIAL_AT} and you&rsquo;re on trial. Everyone else votes Guilty or Not guilty in 🤝 Diplomacy (the ⚖️ note
+            under your goods takes you there), whenever they like, before your next turn starts; the verdict comes early once they all have. Ballots are secret and can
             be changed until the verdict. Most votes wins, and a tie or an empty ballot box means Not guilty. Attacks you make while on
             trial are added to the charges. Whatever the verdict, it wipes your Bloodthirst clean.
           </li>

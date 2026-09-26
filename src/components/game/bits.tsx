@@ -40,10 +40,6 @@ export function affordable(cost: Cost, have?: Partial<Record<Good, number>>) {
   return GOODS.every((g) => (have[g] ?? 0) >= (cost[g] ?? 0));
 }
 
-export function times(cost: Cost, n: number): Cost {
-  return Object.fromEntries(Object.entries(cost).map(([g, v]) => [g, (v ?? 0) * n])) as Cost;
-}
-
 export function Stepper({ value, min = 0, max, onChange, label }: { value: number; min?: number; max: number; onChange: (n: number) => void; label: string }) {
   return (
     <span className="stepper" aria-label={label}>

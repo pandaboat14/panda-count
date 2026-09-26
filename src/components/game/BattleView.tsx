@@ -7,10 +7,10 @@ import { battleScript } from "@/game/battleScript";
 import { placeName } from "@/game/regions";
 import { UNITS, UNIT_TYPES } from "@/game/rules";
 import { SceneBoundary } from "../SceneBoundary";
+import { NATIVE_COLORS } from "./colors";
 
 const BattleScene = dynamic(() => import("./BattleScene"), { ssr: false, loading: () => null });
 
-const NATIVE_COLORS: Record<string, string> = { pandas: "#f7f4ec", nacams: "#6f8a3a", cams: "#e8b64a", wild: "#c9d6bf" };
 const STEP_MS = 1700;
 
 const lineup = (u: Partial<Record<string, number>>) =>
@@ -37,7 +37,7 @@ export function BattleView({ event, view, still, onClose }: { event: GameEvent; 
   const attacker = view.players.find((p) => p.id === event.actor);
   const defender = view.players.find((p) => p.id === data.defender);
   const atkColor = attacker?.color ?? "#888";
-  const defColor = defender?.color ?? NATIVE_COLORS[data.defender ?? "wild"] ?? "#bbb";
+  const defColor = defender?.color ?? NATIVE_COLORS[(data.defender ?? "wild") as keyof typeof NATIVE_COLORS] ?? "#bbb";
   const current = step > 0 ? steps[step - 1] : null;
   const meWon = (event.actor === view.me && data.won) || (data.defender === view.me && !data.won);
   const meInvolved = event.actor === view.me || data.defender === view.me;

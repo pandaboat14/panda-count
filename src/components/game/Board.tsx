@@ -24,6 +24,7 @@ import { makeEarthTexture } from "@/components/globe/textures";
 import { restedIn } from "@/game/army";
 import { unitTotal, type GameView, type RegionView, type Units } from "@/game/engine";
 import { attackOdds } from "@/game/odds";
+import { keepOneHome } from "@/game/turnOptions";
 import { lineEnds, placeName, REGION_BY_ID } from "@/game/regions";
 import { BUILDINGS, HEROES, HERO_IDS, type BuildingType } from "@/game/rules";
 import { EMPTY_RIM, FOG_COLORS, NATIVE_COLORS, RESOURCE_COLORS } from "./colors";
@@ -65,13 +66,20 @@ export type BoardLabel = { id: string; text: string; tone?: MarkKind | "named" }
 export type Placing = { type: BuildingType; sites: string[]; site: string | null };
 // A building that just went up, so the board can raise it out of the ground.
 export type Built = { region: string; building: BuildingType; seq: number };
+// A planned attack, move or gondola line, drawn as an arrow between two regions.
+export type Route = { from: string; to: string; tone: Highlight["tone"] };
+// A few words that float up from a region when something just happened there.
+export type Burst = { key: string; region: string; text: string; tone: Highlight["tone"] };
 
 type Props = {
   view: GameView;
   selected: string | null;
-  marks: Record<string, MarkKind>;
+  marks: Record<string, MarkKind>; // regions you can pick for the current step, and what picking does
   labels: BoardLabel[];
   highlight: Highlight | null;
+  route: Route | null;
+  bursts: Burst[];
+  myTurn: boolean;
   focus: { lat: number; lng: number; seq: number } | null;
   still: boolean;
   placing: Placing | null;
@@ -196,7 +204,7 @@ function CameraRig({ start, focus, still, children }: { start: Vector3; focus: P
 
 const HIDDEN = new MeshBasicMaterial({ visible: false });
 
-function World({ view, selected, marks, labels, highlight, still, placing, built, movable, onSelect, onDrop }: Omit<Props, "onReady" | "focus">) {
+function World({ view, selected, marks, labels, highlight, route, bursts, myTurn, still, placing, built, movable, onSelect, onDrop }: Omit<Props, "onReady" | "focus">) {
   const earth = useMemo(() => makeEarthTexture(), []);
   useEffect(() => () => earth.dispose(), [earth]);
   const colorOf = useMemo(() => new Map(view.players.map((p) => [p.id, p.color])), [view.players]);
@@ -242,7 +250,9 @@ function World({ view, selected, marks, labels, highlight, still, placing, built
   const dragTargets = dragFrom ? movable.get(dragFrom) : undefined;
   const drag = useMemo(() => {
     if (!dragFrom || !dragTargets) return null;
-    const ready = restedIn(view.regions.find((r) => r.id === dragFrom)!);
+    const home = view.regions.find((r) => r.id === dragFrom)!;
+    // The same troops "who goes" starts with once you drop them, so the odds match.
+    const send = keepOneHome(home, restedIn(home));
     const out: { marks: Record<string, MarkKind>; labels: BoardLabel[] } = { marks: {}, labels: [] };
     for (const id of dragTargets) {
       const r = view.regions.find((x) => x.id === id)!;
@@ -251,7 +261,7 @@ function World({ view, selected, marks, labels, highlight, still, placing, built
         out.marks[id] = "move";
         out.labels.push({ id, text: `➡️ ${name}`, tone: "move" });
       } else {
-        const odds = attackOdds(view, dragFrom, id, ready, 120);
+        const odds = attackOdds(view, dragFrom, id, send);
         out.marks[id] = "attack";
         out.labels.push({ id, text: `⚔️ ${name}${odds ? ` · ${Math.round(odds.win * 100)}%` : ""}`, tone: "attack" });
       }
@@ -297,8 +307,18 @@ function World({ view, selected, marks, labels, highlight, still, placing, built
         );
       })}
       {highlight?.regions.map((id) => <Pulse key={`${id}-${highlight.tone}`} id={id} tone={highlight.tone} still={still} />)}
+      {view.regions
+        .filter((r) => r.owner === view.me && !(drag && dragTargets?.includes(r.id)))
+        .map((r) => (
+          <NameTag key={r.id} region={r} color={colorOf.get(view.me) ?? "#888"} myTurn={myTurn} onSelect={onSelect} />
+        ))}
       {shownLabels.map((l) => (
         <Label key={`${l.id}:${l.text}`} {...l} />
+      ))}
+      {selected && <Selection id={selected} still={still} />}
+      {route && !dragging && <Arrow route={route} still={still} />}
+      {bursts.map((b) => (
+        <BurstTag key={b.key} burst={b} />
       ))}
       {dragging && <DragArc from={dragging.from} over={dragging.over} tip={tip} still={still} />}
     </group>
@@ -658,8 +678,8 @@ function useFacing(at: Vector3, show: (visible: boolean) => void) {
   useFrame(({ camera }) => show(toCamera.copy(camera.position).sub(at).normalize().dot(normal) > 0.03));
 }
 
-function useFacingElement(at: Vector3) {
-  const el = useRef<HTMLDivElement>(null);
+function useFacingElement<T extends HTMLElement = HTMLDivElement>(at: Vector3) {
+  const el = useRef<T>(null);
   const shown = useRef(true);
   useFacing(at, (visible) => {
     if (!el.current || shown.current === visible) return;
@@ -700,16 +720,126 @@ function HeroIcons({ heroes, at }: { heroes: string[]; at: Vector3 }) {
   );
 }
 
-// A name tag just south of the hex, below its number.
-function Label({ id, text, tone }: BoardLabel) {
+// Where a region's name tag sits: just south of the hex, below its number.
+function useTagSpot(id: string) {
   const { pos, q } = useSurface(id);
-  const at = useMemo(() => pos.clone().add(new Vector3(0, 0.02, TILE * 1.95).applyQuaternion(q)), [pos, q]);
+  return useMemo(() => pos.clone().add(new Vector3(0, 0.02, TILE * 1.95).applyQuaternion(q)), [pos, q]);
+}
+
+function Label({ id, text, tone }: BoardLabel) {
+  const at = useTagSpot(id);
   const el = useFacingElement(at);
   return (
     <Html position={at} center zIndexRange={[20, 0]} pointerEvents="none">
       <div ref={el} className={`board-label${tone ? ` ${tone}` : ""}`}>
         {text}
       </div>
+    </Html>
+  );
+}
+
+// Your region's name and troops, with a green dot when some can move this turn. Tap it to open the region.
+function NameTag({ region, color, myTurn, onSelect }: { region: RegionView; color: string; myTurn: boolean; onSelect: (id: string) => void }) {
+  const at = useTagSpot(region.id);
+  const el = useFacingElement<HTMLButtonElement>(at);
+  const total = region.units ? unitTotal(region.units) : 0;
+  const ready = myTurn ? unitTotal(restedIn(region)) : 0;
+  return (
+    <Html position={at} center zIndexRange={[20, 0]}>
+      <button
+        ref={el}
+        type="button"
+        tabIndex={-1}
+        aria-hidden="true"
+        className="map-tag"
+        style={{ "--tag": color } as React.CSSProperties}
+        onClick={() => onSelect(region.id)}
+      >
+        <span className="map-tag-name">{placeName(region.id, region.name)}</span>
+        <span className="map-tag-n">{total}</span>
+        {ready > 0 && <span className="map-tag-ready" />}
+      </button>
+    </Html>
+  );
+}
+
+// The region you're looking at: a pin bobbing over the east side of its hex, clear of the buildings, the army,
+// the number and the flag.
+const PIN = "#22d3ee";
+function Selection({ id, still }: { id: string; still: boolean }) {
+  const { pos, q } = useSurface(id);
+  const pin = useRef<Group>(null);
+  useFrame(({ clock }) => {
+    if (pin.current) pin.current.position.y = 0.3 + (still ? 0 : Math.abs(Math.sin(clock.elapsedTime * 3)) * 0.06);
+  });
+  return (
+    <group position={pos} quaternion={q}>
+      <group position={[TILE * 0.95, 0, TILE * 0.05]}>
+        <group ref={pin}>
+          <mesh position={[0, 0.07, 0]}>
+            <sphereGeometry args={[0.045, 16, 12]} />
+            <meshStandardMaterial color={PIN} emissive={PIN} emissiveIntensity={0.45} />
+          </mesh>
+          <mesh rotation={[Math.PI, 0, 0]}>
+            <coneGeometry args={[0.03, 0.11, 12]} />
+            <meshStandardMaterial color={PIN} emissive={PIN} emissiveIntensity={0.45} />
+          </mesh>
+        </group>
+      </group>
+    </group>
+  );
+}
+
+// An arc lifted off the globe between two points on it.
+function arcBetween(va: Vector3, vb: Vector3, lift: number, steps = 32) {
+  const height = lift + va.distanceTo(vb) * 0.12;
+  const pts: Vector3[] = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const r = va.length() + (vb.length() - va.length()) * t;
+    pts.push(va.clone().lerp(vb, t).normalize().multiplyScalar(r + Math.sin(Math.PI * t) * height));
+  }
+  return new CatmullRomCurve3(pts);
+}
+
+// The attack, move or line you're planning: a glowing arc from the army to where it's going, with an arrowhead
+// and a spark running along it.
+function Arrow({ route, still }: { route: Route; still: boolean }) {
+  const curve = useMemo(() => arcBetween(hexPoint(route.from, 0.12, SLOTS.army), hexPoint(route.to, 0.08, [0, 0]), 0.22), [route.from, route.to]);
+  const head = useMemo(() => {
+    const at = curve.getPointAt(0.86);
+    const dir = curve.getTangentAt(0.86).normalize();
+    return { at, q: new Quaternion().setFromUnitVectors(UP, dir) };
+  }, [curve]);
+  const spark = useRef<Mesh>(null);
+  useFrame(({ clock }) => {
+    if (spark.current) spark.current.position.copy(curve.getPointAt(still ? 0.5 : (clock.elapsedTime * 0.7) % 0.86));
+  });
+  const color = TONES[route.tone];
+  return (
+    <group>
+      <mesh>
+        <tubeGeometry args={[curve, 48, 0.022, 8, false]} />
+        <meshBasicMaterial color={color} transparent opacity={0.9} toneMapped={false} />
+      </mesh>
+      <mesh position={head.at} quaternion={head.q}>
+        <coneGeometry args={[0.08, 0.2, 16]} />
+        <meshBasicMaterial color={color} toneMapped={false} />
+      </mesh>
+      <mesh ref={spark}>
+        <sphereGeometry args={[0.035, 12, 8]} />
+        <meshBasicMaterial color="#fffaf3" toneMapped={false} />
+      </mesh>
+    </group>
+  );
+}
+
+// "Captured!", "+3 🐼", "🏪 Built!": floats up from where it happened, then fades.
+function BurstTag({ burst }: { burst: Burst }) {
+  const { pos } = useSurface(burst.region, 0.45);
+  return (
+    <Html position={pos} center zIndexRange={[40, 0]}>
+      <div className={`map-burst ${burst.tone}`}>{burst.text}</div>
     </Html>
   );
 }

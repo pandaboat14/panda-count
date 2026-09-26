@@ -1,4 +1,4 @@
-// Little pictures of each building for the Build tab, drawn once with the same 3D models as the board.
+// Little pictures of each building for the Build steps, drawn once with the same 3D models as the board.
 import { ACESFilmicToneMapping, AmbientLight, CylinderGeometry, DirectionalLight, Group, Mesh, MeshStandardMaterial, PerspectiveCamera, Scene, WebGLRenderer } from "three";
 import { BUILDING_TYPES, type BuildingType } from "@/game/rules";
 import { blobShadow, buildingBody } from "./models";

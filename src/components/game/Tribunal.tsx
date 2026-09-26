@@ -12,7 +12,7 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const playerName = (view: GameView, id: string | null | undefined) => view.players.find((p) => p.id === id)?.name ?? "a Kird who left";
 const regionName = (view: GameView, id: string) => placeName(id, view.regions.find((r) => r.id === id)?.name);
 
-// The Kirds' Tribunal, at the top of the Kirds tab: every open war crimes trial, its charges, and your ballot.
+// The Kirds' Tribunal, at the top of Diplomacy: every open war crimes trial, its charges, and your ballot.
 export function Tribunal({ ctx }: { ctx: Ctx }) {
   const { view } = ctx;
   if (!view.trials.length) return null;
@@ -127,7 +127,7 @@ function Ballot({ ctx, trial, name }: { ctx: Ctx; trial: TrialView; name: string
 }
 
 // Status pills under the goods bar: your own trial, votes waiting for you, and any sentence you're serving.
-// Each one opens the Kirds tab, where the Tribunal sits.
+// Each one opens Diplomacy, where the Tribunal sits.
 export function TribunalPills({ view, onOpen }: { view: GameView; onOpen: () => void }) {
   const me = view.players.find((p) => p.id === view.me);
   const pills: { key: string; text: string; tone: string }[] = [];
