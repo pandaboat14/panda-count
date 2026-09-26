@@ -25,13 +25,18 @@ export function battleScript(b: BattleData) {
   const alive = (side: "atk" | "def") => soldiers.filter((s) => s.side === side && s.diesAt === null);
   const steps: Step[] = [];
 
+  // Nobody dies beyond the recorded losses: in Pokémon-style battles (v2) a lost pair doesn't always cost a unit.
+  const dead = (side: "atk" | "def", t: UnitType) => soldiers.filter((s) => s.side === side && s.type === t && s.diesAt !== null).length;
+  const canLose = (s: Soldier) => dead(s.side, s.type) < (s.side === "atk" ? b.attackerLost : b.defenderLost)[s.type];
+
   for (const round of b.rolls) {
     const kills: string[] = [];
     const n = Math.min(round.a.length, round.d.length);
     for (let i = 0; i < n; i++) {
       const loserSide = round.a[i] > round.d[i] ? "def" : "atk";
-      const pool = alive(loserSide);
-      if (!pool.length) break;
+      if (!alive(loserSide).length) break;
+      const pool = alive(loserSide).filter(canLose);
+      if (!pool.length) continue;
       const victim = weakest(pool, loserSide === "atk" ? "attack" : "defense");
       victim.diesAt = steps.length;
       kills.push(victim.id);

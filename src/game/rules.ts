@@ -139,6 +139,13 @@ export const HEROES: Record<HeroId, { name: string; title: string; icon: string;
 
 export const THUNDER_COOLDOWN = 3;
 
+// ---- Battles (the rest of the battle numbers live in ./battle/codex.ts) ----
+// Armory gear lasts this many battles: every battle a unit type fights in uses one charge of its gear.
+export const GEAR_BATTLES = 3;
+// Standing Orders: how many Bag items a region's defenders may spend unless told otherwise, and the most they can be allowed.
+export const DEFAULT_ITEM_BUDGET = 1;
+export const MAX_ITEM_BUDGET = 9;
+
 // ---- Economy ----
 export const COIN_PER_REGION = 2;
 export const PANDAS_PER_PANDACOIN = 3;

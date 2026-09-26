@@ -1,7 +1,7 @@
 // The Army tab's numbers: what you have, where it stands, what threatens it, and how your battles went.
 // Everything is worked out from the player's own view, so nothing hidden by the fog leaks.
 import { emptyUnits, unitTotal, type BattleData, type GameEvent, type GameView, type RegionView, type Units } from "./engine";
-import { battleOdds, viewHeroBonus } from "./odds";
+import { defenseOdds } from "./odds";
 import { NEIGHBORS, REGION_BY_ID, lineId } from "./regions";
 import { HEROES, HERO_IDS, NACAM_UPKEEP, PANDAS_PER_PANDACOIN, UNITS, UNIT_TYPES, type HeroId } from "./rules";
 
@@ -82,8 +82,9 @@ export function regionReports(view: GameView): RegionReport[] {
         const keep = (["panda", "armedPanda", "nacam", "cam"] as const).find((t) => send[t] > 0);
         if (!keep || unitTotal(send) < 2) continue;
         send[keep] -= 1;
-        const defBonus = (r.buildings?.includes("fort") ? 1 : 0) + viewHeroBonus(view, view.me, r.id);
-        const odds = battleOdds(send, viewHeroBonus(view, nb.owner, n), { ...emptyUnits(), ...r.units }, defBonus, 120);
+        // Fought by the real battle rules, with your Standing Orders defending.
+        const odds = defenseOdds(view, nb.owner, n, send, r.id, 60);
+        if (!odds) continue;
         if (!danger || odds.win > danger.win) danger = { from: n, owner: nb.owner, win: odds.win };
       }
       return {

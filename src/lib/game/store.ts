@@ -9,6 +9,7 @@ import {
   createGame,
   removePlayer,
   eventVisible,
+  upgradeState,
   viewFor,
   type Action,
   type BotLevel,
@@ -46,7 +47,10 @@ export async function loadGame(id: number): Promise<GameRow | null> {
     `SELECT id, name, code, host_id AS "hostId", state, version, status, ended_at AS "endedAt" FROM games WHERE id = $1`,
     [id],
   );
-  return (rows[0] as GameRow | undefined) ?? null;
+  const row = (rows[0] as GameRow | undefined) ?? null;
+  // Games saved before battles v2 get their new fields' defaults (empty Bags, no gear, no battle).
+  if (row) upgradeState(row.state);
+  return row;
 }
 
 // Just the version, for cheap polling: the whole world only travels when something changed.

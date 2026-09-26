@@ -9,7 +9,9 @@ import {
   BUY_PRICE_MARKET,
   COIN_PER_REGION,
   CURRENCIES,
+  DEFAULT_ITEM_BUDGET,
   EXCHANGE,
+  GEAR_BATTLES,
   GONDOLA_COST,
   GOODS,
   GOOD_INFO,
@@ -17,6 +19,7 @@ import {
   HEROES,
   HERO_IDS,
   MARKET_COIN,
+  MAX_ITEM_BUDGET,
   NACAM_UPKEEP,
   NATIVE_CAP,
   NATIVE_GARRISON,
@@ -39,6 +42,24 @@ import {
   type UnitType,
 } from "./rules";
 import { WORLD_EVENTS, type ModifierKind } from "./worldEvents";
+import { DOCTRINES, ITEMS, MOVE_BY_ID, RULES as BATTLE_RULES, WEAPONS } from "./battle/codex";
+import * as BE from "./battle/engine";
+import { battleRecord, legacyRolls, redactBattle, stampSeeds, type BattleRecord } from "./battle/record";
+import type {
+  Bag,
+  BattleAction,
+  BattleConfig,
+  Battle as EngineBattle,
+  ItemId,
+  PlayerDoctrineId,
+  ReactionId,
+  ResultHow,
+  SideKey,
+  SquadSpec,
+  TrapId,
+  WeaponId,
+  WorldEventId,
+} from "./battle/types";
 
 // ---------------------------------------------------------------- types
 
@@ -53,6 +74,37 @@ export type RegionState = {
   tired: Units; // units that already moved (or were just recruited) this turn
   buildings: BuildingType[];
   token: number; // Catan-style production number, 2–12 except 7
+  orders?: RegionOrders; // the owner's Standing Orders here (missing in older games: the defaults)
+};
+
+// Standing Orders: how a region's defenders fight while its owner is away. Anything left out follows the defaults
+// (the owner's doctrine, the first squad in line, DEFAULT_ITEM_BUDGET Bag items, no traps).
+export type RegionOrders = { doctrine?: PlayerDoctrineId; lead?: UnitType | HeroId; budget?: number; traps?: TrapId[] };
+export type StandingOrders = { doctrine: PlayerDoctrineId; doctrineSet: boolean; lead: UnitType | HeroId | null; budget: number; traps: TrapId[] };
+
+// The Armory: player-wide gear per unit type, one weapon and one piece of armour each, plus a siege catapult for
+// the whole army. Every battle a unit type fights in uses a charge of its gear; at 0 it breaks.
+export type GearCharge = { id: WeaponId; charges: number };
+export type Armory = { units: Partial<Record<UnitType, { weapon?: GearCharge; armor?: GearCharge }>>; army?: GearCharge };
+
+// An invasion being fought round by round (only a person's invasions stay open; the computer's resolve at once).
+export type LiveBattle = {
+  id: number;
+  attacker: string;
+  defender: string | null; // a player, or null for natives
+  native: NativeNation | null;
+  defenderName: string;
+  from: string;
+  to: string;
+  units: Units; // the attackers who rode in
+  defenderStart: Units;
+  heroes: { atk: HeroId[]; def: HeroId[] }; // heroes who took the field
+  atkBonus: number; // hero aura, as the old battle records put it
+  defBonus: number; // Fort plus hero aura
+  throwBase: number; // mixes the dice-throw seeds
+  // Each player's purse and Bag as last written back to them (the battle spends from copies).
+  synced: { atk: { goods: Goods; bag: Bag } | null; def: { goods: Goods; bag: Bag } | null };
+  b: EngineBattle;
 };
 
 export type BotLevel = "easy" | "medium" | "hard";
@@ -73,6 +125,10 @@ export type Player = {
   pickpocketTurn: number;
   oathbreakerUntilRound: number;
   respawns: number;
+  // Battles (missing in older games: an empty Bag, no gear, Counterpunch).
+  bag?: Bag;
+  armory?: Armory;
+  doctrine?: PlayerDoctrineId; // the default doctrine for every region's Standing Orders, and Sun Tzu's when he fights for you
 };
 
 export type Hero = { owner: string | null; region: string | null; movedTurn: number };
@@ -110,6 +166,8 @@ export type GameState = {
   winner?: string | null;
   // Who has reached the goal and must survive a full round to claim it (so everyone gets a warning).
   threat?: string | null;
+  // The invasion being fought right now, round by round (missing in older games: none).
+  battle?: LiveBattle | null;
 };
 
 export type GameEvent = {
@@ -142,6 +200,18 @@ export type BattleData = {
   from: string;
   to: string;
 };
+
+// Battles since Pokémon-style invasions: the legacy fields above (rolls are each round's pairs, bonuses the hero
+// aura and Fort), plus everything a viewer needs to re-enact the battle: the setup, the opening and every round's
+// actions, reactions and events (each roll and re-roll with its throw seed), and the summary.
+export type BattleDataV2 = BattleData &
+  BattleRecord & {
+    v: 2;
+    how: ResultHow;
+    rounds: number;
+    result: string;
+    heroes: { atk: HeroId[]; def: HeroId[] };
+  };
 
 // What a start-of-turn roll event carries, so the dice can be re-enacted without reading its text.
 // All of it is public (the text already says who collected what). Which region paid whom stays in the
@@ -188,7 +258,19 @@ export type Action =
   | { type: "breakPact"; with: string }
   | { type: "endTurn" }
   | { type: "skipTurn" }
-  | { type: "autopilot"; on: boolean; level?: BotLevel };
+  | { type: "autopilot"; on: boolean; level?: BotLevel }
+  // Battles: one round (a move, a Bag item, a switch or a retreat, with an optional prep item), a reaction to the
+  // dice while a round waits for one, finishing that round, or handing the rest of the battle to Sun Tzu.
+  | { type: "battleRound"; action: BattleAction; prep?: ItemId }
+  | { type: "battleReact"; id: ReactionId; die?: number }
+  | { type: "battleResolve" }
+  | { type: "battleAuto" }
+  // The Bank's Bag and Armory, and Standing Orders (region left out: the player-wide default doctrine).
+  | { type: "buyItem"; item: ItemId; count: number }
+  | { type: "buyGear"; item: WeaponId; unit?: UnitType }
+  | { type: "setOrders"; region?: string | null; doctrine?: PlayerDoctrineId | null; lead?: UnitType | HeroId | null; budget?: number; traps?: TrapId[] };
+
+const BATTLE_ACTIONS = new Set<Action["type"]>(["battleRound", "battleReact", "battleResolve", "battleAuto"]);
 
 // Who plays this seat automatically: computer players always, people only while on autopilot.
 export const autoLevel = (p: Pick<Player, "bot" | "autopilot">): BotLevel | null => p.bot ?? p.autopilot ?? null;
@@ -318,6 +400,42 @@ export function bankRate(s: GameState, pid: string) {
   return 4;
 }
 
+// ---------------------------------------------------------------- battles: bags, gear, orders
+
+export const PLAYER_DOCTRINES: PlayerDoctrineId[] = ["turtle", "counter", "allin", "diplomat"];
+export const DEFAULT_DOCTRINE: PlayerDoctrineId = "counter";
+const ITEM_IDS = Object.keys(ITEMS) as ItemId[];
+const WORLD_EVENT_IDS: WorldEventId[] = ["blight", "gondolaStrike", "mercMarket", "caseySale"];
+const NATIVE_COLORS: Record<NativeNation, string> = { pandas: "#f7f4ec", nacams: "#6f8a3a", cams: "#e8b64a", wild: "#c9d6bf" };
+
+export const bagOf = (p: Player): Bag => p.bag ?? {};
+const armoryOf = (p: Player): Armory => (p.armory ??= { units: {} });
+export const doctrineOf = (p: Player): PlayerDoctrineId => p.doctrine ?? DEFAULT_DOCTRINE;
+
+// A region's Standing Orders with the defaults filled in.
+export function ordersFor(s: GameState, r: RegionState): StandingOrders {
+  const owner = r.owner ? s.players.find((p) => p.id === r.owner) : undefined;
+  const o = r.orders ?? {};
+  return {
+    doctrine: o.doctrine ?? (owner ? doctrineOf(owner) : DEFAULT_DOCTRINE),
+    doctrineSet: Boolean(o.doctrine),
+    lead: o.lead ?? null,
+    budget: o.budget ?? DEFAULT_ITEM_BUDGET,
+    traps: [...(o.traps ?? [])],
+  };
+}
+
+// Games saved before battles v2 lack the new fields: an empty Bag, no gear and no battle in progress.
+// (Standing Orders need nothing: missing orders are the defaults.)
+export function upgradeState(s: GameState): GameState {
+  if (s.battle === undefined) s.battle = null;
+  for (const p of s.players) {
+    p.bag ??= {};
+    p.armory ??= { units: {} };
+  }
+  return s;
+}
+
 // ---------------------------------------------------------------- events
 
 type Draft = Omit<GameEvent, "seq" | "turn" | "round">;
@@ -353,6 +471,7 @@ export function createGame(seed: number, now: number, goal: number | null = null
     nextId: 1,
     goal,
     winner: null,
+    battle: null,
   };
   const tokens: number[] = [];
   while (tokens.length < REGIONS.length) tokens.push(...TOKEN_BAG);
@@ -419,6 +538,8 @@ export function addPlayer(s: GameState, id: string, name: string, bot?: BotLevel
     pickpocketTurn: 0,
     oathbreakerUntilRound: 0,
     respawns: 0,
+    bag: {},
+    armory: { units: {} },
     ...(bot ? { bot } : {}),
   };
   s.players.push(p);
@@ -434,9 +555,11 @@ export function addPlayer(s: GameState, id: string, name: string, bot?: BotLevel
 // A Kird leaves for good: their land goes wild, heroes return to the Hall, their lines come down,
 // and every deal involving them is off. The turn passes on if it was theirs.
 export function removePlayer(s: GameState, id: string, now: number): GameEvent[] {
-  const i = s.players.findIndex((p) => p.id === id);
-  if (i < 0) fail("That Kird isn't in this game.");
+  if (!s.players.some((p) => p.id === id)) fail("That Kird isn't in this game.");
   const out: GameEvent[] = [];
+  // A battle they're fighting (or defending) is settled by Sun Tzu before their land goes wild.
+  if (s.battle && (s.battle.attacker === id || s.battle.defender === id)) finishOpenBattle(s, out);
+  const i = s.players.findIndex((p) => p.id === id);
   const leaving = s.players[i];
   const wasActive = s.activeSeat === leaving.seat;
   for (const r of Object.values(s.regions)) {
@@ -444,6 +567,7 @@ export function removePlayer(s: GameState, id: string, now: number): GameEvent[]
     r.owner = null;
     r.native = unitTotal(r.units) > 0 ? "wild" : null;
     r.tired = emptyUnits();
+    delete r.orders;
   }
   for (const h of HERO_IDS) if (s.heroes[h].owner === id) s.heroes[h] = { owner: null, region: null, movedTurn: 0 };
   for (const [lid, line] of Object.entries(s.lines)) if (line.owner === id) delete s.lines[lid];
@@ -486,6 +610,8 @@ function applyActionTo(s: GameState, actorId: string, a: Action, now: number): G
     if (a.on) {
       const level = a.level ?? "medium";
       if (!BOT_LEVELS.includes(level)) fail("Unknown autopilot setting.");
+      // Handing over command mid-invasion: Sun Tzu fights the rest of the battle first.
+      if (s.battle?.attacker === me.id) finishOpenBattle(s, out);
       me.autopilot = level;
       emit(s, out, { actor: me.id, type: "autopilot", text: `🤖 ${me.name} put their empire on autopilot. The computer plays their turns until they're back.`, regions: [], public: true });
     } else {
@@ -506,6 +632,8 @@ function applyActionTo(s: GameState, actorId: string, a: Action, now: number): G
     return out;
   }
   if (activePlayer(s).id !== me.id) fail(`It's ${activePlayer(s).name}'s turn.`);
+  // While an invasion is being fought, it's all anyone at the table can do (ending the turn lets Sun Tzu finish it).
+  if (s.battle && !BATTLE_ACTIONS.has(a.type) && a.type !== "endTurn") fail(`Finish the battle for ${regionName(s.battle.to)} first, or let Sun Tzu fight it for you.`);
 
   switch (a.type) {
     case "build": {
@@ -698,7 +826,44 @@ function applyActionTo(s: GameState, actorId: string, a: Action, now: number): G
       breakPact(s, out, me, other);
       break;
     }
+    case "battleRound":
+    case "battleReact":
+    case "battleResolve":
+    case "battleAuto":
+      battleStep(s, out, me, a);
+      break;
+    case "buyItem": {
+      const item = Object.hasOwn(ITEMS, a.item) ? ITEMS[a.item] : fail("The Bank doesn't sell that.");
+      const n = positiveInt(a.count, 20);
+      const cost = scaleCost(item.cost, n);
+      pay(me, cost, `${n} ${item.label}`);
+      const bag = (me.bag ??= {});
+      bag[a.item] = (bag[a.item] ?? 0) + n;
+      emit(s, out, { actor: me.id, type: "bank", text: `${me.name} put ${n} × ${item.icon} ${item.label} in their Bag for ${costText(cost)}.`, regions: [], only: [me.id], data: { item: a.item, count: n } });
+      break;
+    }
+    case "buyGear": {
+      const gear = Object.hasOwn(WEAPONS, a.item) ? WEAPONS[a.item] : fail("The Armory doesn't make that.");
+      const armory = armoryOf(me);
+      if (gear.slot === "army") {
+        pay(me, gear.cost, `a ${gear.label}`);
+        armory.army = { id: a.item, charges: GEAR_BATTLES };
+        emit(s, out, { actor: me.id, type: "bank", text: `${me.name} built a ${gear.icon} ${gear.label} for ${costText(gear.cost)}. It rolls with your next ${GEAR_BATTLES} invasions.`, regions: [], only: [me.id], data: { item: a.item } });
+        break;
+      }
+      const unit = a.unit && UNIT_TYPES.includes(a.unit) ? a.unit : fail("Pick who carries it.");
+      if (!gear.fits.includes(unit)) fail(`${UNITS[unit].plural} can't use a ${gear.label}.`);
+      pay(me, gear.cost, `a ${gear.label}`);
+      (armory.units[unit] ??= {})[gear.slot as "weapon" | "armor"] = { id: a.item, charges: GEAR_BATTLES };
+      emit(s, out, { actor: me.id, type: "bank", text: `${me.name} fitted every ${UNITS[unit].label} with a ${gear.icon} ${gear.label} for ${costText(gear.cost)}. It lasts ${GEAR_BATTLES} battles.`, regions: [], only: [me.id], data: { item: a.item, unit } });
+      break;
+    }
+    case "setOrders":
+      setOrders(s, out, me, a);
+      break;
     case "endTurn":
+      // An invasion still being fought is settled by Sun Tzu before the turn passes.
+      finishOpenBattle(s, out);
       emit(s, out, { actor: me.id, type: "endTurn", text: `${me.name} ended their turn.`, regions: [], public: true });
       // Turns played on autopilot don't count as "seen": the replay waits for the person to come back.
       if (!me.autopilot) me.lastTurnEndSeq = s.seq;
@@ -853,7 +1018,6 @@ function move(s: GameState, out: GameEvent[], me: Player, a: Extract<Action, { t
   // Everything below is an invasion.
   const defender = to.owner ? playerById(s, to.owner) : null;
   if (defender && inPact(s, me.id, defender.id)) fail(`You have a pact with ${defender.name}. Break it first if you really mean it.`);
-  const defenderName = defender ? defender.name : to.native ? NATIVE_NAMES[to.native] : "nobody";
 
   if (unitTotal(to.units) === 0) {
     capture(s, out, me, to, units, defender);
@@ -861,38 +1025,13 @@ function move(s: GameState, out: GameEvent[], me: Player, a: Extract<Action, { t
     return;
   }
 
-  const atkBonus = heroBonus(s, me.id, from.id);
-  const defBonus = (to.buildings.includes("fort") ? 1 : 0) + (defender ? heroBonus(s, defender.id, to.id) : 0);
-  const defenderStart = { ...to.units };
-  const result = battle(s, units, atkBonus, { ...to.units }, defBonus);
-  to.units = result.defender;
-  to.tired = clampTired(to.tired, to.units);
-  const text = result.attackerWon
-    ? `⚔️ ${me.name} invaded ${regionName(to.id)} with ${describeUnits(units)} and defeated ${defenderName}${describeUnits(result.defenderLost) ? ` (${describeUnits(result.defenderLost)} fell)` : ""}. ${regionName(to.id)} is theirs.`
-    : `⚔️ ${me.name} invaded ${regionName(to.id)} with ${describeUnits(units)}, but ${defenderName} held the line. Every attacker fell${describeUnits(result.defenderLost) ? `, taking ${describeUnits(result.defenderLost)} with them` : ""}.`;
-  emit(s, out, {
-    actor: me.id,
-    type: "battle",
-    text,
-    regions: [from.id, to.id],
-    public: Boolean(defender),
-    data: {
-      attacker: units,
-      attackerLost: result.attackerLost,
-      defenderStart,
-      defenderLost: result.defenderLost,
-      won: result.attackerWon,
-      rolls: result.rolls,
-      atkBonus,
-      defBonus,
-      defender: defender?.id ?? to.native,
-      defenderName,
-      from: from.id,
-      to: to.id,
-    } satisfies BattleData,
-  });
-  if (result.attackerWon) capture(s, out, me, to, result.attacker, defender);
-  else if (!to.owner && unitTotal(to.units) === 0) to.native = null;
+  // A defended region means a battle. A person fights it round by round (it stays open in s.battle until it ends);
+  // computer players and Kirds on autopilot have Sun Tzu fight it out at once.
+  const lb = openBattle(s, me, from, to, units, defender);
+  if (autoLevel(me)) {
+    finishWithAi(lb);
+    endBattle(s, out, lb);
+  } else s.battle = lb;
 }
 
 const NATIVE_NAMES: Record<NativeNation, string> = {
@@ -913,6 +1052,7 @@ function capture(s: GameState, out: GameEvent[], me: Player, to: RegionState, ar
   to.native = null;
   to.units = { ...arrivals };
   to.tired = { ...arrivals };
+  delete to.orders; // the old owner's Standing Orders leave with them
   for (const h of HERO_IDS) {
     const hero = s.heroes[h];
     if (hero.region !== to.id || !hero.owner || hero.owner === me.id) continue;
@@ -941,6 +1081,352 @@ function heroBonus(s: GameState, pid: string, regionId: string) {
     if (hero.owner === pid && hero.region === regionId) b += HEROES[h].combatBonus;
   }
   return b;
+}
+
+// ---------------------------------------------------------------- battles (Pokémon-style invasions)
+// The rules live in ./battle/engine.ts. Here: who fights with what, what a round request does, and what the result
+// does to the map. The engine battle is plain JSON, so an open battle simply lives in s.battle between requests.
+
+const fromTally = (u: Partial<Record<UnitType, number>>): Units => ({ panda: u.panda ?? 0, armedPanda: u.armedPanda ?? 0, nacam: u.nacam ?? 0, cam: u.cam ?? 0 });
+const capFirst = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+const heroLabel = (h: HeroId) => `${HEROES[h].icon} ${HEROES[h].name}`;
+const describeForce = (u: Units, heroes: HeroId[]) => [describeUnits(u), ...heroes.map(heroLabel)].filter(Boolean).join(" and ");
+
+// The gear a player's squads of one unit type carry into battle.
+function gearFor(p: Player, t: UnitType): WeaponId[] {
+  const g = p.armory?.units[t];
+  return [g?.weapon, g?.armor].filter((x): x is GearCharge => Boolean(x && x.charges > 0)).map((x) => x.id);
+}
+
+// Every unit type that fights uses a charge of its gear, and every invasion a charge of the catapult. At 0 it breaks.
+function wearGear(p: Player, present: Units, attacking: boolean) {
+  const armory = p.armory;
+  if (!armory) return;
+  for (const t of UNIT_TYPES) {
+    const g = armory.units[t];
+    if (!g || present[t] <= 0) continue;
+    for (const slot of ["weapon", "armor"] as const) {
+      const c = g[slot];
+      if (!c) continue;
+      c.charges -= 1;
+      if (c.charges <= 0) delete g[slot];
+    }
+    if (!g.weapon && !g.armor) delete armory.units[t];
+  }
+  if (attacking && armory.army) {
+    armory.army.charges -= 1;
+    if (armory.army.charges <= 0) delete armory.army;
+  }
+}
+
+// Sets up the battle for an invasion of a defended region. The attackers have already left `from`.
+function openBattle(s: GameState, me: Player, from: RegionState, to: RegionState, units: Units, defender: Player | null): LiveBattle {
+  const seed = 1 + Math.floor(rand(s) * 2147483646);
+  const throwBase = Math.floor(rand(s) * 4294967296);
+  const atkHeroes = HERO_IDS.filter((h) => s.heroes[h].owner === me.id && s.heroes[h].region === from.id);
+  const defHeroes = defender ? HERO_IDS.filter((h) => s.heroes[h].owner === defender.id && s.heroes[h].region === to.id) : [];
+  const native: NativeNation | null = defender ? null : (to.native ?? "wild");
+  const orders = defender ? ordersFor(s, to) : null;
+  const defenderStart = { ...to.units };
+  const squadsOf = (u: Units, owner: Player | null, heroes: HeroId[]): SquadSpec[] => [
+    ...UNIT_TYPES.filter((t) => u[t] > 0).map((t) => ({ unit: t, count: u[t], gear: owner ? gearFor(owner, t) : [] })),
+    ...heroes.map((hero) => ({ hero })),
+  ];
+  const atkSquads = squadsOf(units, me, atkHeroes);
+  let defSquads = squadsOf(defenderStart, defender, defHeroes);
+  // Standing Orders say who meets the invaders first.
+  const lead = orders?.lead ? defSquads.findIndex((q) => q.unit === orders.lead || q.hero === orders.lead) : -1;
+  if (lead > 0) defSquads = [defSquads[lead], ...defSquads.filter((_, i) => i !== lead)];
+  const cfg: BattleConfig = {
+    seed,
+    terrain: REGION_BY_ID.get(to.id)!.resource,
+    buildings: [...to.buildings],
+    events: WORLD_EVENT_IDS.filter((k) => hasModifier(s, k)),
+    place: regionName(to.id),
+    atk: {
+      name: me.name,
+      color: me.color,
+      player: !autoLevel(me),
+      doctrine: doctrineOf(me),
+      squads: atkSquads,
+      bag: { ...bagOf(me) },
+      goods: { ...me.goods },
+      catapult: Boolean(me.armory?.army && me.armory.army.charges > 0),
+      thunderCharged: me.thunderReadyTurn <= s.turn,
+    },
+    def:
+      defender && orders
+        ? { name: defender.name, color: defender.color, doctrine: orders.doctrine, squads: defSquads, bag: { ...bagOf(defender) }, goods: { ...defender.goods }, thunderCharged: defender.thunderReadyTurn <= s.turn, traps: orders.traps, budget: orders.budget }
+        : { name: NATIVE_NAMES[native!], color: NATIVE_COLORS[native!], native, squads: defSquads },
+  };
+  // The gear rides into battle (a charge each), and laid traps are sprung.
+  wearGear(me, units, true);
+  if (defender) wearGear(defender, defenderStart, false);
+  if (to.orders?.traps?.length) to.orders.traps = [];
+  const b = BE.createBattle(cfg);
+  return {
+    id: s.nextId++,
+    attacker: me.id,
+    defender: defender?.id ?? null,
+    native,
+    defenderName: defender ? defender.name : NATIVE_NAMES[native!],
+    from: from.id,
+    to: to.id,
+    units: { ...units },
+    defenderStart,
+    heroes: { atk: atkHeroes, def: defHeroes },
+    atkBonus: heroBonus(s, me.id, from.id),
+    defBonus: (to.buildings.includes("fort") ? 1 : 0) + (defender ? heroBonus(s, defender.id, to.id) : 0),
+    throwBase,
+    synced: { atk: { goods: { ...b.sides.atk.goods }, bag: { ...b.sides.atk.bag } }, def: defender ? { goods: { ...b.sides.def.goods }, bag: { ...b.sides.def.bag } } : null },
+    b,
+  };
+}
+
+// What a client sends for a round, checked for shape (the engine then checks it's allowed right now).
+function readBattleAction(raw: unknown, prep: unknown): BattleAction {
+  const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : fail("Pick something to do.");
+  const a: BattleAction =
+    r.kind === "move" && typeof r.id === "string" && Object.hasOwn(MOVE_BY_ID, r.id)
+      ? { kind: "move", id: r.id }
+      : r.kind === "item" && typeof r.id === "string" && Object.hasOwn(ITEMS, r.id)
+        ? { kind: "item", id: r.id as ItemId }
+        : r.kind === "switch" && typeof r.to === "number" && Number.isInteger(r.to)
+          ? { kind: "switch", to: r.to }
+          : r.kind === "retreat"
+            ? { kind: "retreat" }
+            : fail("Pick something to do.");
+  const p = prep ?? r.prep;
+  if (p !== undefined && p !== null) a.prep = typeof p === "string" && Object.hasOwn(ITEMS, p) ? (p as ItemId) : fail("That item isn't in the bag.");
+  return a;
+}
+
+// The defender's reaction, then the pairs, damage and effects.
+function resolveRound(b: EngineBattle) {
+  if (b.pending && !b.pending.done) BE.aiReact(b, "def");
+  BE.finishRound(b);
+}
+
+// Sun Tzu fights whatever is left: the round waiting on the dice, then round after round until it's over.
+function finishWithAi(lb: LiveBattle) {
+  const b = lb.b;
+  if (b.pending) {
+    if (!b.pending.done) BE.aiReact(b, "atk");
+    resolveRound(b);
+  }
+  for (let i = 0; !b.over; i++) {
+    if (i > BATTLE_RULES.roundLimit) throw new Error("A battle ran past its round limit.");
+    BE.autoRound(b);
+  }
+  stampSeeds(b, lb.throwBase);
+}
+
+function finishOpenBattle(s: GameState, out: GameEvent[]) {
+  const lb = s.battle;
+  if (!lb) return;
+  finishWithAi(lb);
+  endBattle(s, out, lb);
+}
+
+// One request's worth of the attacker's battle: a round, a reaction, resolving a round, or Sun Tzu for the rest.
+function battleStep(s: GameState, out: GameEvent[], me: Player, a: Extract<Action, { type: "battleRound" | "battleReact" | "battleResolve" | "battleAuto" }>) {
+  const lb = s.battle && s.battle.attacker === me.id ? s.battle : fail("There's no battle going on.");
+  const b = lb.b;
+  const P = b.pending;
+  if (a.type === "battleRound") {
+    if (P) fail("Finish this round first: react to the dice, or carry on.");
+    const act = readBattleAction(a.action, a.prep);
+    try {
+      BE.validate(b, "atk", act);
+    } catch (e) {
+      fail((e as Error).message);
+    }
+    const round = BE.beginRound(b, act, BE.aiAction(b, "def"));
+    // The round waits for the attacker only when there's a reaction to offer; otherwise it's fought out now.
+    if (round.done) BE.finishRound(b);
+    else if (!BE.reactionsFor(b, "atk").length) resolveRound(b);
+  } else if (a.type === "battleReact") {
+    const dice = (P && !P.done ? P : fail("There are no dice to react to.")).dice.atk ?? [];
+    const opt = BE.reactionsFor(b, "atk").find((o) => o.id === a.id) ?? fail("You can't do that now.");
+    const die = !opt.needsDie ? 0 : typeof a.die === "number" && Number.isInteger(a.die) && a.die >= 0 && a.die < dice.length ? a.die : fail("Pick one of your dice.");
+    BE.react(b, "atk", opt.id, die);
+  } else if (a.type === "battleResolve") {
+    if (!P) fail("There's no round to finish.");
+    resolveRound(b);
+  } else finishWithAi(lb);
+  stampSeeds(b, lb.throwBase);
+  syncBattle(s, lb);
+  if (b.over) endBattle(s, out, lb);
+}
+
+// The battle spends from copies of each player's purse and Bag; what changed goes back to the players.
+function syncBattle(s: GameState, lb: LiveBattle) {
+  for (const key of ["atk", "def"] as const) {
+    const was = lb.synced[key];
+    if (!was) continue;
+    const side = lb.b.sides[key];
+    const p = s.players.find((q) => q.id === (key === "atk" ? lb.attacker : lb.defender));
+    if (p) {
+      for (const g of GOODS) p.goods[g] = Math.max(0, p.goods[g] + side.goods[g] - was.goods[g]);
+      const bag = (p.bag ??= {});
+      for (const id of ITEM_IDS) {
+        const n = Math.max(0, (bag[id] ?? 0) + (side.bag[id] ?? 0) - (was.bag[id] ?? 0));
+        if (n) bag[id] = n;
+        else delete bag[id];
+      }
+    }
+    lb.synced[key] = { goods: { ...side.goods }, bag: { ...side.bag } };
+  }
+}
+
+// A hero knocked out of the battle flees to the Hall of Heroes, except Casey, whom the other side takes if it's a Kird.
+function heroDown(s: GameState, out: GameEvent[], lb: LiveBattle, h: HeroId, taker: Player | null, prefer: string | null) {
+  const place = regionName(lb.to);
+  const hero = s.heroes[h];
+  const was = hero.region;
+  const where = h === "casey" && taker ? ([prefer, taker.capital].find((id) => id && s.regions[id]?.owner === taker.id) ?? ownedRegions(s, taker.id)[0]?.id) : undefined;
+  if (taker && where) {
+    s.heroes[h] = { owner: taker.id, region: where, movedTurn: s.turn };
+    emit(s, out, { actor: taker.id, type: "heroCaptured", text: `⚡ ${taker.name} CAPTURED Casey, the Norse God, in the battle for ${place}! He now fights for them.`, regions: [where], public: true, data: { hero: h } });
+    return;
+  }
+  s.heroes[h] = { owner: null, region: null, movedTurn: hero.movedTurn };
+  emit(s, out, { actor: lb.attacker, type: "heroFled", text: `${HEROES[h].icon} ${HEROES[h].name} was knocked out in the battle for ${place} and fled to the Hall of Heroes, ready to be recruited again.`, regions: was ? [was] : [lb.to], public: true, data: { hero: h } });
+}
+
+// The battle is over: every loss lands on the map, the survivors take the region or go home, and the record is kept.
+function endBattle(s: GameState, out: GameEvent[], lb: LiveBattle) {
+  const b = lb.b;
+  stampSeeds(b, lb.throwBase);
+  syncBattle(s, lb);
+  s.battle = null;
+  const result = b.result!;
+  const sm = BE.summary(b);
+  const me = playerById(s, lb.attacker);
+  const defender = lb.defender ? (s.players.find((p) => p.id === lb.defender) ?? null) : null;
+  const from = s.regions[lb.from];
+  const to = s.regions[lb.to];
+  const won = result.how === "won";
+  const atkLeft = fromTally(sm.atk.survivors);
+  const defLeft = fromTally(sm.def.survivors);
+  const atkLost = fromTally(sm.atk.lost);
+  const defLost = fromTally(sm.def.lost);
+
+  // Casey's Thunder, called down in battle, recharges as it does on the map.
+  for (const [key, p] of [["atk", me], ["def", defender]] as const) {
+    if (p && b.cfg[key].thunderCharged && !b.sides[key].thunderCharged) p.thunderReadyTurn = s.turn + THUNDER_COOLDOWN * Math.max(1, s.players.length);
+  }
+  if (!won) {
+    // The defenders who are left hold on, and the attackers who are left ride home, tired.
+    to.units = defLeft;
+    to.tired = clampTired(to.tired, to.units);
+    if (!to.owner && unitTotal(to.units) === 0) to.native = null;
+    for (const t of UNIT_TYPES) {
+      from.units[t] += atkLeft[t];
+      from.tired[t] += atkLeft[t];
+    }
+  }
+
+  const place = regionName(lb.to);
+  const force = describeForce(lb.units, lb.heroes.atk);
+  const fell = describeUnits(defLost);
+  const lost = describeUnits(atkLost);
+  const rounds = `${b.round} round${b.round === 1 ? "" : "s"}`;
+  const text: Record<ResultHow, string> = {
+    won: `⚔️ ${me.name} invaded ${place} with ${force} and defeated ${lb.defenderName} in ${rounds}${fell ? ` (${fell} fell)` : ""}. ${place} is theirs.`,
+    held: `⚔️ ${me.name} invaded ${place} with ${force}, but ${lb.defenderName} held the line. Every attacker fell${fell ? `, taking ${fell} with them` : ""}.`,
+    retreat: `⚔️ ${me.name} invaded ${place} with ${force} and pulled back after ${rounds}${lost ? `, losing ${lost}` : ""}. ${capFirst(lb.defenderName)} held.`,
+    truce: `🕊️ ${me.name} invaded ${place} with ${force}, and after ${rounds} both sides settled it over tea. Everyone went home.`,
+    stalled: `⚔️ ${me.name}'s invasion of ${place} stalled after ${rounds}. ${capFirst(lb.defenderName)} held, and the attackers went home.`,
+  };
+  const data: BattleDataV2 = {
+    attacker: { ...lb.units },
+    attackerLost: atkLost,
+    defenderStart: { ...lb.defenderStart },
+    defenderLost: defLost,
+    won,
+    rolls: legacyRolls(b),
+    atkBonus: lb.atkBonus,
+    defBonus: lb.defBonus,
+    defender: lb.defender ?? lb.native,
+    defenderName: lb.defenderName,
+    from: lb.from,
+    to: lb.to,
+    v: 2,
+    how: result.how,
+    rounds: b.round,
+    result: result.text,
+    heroes: lb.heroes,
+    ...battleRecord(b, sm),
+  };
+  emit(s, out, { actor: me.id, type: "battle", text: text[result.how], regions: [lb.from, lb.to], public: Boolean(lb.defender), data });
+
+  // The region changes hands (the defender's heroes there flee, and Casey is captured, as always).
+  if (won) capture(s, out, me, to, atkLeft, defender);
+  const fallen = (key: SideKey) => sm[key].heroes.filter((h) => !h.standing).map((h) => h.hero);
+  for (const h of fallen("atk")) if (s.heroes[h].owner === me.id) heroDown(s, out, lb, h, defender, lb.to);
+  for (const h of fallen("def")) if (defender && s.heroes[h].owner === defender.id) heroDown(s, out, lb, h, me, lb.from);
+  // The attackers' heroes still standing march in with the survivors.
+  if (won) {
+    for (const h of lb.heroes.atk) {
+      if (s.heroes[h].owner === me.id && sm.atk.heroes.some((x) => x.hero === h && x.standing)) s.heroes[h] = { owner: me.id, region: to.id, movedTurn: s.turn };
+    }
+  }
+}
+
+const leadLabel = (l: UnitType | HeroId) => ((UNIT_TYPES as string[]).includes(l) ? UNITS[l as UnitType].plural : HEROES[l as HeroId].name);
+
+// Standing Orders for one region, or (no region) the doctrine every region follows unless told otherwise.
+function setOrders(s: GameState, out: GameEvent[], me: Player, a: Extract<Action, { type: "setOrders" }>) {
+  if (a.doctrine !== undefined && a.doctrine !== null && !PLAYER_DOCTRINES.includes(a.doctrine)) fail("Pick one of the four doctrines.");
+  if (a.region === undefined || a.region === null) {
+    if (a.lead !== undefined || a.budget !== undefined || a.traps !== undefined) fail("Pick a region for those orders.");
+    if (a.doctrine === undefined) fail("Pick a doctrine.");
+    if (a.doctrine === null) delete me.doctrine;
+    else me.doctrine = a.doctrine;
+    const d = DOCTRINES[doctrineOf(me)];
+    emit(s, out, { actor: me.id, type: "orders", text: `${d.icon} ${me.name}'s troops now defend by ${d.label} wherever a region's orders don't say otherwise.`, regions: [], only: [me.id] });
+    return;
+  }
+  const r = regionOf(s, a.region);
+  if (r.owner !== me.id) fail("You can only give orders in your own regions.");
+  const o: RegionOrders = { ...(r.orders ?? {}) };
+  if (a.doctrine === null) delete o.doctrine;
+  else if (a.doctrine !== undefined) o.doctrine = a.doctrine;
+  if (a.lead === null) delete o.lead;
+  else if (a.lead !== undefined) o.lead = (UNIT_TYPES as string[]).includes(a.lead) || (HERO_IDS as string[]).includes(a.lead) ? a.lead : fail("Pick who meets the invaders first.");
+  if (a.budget !== undefined) {
+    if (typeof a.budget !== "number" || !Number.isInteger(a.budget) || a.budget < 0 || a.budget > MAX_ITEM_BUDGET) fail(`The item budget is 0 to ${MAX_ITEM_BUDGET}.`);
+    o.budget = a.budget;
+  }
+  if (a.traps !== undefined) {
+    if (!Array.isArray(a.traps) || a.traps.some((t) => t !== "caltrops")) fail("Only caltrops can be laid in advance.");
+    const want = a.traps.length > 0;
+    const laid = (o.traps ?? []).includes("caltrops");
+    const bag = (me.bag ??= {});
+    if (want && !laid) {
+      // Laid now and paid now: from the Bag if there are some, otherwise bought on the spot.
+      if ((bag.caltrops ?? 0) > 0) {
+        bag.caltrops! -= 1;
+        if (!bag.caltrops) delete bag.caltrops;
+      } else pay(me, ITEMS.caltrops.cost, "caltrops");
+      o.traps = ["caltrops"];
+    } else if (!want && laid) {
+      // Picked up again, they go back in the Bag.
+      bag.caltrops = (bag.caltrops ?? 0) + 1;
+      o.traps = [];
+    }
+  }
+  r.orders = o;
+  const f = ordersFor(s, r);
+  const d = DOCTRINES[f.doctrine];
+  emit(s, out, {
+    actor: me.id,
+    type: "orders",
+    text: `${d.icon} Standing Orders for ${regionName(r.id)}: ${d.label}, ${f.lead ? `${leadLabel(f.lead)} first, ` : ""}up to ${f.budget} Bag item${f.budget === 1 ? "" : "s"}${f.traps.length ? ", caltrops laid" : ""}.`,
+    regions: [r.id],
+    only: [me.id],
+  });
 }
 
 type BattleResult = {
@@ -1004,6 +1490,8 @@ function removeStrongest(r: RegionState, n: number): Units {
 // ---------------------------------------------------------------- turns
 
 function endTurn(s: GameState, out: GameEvent[], now: number) {
+  // A battle can't outlast the turn it started in (a skipped turn, say): Sun Tzu finishes it.
+  finishOpenBattle(s, out);
   // Rest everyone who just played.
   const prev = activePlayer(s);
   for (const r of ownedRegions(s, prev.id)) r.tired = emptyUnits();
@@ -1218,6 +1706,7 @@ export type RegionView = {
   units?: Units;
   tired?: Units;
   buildings?: BuildingType[];
+  orders?: StandingOrders; // only your own regions
 };
 
 export type PlayerView = {
@@ -1236,6 +1725,24 @@ export type PlayerView = {
   pickpocketTurn?: number;
   oathbreaker: boolean;
   lastTurnEndSeq?: number;
+  // Only your own:
+  bag?: Bag;
+  armory?: Armory;
+  doctrine?: PlayerDoctrineId;
+};
+
+// The invasion you're fighting: the whole engine battle (run actionsFor / preview / estimate on `b` locally), with the
+// RNG states and the defender's purse, Bag and item budget hidden. Rounds play out from b.log; a round waiting on
+// your reaction is b.pending.
+export type BattleView = {
+  id: number;
+  from: string;
+  to: string;
+  defender: string | null;
+  native: NativeNation | null;
+  defenderName: string;
+  heroes: { atk: HeroId[]; def: HeroId[] };
+  b: EngineBattle;
 };
 
 export type GameView = {
@@ -1258,6 +1765,7 @@ export type GameView = {
   goal: number | null;
   winner: string | null;
   threat: string | null;
+  battle: BattleView | null; // only the attacker sees a battle in progress
 };
 
 export function viewFor(s: GameState, pid: string): GameView {
@@ -1282,12 +1790,31 @@ export function viewFor(s: GameState, pid: string): GameView {
       heroes: heroesOf(s, p.id),
       oathbreaker: p.oathbreakerUntilRound >= s.round,
       ...(p.id === pid
-        ? { goods: { ...p.goods }, capital: p.capital, thunderReadyTurn: p.thunderReadyTurn, pickpocketTurn: p.pickpocketTurn, lastTurnEndSeq: p.lastTurnEndSeq }
+        ? {
+            goods: { ...p.goods },
+            capital: p.capital,
+            thunderReadyTurn: p.thunderReadyTurn,
+            pickpocketTurn: p.pickpocketTurn,
+            lastTurnEndSeq: p.lastTurnEndSeq,
+            bag: { ...bagOf(p) },
+            armory: structuredClone(p.armory ?? { units: {} }),
+            doctrine: doctrineOf(p),
+          }
         : {}),
     })),
     regions: Object.values(s.regions).map((r) =>
       vis.has(r.id)
-        ? { id: r.id, token: r.token, fog: false, owner: r.owner, native: r.native, units: { ...r.units }, tired: r.owner === pid ? { ...r.tired } : undefined, buildings: [...r.buildings] }
+        ? {
+            id: r.id,
+            token: r.token,
+            fog: false,
+            owner: r.owner,
+            native: r.native,
+            units: { ...r.units },
+            tired: r.owner === pid ? { ...r.tired } : undefined,
+            buildings: [...r.buildings],
+            ...(r.owner === pid ? { orders: ordersFor(s, r) } : {}),
+          }
         : { id: r.id, token: r.token, fog: true },
     ),
     lines: Object.entries(s.lines)
@@ -1313,7 +1840,12 @@ export function viewFor(s: GameState, pid: string): GameView {
     goal: s.goal ?? null,
     winner: s.winner ?? null,
     threat: s.threat ?? null,
+    battle: s.battle && s.battle.attacker === pid ? battleView(s.battle) : null,
   };
+}
+
+function battleView(lb: LiveBattle): BattleView {
+  return { id: lb.id, from: lb.from, to: lb.to, defender: lb.defender, native: lb.native, defenderName: lb.defenderName, heroes: { atk: [...lb.heroes.atk], def: [...lb.heroes.def] }, b: redactBattle(lb.b) };
 }
 
 export { CURRENCIES };
