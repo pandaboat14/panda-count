@@ -1469,7 +1469,7 @@ function endBattle(s: GameState, out: GameEvent[], lb: LiveBattle) {
     // The defenders who are left hold on, and the attackers who are left ride home, tired.
     to.units = defLeft;
     to.tired = clampTired(to.tired, to.units);
-    if (!to.owner && unitTotal(to.units) === 0) to.native = null;
+    if (!to.owner) to.native = unitTotal(to.units) > 0 ? (to.native ?? lb.native) : null;
     for (const t of UNIT_TYPES) {
       from.units[t] += atkLeft[t];
       from.tired[t] += atkLeft[t];
