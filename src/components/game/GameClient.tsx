@@ -19,12 +19,13 @@ import { Glossary, GoodsBar } from "./bits";
 import { GameOver } from "./GameOver";
 import { BankPanel, DiplomacyPanel, HeroesPanel, LogPanel, RegionPanel, meOf, playerName, regionName, regionView, usableLine, type Ctx } from "./panels";
 import { HowToPlay } from "./HowToPlay";
+import { ArmyPanel } from "./ArmyPanel";
 import { PlanPanel } from "./PlanPanel";
 import { useGame } from "./useGame";
 
 const Board = dynamic(() => import("./Board"), { ssr: false, loading: () => null });
 
-type Tab = "plan" | "region" | "heroes" | "diplomacy" | "chat" | "bank" | "log";
+type Tab = "plan" | "army" | "region" | "heroes" | "diplomacy" | "chat" | "bank" | "log";
 
 // How long each of the other Kirds' moves stays on screen, so there's time to read it.
 const FEED_MS = 8500;
@@ -490,6 +491,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
           {(
             [
               ["plan", "💡", "Plan"],
+              ["army", "⚔️", "Army"],
               ["region", "🗺️", "Region"],
               ["heroes", "🦸", "Heroes"],
               ["diplomacy", "🤝", "Kirds"],
@@ -530,6 +532,21 @@ export function GameClient({ initial }: { initial: GamePayload }) {
                 planAttack={planAttack}
                 openTab={(t) => setTab(t)}
                 endTurn={endTurn}
+              />
+            )}
+            {tab === "army" && (
+              <ArmyPanel
+                ctx={ctx}
+                events={game.events}
+                onManage={(id) => {
+                  setSelected(id);
+                  setDest(null);
+                  setTab("region");
+                  setPanelOpen(true);
+                  focusOn(id);
+                }}
+                onWatch={setBattle}
+                openHeroes={() => setTab("heroes")}
               />
             )}
             {tab === "heroes" && <HeroesPanel ctx={ctx} selected={selected} />}

@@ -9,6 +9,18 @@ export type Release = {
 export const RELEASES: Release[] = [
   {
     date: "2026-09-26",
+    title: "The Army tab",
+    pr: 10,
+    notes: [
+      "A new ⚔️ Army tab shows everything you command: how many of each unit you have, how many are ready to move, and what each one is good at.",
+      "See where your troops are, region by region, with a warning when a neighbour could take one (and their chance of doing it). Tap a region to manage it.",
+      "Your heroes, where they stand and what they add in battle.",
+      "How battles are won, explained step by step, plus a calculator to try any matchup before you fight.",
+      "Your battle record: every fight you attacked or defended, won or lost, what each side lost, and ▶ Watch to replay it.",
+    ],
+  },
+  {
+    date: "2026-09-26",
     title: "Chat works again in Chrome",
     pr: 11,
     notes: [
