@@ -1,0 +1,24 @@
+const fs=require('fs');
+const src=fs.readFileSync(__dirname+'/balance.cjs','utf8').split("\nsim('")[0];
+eval(src.replace("const fs=require('fs');",""));
+const rows=[];
+const sim2=(name,atk,def,opts={},n=400)=>{let wins=0,rounds=0,aLost=0,dLost=0;
+ for(let i=0;i<n;i++){const b=Battle.createBattle({seed:5000+i,terrain:opts.terrain||'iron',place:'X',buildings:opts.buildings||[],atk:{name:'You',squads:atk.map(s=>({...s})),hero:opts.atkHero,goods:{stone:9,iron:9,rice:9,gems:9,bamboo:9,coin:20,pandaCoin:5},bag:opts.atkBag||{}},def:{name:'Mei',native:opts.native,doctrine:opts.doctrine,squads:def.map(s=>({...s})),hero:opts.defHero,goods:{stone:3,iron:3,rice:3,gems:1,bamboo:3,coin:6},bag:opts.defBag||{}}});
+  let g=0;while(!b.over&&g++<30)Battle.autoRound(b);if(b.result.winner==='atk')wins++;rounds+=b.round;const sm=Battle.summary(b);
+  aLost+=Object.values(sm.atk.lost).reduce((x,y)=>x+y,0);dLost+=Object.values(sm.def.lost).reduce((x,y)=>x+y,0);}
+ const cnt=u=>u.reduce((m,s)=>(m[s.unit]=(m[s.unit]||0)+s.count,m),{});
+ const risk=riskOdds(cnt(atk),cnt(def),opts.atkHero==='casey'?3:opts.atkHero?1:0,(opts.buildings||[]).includes('fort')?1:0);
+ rows.push({name,why:opts.why||'',newWin:+(wins/n).toFixed(2),oldWin:+risk.toFixed(2),rounds:+(rounds/n).toFixed(1),atkLost:+(aLost/n).toFixed(1),defLost:+(dLost/n).toFixed(1)});};
+sim2('5 Pandas vs 5 Pandas',[{unit:'panda',count:5}],[{unit:'panda',count:5}],{why:'Mirror match: should track Risk.'});
+sim2('4 Ogres vs 3 Ogre natives',[{unit:'nacam',count:4}],[{unit:'nacam',count:3}],{native:'nacams',why:'Ogres guard badly, as today.'});
+sim2('6 Armed Pandas vs 4 behind a Fort',[{unit:'armedPanda',count:6}],[{unit:'armedPanda',count:4}],{doctrine:'turtle',buildings:['fort'],why:'Forts still hold.'});
+sim2('6 Armed Pandas with Spears vs 4 behind a Fort',[{unit:'armedPanda',count:6,gear:['bambooSpear']}],[{unit:'armedPanda',count:4}],{doctrine:'turtle',buildings:['fort'],why:'Skewer ignores the Fort.'});
+sim2('Sichuan: 4 Armed Pandas + 3 Ogres vs the Panda Nation',[{unit:'armedPanda',count:4},{unit:'nacam',count:3}],[{unit:'panda',count:5},{unit:'armedPanda',count:2}],{native:'pandas',buildings:['sanctuary'],why:'A classic early invasion.'});
+sim2('10 mixed vs 10 mixed',[{unit:'armedPanda',count:4},{unit:'nacam',count:3},{unit:'cam',count:3}],[{unit:'panda',count:4},{unit:'armedPanda',count:4},{unit:'cam',count:2}],{doctrine:'counter',why:'Big even war.'});
+sim2('5 Armed Pandas vs 5 Pandas',[{unit:'armedPanda',count:5}],[{unit:'panda',count:5}],{doctrine:'turtle',why:'Steel beats Fluff.'});
+sim2('3 CAMs vs 3 Ogre natives',[{unit:'cam',count:3}],[{unit:'nacam',count:3}],{native:'nacams',why:'Glam beats Brute.'});
+sim2('3 Ogres vs 2 CAM natives',[{unit:'nacam',count:3}],[{unit:'cam',count:2}],{native:'cams',why:'Brute is weak to Glam.'});
+sim2('8 Pandas vs 3 CAMs',[{unit:'panda',count:8}],[{unit:'cam',count:3}],{doctrine:'counter',why:'Fluff beats Glam.'});
+sim2('Casey + 3 Armed Pandas vs 8 Pandas',[{unit:'armedPanda',count:3}],[{unit:'panda',count:8}],{atkHero:'casey',doctrine:'turtle',why:'A god is a god.'});
+fs.writeFileSync(__dirname+'/shared/balance-data.js','// Simulated with the prototype engine (400 computer-vs-computer battles each) against the current Risk rules.\nconst BALANCE = '+JSON.stringify(rows,null,1)+';\n');
+console.table(rows);

@@ -1,0 +1,2799 @@
+<title>War Codex</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..900,0..100,0..1;1,9..144,300..900,0..100,0..1&family=Karla:ital,wght@0,300..800;1,300..800&display=swap">
+<style>
+/* ---------- tokens ---------- */
+:root {
+  --ground: #fdf2e0;
+  --paper: #fffaf3;
+  --well: #f6e9cf;
+  --ink: #1c1b17;
+  --ink-soft: #57544a;
+  --ink-mute: #6c6758;
+  --rule: #dcc79c;
+  --rule-soft: #ecdcbb;
+  --rule-strong: #b3955c;
+  --accent: #1f4b35;
+  --accent-deep: #143424;
+  --accent-wash: #e1ead9;
+  --on-accent: #fffaf3;
+  --blush: #e9b8a8;
+  --blush-wash: #f8e0d6;
+  --danger: #a24a30;
+  --gold: #b3955c;
+  --gold-ink: #7a5e27;
+  --atk: #a24a30;
+  --atk-wash: #f7dccf;
+  --def: #7a5e27;
+  --def-wash: #efdfb8;
+  --die-atk: #b0452b;
+  --die-atk-edge: #7a2c19;
+  --die-atk-pip: #fff6ea;
+  --die-def: #fffbf2;
+  --die-def-edge: #c3a771;
+  --die-def-pip: #1c1b17;
+  --hp-good: #3f8a5a;
+  --hp-mid: #d09a2c;
+  --hp-low: #b8452c;
+  --k-strike: #a24a30;
+  --k-guard: #1f4b35;
+  --k-tactic: #7a5e27;
+  --k-signature: #74479f;
+  --series-new: #2a7a4f;
+  --series-old: #b7832a;
+  --focus: #1f4b35;
+  --shade: rgba(28, 27, 23, .3);
+  --stage-top: #fbeed6;
+  --stage-bottom: #efdcb4;
+  --platform: rgba(122, 94, 39, .2);
+  --display: "Fraunces", Georgia, "Times New Roman", serif;
+  --body: "Karla", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --label: "Bricolage Grotesque", "Karla", system-ui, sans-serif;
+  --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #16130e;
+    --paper: #1f1b15;
+    --well: #29241b;
+    --ink: #f3e9d6;
+    --ink-soft: #c9bfaa;
+    --ink-mute: #a69d8a;
+    --rule: #3d3528;
+    --rule-soft: #2e281f;
+    --rule-strong: #7d6843;
+    --accent: #8fcaa4;
+    --accent-deep: #bfe5cb;
+    --accent-wash: #1d3125;
+    --on-accent: #0e1f15;
+    --blush: #d99a86;
+    --blush-wash: #3a241d;
+    --danger: #ee8f70;
+    --gold: #c9a766;
+    --gold-ink: #dcbf84;
+    --atk: #ee8f70;
+    --atk-wash: #3b231c;
+    --def: #dcc38f;
+    --def-wash: #2f291d;
+    --die-atk: #b54a2f;
+    --die-atk-edge: #6e2616;
+    --die-atk-pip: #fff1e0;
+    --die-def: #f3e8d1;
+    --die-def-edge: #9c8150;
+    --die-def-pip: #1c1b17;
+    --hp-good: #5fb07c;
+    --hp-mid: #e0ae45;
+    --hp-low: #e0694b;
+    --k-strike: #ee8f70;
+    --k-guard: #8fcaa4;
+    --k-tactic: #dcbf84;
+    --k-signature: #c5a3ea;
+    --series-new: #48a470;
+    --series-old: #bf8526;
+    --focus: #8fcaa4;
+    --shade: rgba(0, 0, 0, .6);
+    --stage-top: #231e17;
+    --stage-bottom: #2d261b;
+    --platform: rgba(0, 0, 0, .38);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #16130e;
+  --paper: #1f1b15;
+  --well: #29241b;
+  --ink: #f3e9d6;
+  --ink-soft: #c9bfaa;
+  --ink-mute: #a69d8a;
+  --rule: #3d3528;
+  --rule-soft: #2e281f;
+  --rule-strong: #7d6843;
+  --accent: #8fcaa4;
+  --accent-deep: #bfe5cb;
+  --accent-wash: #1d3125;
+  --on-accent: #0e1f15;
+  --blush: #d99a86;
+  --blush-wash: #3a241d;
+  --danger: #ee8f70;
+  --gold: #c9a766;
+  --gold-ink: #dcbf84;
+  --atk: #ee8f70;
+  --atk-wash: #3b231c;
+  --def: #dcc38f;
+  --def-wash: #2f291d;
+  --die-atk: #b54a2f;
+  --die-atk-edge: #6e2616;
+  --die-atk-pip: #fff1e0;
+  --die-def: #f3e8d1;
+  --die-def-edge: #9c8150;
+  --die-def-pip: #1c1b17;
+  --hp-good: #5fb07c;
+  --hp-mid: #e0ae45;
+  --hp-low: #e0694b;
+  --k-strike: #ee8f70;
+  --k-guard: #8fcaa4;
+  --k-tactic: #dcbf84;
+  --k-signature: #c5a3ea;
+  --series-new: #48a470;
+  --series-old: #bf8526;
+  --focus: #8fcaa4;
+  --shade: rgba(0, 0, 0, .6);
+  --stage-top: #231e17;
+  --stage-bottom: #2d261b;
+  --platform: rgba(0, 0, 0, .38);
+  color-scheme: dark;
+}
+
+/* ---------- base ---------- */
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font: 400 17px/1.6 var(--body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+a { color: var(--accent); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+p { margin: 0 0 12px; }
+code { font: 500 .88em/1.4 var(--mono); background: var(--well); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+button { font: inherit; color: inherit; }
+select, input[type="search"] {
+  font: 500 15px/1.2 var(--body);
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule-strong);
+  border-radius: 8px;
+  padding: 7px 8px;
+  max-width: 100%;
+  min-width: 0;
+}
+select:disabled { opacity: .5; }
+input[type="checkbox"] { accent-color: var(--accent); width: 17px; height: 17px; margin: 0; }
+.label, .kicker {
+  font: 600 12.5px/1.25 var(--label);
+  font-variation-settings: "wdth" 88;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin: 0 0 8px;
+}
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* ---------- frame ---------- */
+.codex { padding-inline: 16px; padding-block: 0 72px; }
+@media (min-width: 760px) { .codex { padding-inline: 32px; } }
+.masthead, .book, .colophon { max-width: 1240px; margin-inline: auto; }
+.book { display: grid; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 1100px) { .book { grid-template-columns: 176px minmax(0, 1fr); column-gap: 52px; } }
+
+/* ---------- masthead ---------- */
+.masthead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 28px;
+  padding-block: 44px 34px;
+  align-items: end;
+}
+@media (min-width: 940px) { .masthead { grid-template-columns: minmax(0, 1fr) 270px; } }
+.mast-top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; margin-bottom: 18px; }
+.mast-top .kicker { margin: 0; }
+.stamp {
+  display: inline-block;
+  font: 700 11.5px/1 var(--label);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--danger);
+  border: 2px solid currentColor;
+  border-radius: 5px;
+  padding: 5px 9px 4px;
+  transform: rotate(-3deg);
+}
+.mast-title {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: clamp(3.3rem, 11.5vw, 7.4rem);
+  line-height: .88;
+  letter-spacing: -.03em;
+  margin: 0;
+  font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 1;
+  text-wrap: balance;
+}
+.mast-title em { font-style: italic; font-weight: 500; color: var(--accent); letter-spacing: -.02em; }
+.mast-pitch { font-size: clamp(1.1rem, 1.9vw, 1.28rem); line-height: 1.5; color: var(--ink-soft); max-width: 58ch; margin: 22px 0 0; }
+.edition { border-top: 3px double var(--ink); padding-top: 10px; }
+.edition ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 18px; }
+.edition li { display: flex; align-items: baseline; gap: 8px; border-bottom: 1px solid var(--rule); padding-block: 5px; font-size: 14.5px; color: var(--ink-soft); }
+.edition b { font: 700 1.3rem/1 var(--label); color: var(--ink); font-variant-numeric: tabular-nums; min-width: 2ch; }
+
+/* ---------- contents ---------- */
+.toc {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 40;
+  margin-inline: -16px;
+  padding-inline: 16px;
+  background: var(--ground);
+  border-block: 1px solid var(--rule);
+}
+@media (min-width: 760px) { .toc { margin-inline: -32px; padding-inline: 32px; } }
+.toc-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 50px; }
+.toc-mark { font: 700 1.05rem/1 var(--display); font-variation-settings: "opsz" 36, "SOFT" 100, "WONK" 1; color: var(--ink); text-decoration: none; }
+.toc-toggle {
+  display: inline-flex; align-items: center; gap: 8px;
+  border: 1px solid var(--rule-strong); background: var(--paper); border-radius: 99px;
+  padding: 7px 14px; cursor: pointer; font: 600 14px/1 var(--body); color: var(--ink);
+  max-width: 70%;
+}
+.toc-toggle .label { margin: 0; font-size: 11px; }
+.toc-current { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.toc-toggle svg { width: 12px; height: 12px; flex: none; transition: transform .2s; }
+.toc.open .toc-toggle svg { transform: rotate(180deg); }
+.toc-list { list-style: none; margin: 0; padding: 4px 0 14px; display: none; max-height: 70vh; overflow: auto; }
+.toc.open .toc-list { display: block; }
+.toc-list a { display: block; padding: 10px 2px; color: var(--ink); text-decoration: none; font-weight: 600; border-top: 1px solid var(--rule-soft); }
+.toc-list a[aria-current="true"] { color: var(--accent); }
+.toc-list .toc-sub a { padding-left: 18px; font-weight: 500; color: var(--ink-soft); }
+@media (min-width: 1100px) {
+  .toc {
+    margin: 0; padding: 0; border: 0; background: none;
+    top: calc(env(safe-area-inset-top, 0px) + 28px);
+    align-self: start;
+    max-height: calc(100vh - 56px);
+    overflow: auto;
+    padding-top: 34px;
+  }
+  .toc-bar { display: none; }
+  .toc-list { display: block; max-height: none; padding: 0; }
+  .toc-list::before { content: "Contents"; display: block; font: 600 12px/1 var(--label); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-soft); padding: 0 0 12px 16px; border-bottom: 3px double var(--rule-strong); margin-bottom: 8px; }
+  .toc-list a { border: 0; padding: 5px 0 5px 16px; font-weight: 500; color: var(--ink-soft); position: relative; font-size: 15px; line-height: 1.3; }
+  .toc-list .toc-sub a { padding-left: 28px; font-size: 14px; }
+  .toc-list a:hover { color: var(--ink); }
+  .toc-list a[aria-current="true"] { color: var(--ink); font-weight: 700; }
+  .toc-list a[aria-current="true"]::before {
+    content: ""; position: absolute; left: 0; top: 50%; width: 9px; height: 9px; margin-top: -4.5px; border-radius: 2px;
+    background: radial-gradient(circle, var(--die-atk-pip) 0 1.4px, var(--die-atk) 1.9px);
+  }
+}
+
+/* ---------- chapters ---------- */
+.chapter { padding-block: 68px 12px; border-top: 1px solid var(--rule); scroll-margin-top: 58px; }
+.chapter:first-child { border-top: 0; padding-top: 34px; }
+@media (min-width: 1100px) { .chapter { scroll-margin-top: 18px; } }
+[id] { scroll-margin-top: 64px; }
+@media (min-width: 1100px) { [id] { scroll-margin-top: 18px; } }
+.chapter-head { max-width: 70ch; margin-bottom: 30px; }
+.chapter h2 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(2.15rem, 5vw, 3.3rem);
+  line-height: 1.02;
+  letter-spacing: -.018em;
+  margin: 0;
+  text-wrap: balance;
+  font-variation-settings: "opsz" 110, "SOFT" 70, "WONK" 0;
+}
+.lede { font-size: 1.14rem; color: var(--ink-soft); margin: 14px 0 0; max-width: 62ch; }
+h3 {
+  font-family: var(--display);
+  font-weight: 650;
+  font-size: 1.6rem;
+  line-height: 1.15;
+  margin: 52px 0 6px;
+  text-wrap: balance;
+  font-variation-settings: "opsz" 48, "SOFT" 60;
+}
+h4 { font-family: var(--display); font-weight: 650; font-variation-settings: "opsz" 30, "SOFT" 50; margin: 0; line-height: 1.15; }
+.sub { color: var(--ink-soft); margin: 0 0 20px; max-width: 64ch; }
+.prose { max-width: 66ch; }
+.prose ul { padding-left: 20px; margin: 0 0 14px; }
+.prose li { margin-bottom: 8px; }
+
+/* ---------- small parts ---------- */
+.chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font: 600 12.5px/1.1 var(--label);
+  padding: 4px 8px; border-radius: 99px;
+  border: 1px solid var(--rule-strong); color: var(--ink-soft); background: var(--paper);
+  white-space: nowrap;
+}
+.type-chip {
+  --chip: var(--well); --chip-ink: var(--ink);
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--chip); color: var(--chip-ink);
+  border: 1px solid color-mix(in srgb, var(--chip) 62%, var(--ink));
+  font: 700 10.5px/1 var(--label);
+  letter-spacing: .09em; text-transform: uppercase;
+  padding: 4px 7px 3px; border-radius: 4px; white-space: nowrap;
+}
+.cost { display: inline-flex; flex-wrap: wrap; gap: 4px; vertical-align: middle; }
+.good {
+  display: inline-flex; align-items: center; gap: 3px;
+  font: 700 12.5px/1 var(--label); font-variant-numeric: tabular-nums;
+  padding: 3px 6px 3px 4px; border-radius: 5px;
+  background: color-mix(in srgb, var(--g) 15%, var(--paper));
+  border: 1px solid color-mix(in srgb, var(--g) 45%, var(--rule));
+  color: var(--ink);
+  white-space: nowrap;
+}
+.free { font: 600 12.5px/1 var(--label); color: var(--ink-mute); }
+.glyph { width: 14px; height: 14px; flex: none; }
+.glyph--strike { color: var(--k-strike); }
+.glyph--guard { color: var(--k-guard); }
+.glyph--tactic { color: var(--k-tactic); }
+.glyph--signature { color: var(--k-signature); }
+.glyph--switch, .glyph--retreat { color: var(--ink-soft); }
+.mini-die { display: inline-block; width: 12px; height: 12px; border-radius: 3px; flex: none; vertical-align: -1px; }
+.mini-die--atk { background: radial-gradient(circle, var(--die-atk-pip) 0 1.5px, var(--die-atk) 2px); }
+.mini-die--def { background: radial-gradient(circle, var(--die-def-pip) 0 1.5px, var(--die-def) 2px); box-shadow: inset 0 0 0 1px var(--die-def-edge); }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+  appearance: none; border: 0; border-radius: 99px;
+  padding: 12px 20px; font: 700 1rem/1 var(--body);
+  cursor: pointer; background: var(--accent); color: var(--on-accent);
+  box-shadow: 0 2px 0 var(--accent-deep);
+  text-decoration: none;
+}
+.btn:hover { background: var(--accent-deep); }
+.btn:disabled { opacity: .55; cursor: default; }
+.btn--ghost { background: transparent; color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); }
+.btn--ghost:hover { background: var(--accent-wash); }
+.btn--small { padding: 8px 14px; font-size: .92rem; }
+.field { display: grid; gap: 4px; min-width: 0; }
+.field > label, .flabel { font: 600 11.5px/1.2 var(--label); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); }
+.check { display: inline-flex; align-items: center; gap: 8px; font: 600 14.5px/1.2 var(--body); cursor: pointer; padding-block: 8px; }
+
+/* ---------- dice ---------- */
+.die {
+  --s: 44px;
+  --face: var(--die-atk); --edge: var(--die-atk-edge); --pip: var(--die-atk-pip);
+  position: relative;
+  width: var(--s); height: var(--s);
+  display: inline-grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  padding: calc(var(--s) * .15);
+  border-radius: calc(var(--s) * .22);
+  background: var(--face);
+  box-shadow: inset 0 calc(var(--s) * -.07) 0 var(--edge), 0 2px 5px -2px var(--shade);
+  flex: none;
+  transition: opacity .3s, transform .3s;
+}
+.die i { place-self: center; width: calc(var(--s) * .19); height: calc(var(--s) * .19); border-radius: 50%; background: var(--pip); opacity: 0; }
+.die i.on { opacity: 1; }
+.die--def { --face: var(--die-def); --edge: var(--die-def-edge); --pip: var(--die-def-pip); box-shadow: inset 0 0 0 1px var(--edge), inset 0 calc(var(--s) * -.07) 0 var(--edge), 0 2px 5px -2px var(--shade); }
+.die.sm { --s: 28px; }
+.die.tumbling { animation: tumble .62s cubic-bezier(.2, .75, .3, 1) both; }
+@keyframes tumble {
+  0% { transform: translate(-6px, -22px) rotate(-160deg) scale(.7); }
+  55% { transform: translate(2px, 3px) rotate(18deg) scale(1.04); }
+  78% { transform: translate(0, -2px) rotate(-6deg); }
+  100% { transform: none; }
+}
+.dice .die.lost, .dice .die.spare { opacity: .42; }
+.dice .die.spare { outline: 1.5px dashed var(--rule-strong); outline-offset: 2px; }
+.dice .die.won { transform: translateY(-3px); }
+.die.rerolled::after {
+  content: "↻"; position: absolute; right: -7px; top: -8px;
+  width: 18px; height: 18px; border-radius: 50%;
+  display: grid; place-items: center;
+  font: 700 11px/1 var(--label); color: var(--on-accent); background: var(--accent);
+}
+.die.pickable { cursor: pointer; outline: 2px solid var(--gold); outline-offset: 3px; animation: nudge 1.2s ease-in-out infinite; }
+.die.pickable:hover, .die.pickable:focus-visible { outline: 3px solid var(--focus); animation: none; transform: translateY(-3px); }
+@keyframes nudge { 50% { transform: translateY(-3px); } }
+
+/* ---------- the clash ---------- */
+.clash { display: grid; gap: 16px; }
+.setup { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 860px) { .setup { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .side--wide { grid-column: 1 / -1; } }
+.side {
+  margin: 0; min-width: 0;
+  border: 1px solid var(--rule); border-radius: 10px;
+  background: var(--paper);
+  padding: 8px 12px 12px;
+  display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: end;
+}
+.side legend { display: inline-flex; align-items: center; gap: 2px; font: 700 12px/1 var(--label); letter-spacing: .1em; text-transform: uppercase; color: var(--ink); padding: 0 6px; }
+.side .field { flex: 1 1 150px; }
+.side .field--n { flex: 0 1 76px; }
+.side--wide .field { flex: 0 1 300px; }
+.side .check { flex: none; }
+.side select { width: 100%; }
+
+.screen { border: 1px solid var(--rule-strong); border-radius: 16px; overflow: hidden; background: var(--paper); box-shadow: 0 18px 40px -30px var(--shade); }
+.stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas: "pd td" "ta pa";
+  gap: 6px 18px;
+  padding: 16px;
+  background: linear-gradient(180deg, var(--stage-top), var(--stage-bottom));
+  border-bottom: 1px solid var(--rule);
+}
+@media (min-width: 720px) { .stage { padding: 20px 28px; gap: 4px 48px; } }
+.plate--def { grid-area: pd; align-self: start; }
+.troops--def { grid-area: td; }
+.troops--atk { grid-area: ta; }
+.plate--atk { grid-area: pa; align-self: end; }
+.plate {
+  background: var(--paper);
+  border: 1px solid var(--rule-strong);
+  border-radius: 10px;
+  padding: 9px 11px 10px;
+  display: grid; gap: 5px;
+  box-shadow: 0 8px 18px -14px var(--shade);
+  min-width: 0;
+}
+.plate-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
+.plate-owner { font: 600 10.5px/1.2 var(--label); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); display: inline-flex; align-items: center; gap: 5px; }
+.plate-name { font: 700 1.02rem/1.2 var(--body); overflow-wrap: anywhere; }
+.plate-gear { font-size: .9em; }
+.hp { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 7px; }
+.hp-label { font: 800 10.5px/1 var(--label); letter-spacing: .08em; color: var(--gold-ink); }
+.hp-track { height: 8px; border-radius: 99px; background: var(--well); overflow: hidden; box-shadow: inset 0 0 0 1px var(--rule); display: block; }
+.hp-fill { display: block; height: 100%; width: 100%; border-radius: 99px; background: var(--hp-good); transition: width .55s ease, background-color .3s; }
+.hp-fill.mid { background: var(--hp-mid); }
+.hp-fill.low { background: var(--hp-low); }
+.hp-num { font: 700 12px/1 var(--label); font-variant-numeric: tabular-nums; }
+.plate-meta { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; font: 600 12px/1.2 var(--label); color: var(--ink-soft); }
+.momentum { display: inline-flex; gap: 3px; align-items: center; }
+.momentum i { width: 9px; height: 9px; border-radius: 2px; border: 1.5px solid var(--gold); }
+.momentum i.on { background: var(--gold); }
+.momentum.full i { background: var(--k-signature); border-color: var(--k-signature); }
+.plate-status { display: flex; flex-wrap: wrap; gap: 4px; }
+.plate-status:empty, .plate-reserve:empty { display: none; }
+.st { font: 600 11.5px/1 var(--label); padding: 3px 6px; border-radius: 4px; background: var(--well); border: 1px solid var(--rule); }
+.st.bad { background: var(--blush-wash); }
+.st.good { background: var(--accent-wash); }
+.plate-reserve { font: 500 12px/1.3 var(--body); color: var(--ink-soft); }
+.troops {
+  position: relative;
+  display: flex; flex-wrap: wrap; align-content: center; justify-content: center;
+  gap: 0 3px;
+  min-height: 98px;
+  padding: 8px 6px 20px;
+  font-size: 27px; line-height: 1.15;
+}
+.troops::after { content: ""; position: absolute; left: 6%; right: 6%; bottom: 4px; height: 26px; border-radius: 50%; background: var(--platform); }
+.troops--hero { font-size: 46px; }
+.fig { position: relative; z-index: 1; display: inline-block; transition: opacity .45s, transform .45s, filter .45s; }
+.fig.down { opacity: .22; filter: grayscale(1); transform: rotate(80deg) scale(.78); }
+.troops.hit { animation: shake .42s ease-in-out; }
+@keyframes shake { 20% { transform: translateX(-6px); } 45% { transform: translateX(5px); } 70% { transform: translateX(-3px); } }
+
+.tray { display: grid; gap: 14px 24px; padding: 14px 16px 16px; grid-template-columns: minmax(0, 1fr); border-bottom: 1px solid var(--rule); }
+@media (min-width: 720px) {
+  .tray { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); padding: 16px 28px 18px; }
+  .pairs, .react { grid-column: 1 / -1; }
+}
+.throw { display: grid; gap: 7px; align-content: start; min-width: 0; }
+.throw-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font: 600 13px/1.3 var(--label); color: var(--ink-soft); }
+.throw-head b { color: var(--ink); font-weight: 700; font-size: 14.5px; }
+.who { display: inline-flex; align-items: center; gap: 0; font: 700 11px/1 var(--label); letter-spacing: .1em; text-transform: uppercase; color: var(--ink); }
+.dice { display: flex; flex-wrap: wrap; gap: 10px; min-height: 44px; align-items: center; }
+.dice-empty { font: 500 14px/1.3 var(--body); color: var(--ink-mute); }
+.notes { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+.notes li { font: 600 11.5px/1 var(--label); padding: 4px 6px; border-radius: 4px; background: var(--well); color: var(--ink-soft); }
+.pairs { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.pairs:empty { display: none; }
+.pairs-head { font: 600 11.5px/1.2 var(--label); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); padding-bottom: 2px; }
+.pairs.provisional .pair { outline: 1px dashed var(--rule-strong); }
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(76px, auto) minmax(0, 1fr);
+  align-items: center; gap: 8px;
+  padding: 5px 8px; border-radius: 9px; background: var(--paper); box-shadow: inset 0 0 0 1px var(--rule);
+}
+.pair-a, .pair-d { display: flex; align-items: center; gap: 8px; min-width: 0; border-radius: 7px; padding: 3px 6px; }
+.pair-d { justify-content: flex-end; }
+.pair--atk .pair-a { background: var(--atk-wash); }
+.pair--def .pair-d { background: var(--def-wash); }
+.pair-total { font: 800 1.2rem/1 var(--label); font-variant-numeric: tabular-nums; min-width: 1.4ch; text-align: center; }
+.pair--atk .pair-d .pair-total, .pair--def .pair-a .pair-total { color: var(--ink-mute); font-weight: 600; }
+.pair-verdict { font: 700 11px/1.2 var(--label); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-soft); text-align: center; }
+.win-mark { font: 800 13px/1 var(--label); color: var(--hp-good); }
+.crit-mark { font: 800 10px/1 var(--label); letter-spacing: .08em; text-transform: uppercase; color: var(--on-accent); background: var(--k-signature); padding: 3px 5px; border-radius: 3px; }
+.pair--spare { grid-template-columns: minmax(0, 1fr); background: transparent; border: 1px dashed var(--rule-strong); font: 500 13px/1.3 var(--body); color: var(--ink-soft); }
+.pair--spare .die { opacity: .6; vertical-align: middle; margin-right: 6px; }
+.react { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 10px 12px; border-radius: 10px; background: var(--accent-wash); }
+.react-hint { font: 600 14px/1.3 var(--body); color: var(--ink); }
+
+.textbox {
+  margin: 14px;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 3px var(--paper), inset 0 0 0 5px var(--rule-strong);
+  padding: 14px 18px 16px;
+  min-height: 132px;
+  display: grid; align-content: start; gap: 3px;
+  font: 600 1.04rem/1.5 var(--body);
+}
+@media (min-width: 720px) { .textbox { margin: 16px 28px 20px; padding: 16px 22px 18px; font-size: 1.1rem; } }
+.textbox p { margin: 0; }
+.textbox p.old { color: var(--ink-soft); font-weight: 500; }
+.textbox p.super { color: var(--accent); }
+.textbox p.resist { color: var(--gold-ink); }
+.textbox p.prompt { color: var(--accent); }
+.textbox p.end { font: 700 1.25rem/1.3 var(--display); font-variation-settings: "opsz" 36, "SOFT" 80; color: var(--ink); margin-top: 4px; }
+.textbox p.round-head { font: 700 11px/1.2 var(--label); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-mute); margin-bottom: 3px; }
+.textbox p:last-child:not(.typing):not(.round-head)::after { content: " ▼"; font-size: .7em; color: var(--danger); animation: blink 1s steps(2, start) infinite; }
+@keyframes blink { to { visibility: hidden; } }
+
+.command { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 860px) { .command { grid-template-columns: minmax(0, 1fr) 280px; gap: 28px; } }
+.menu { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 158px), 1fr)); gap: 8px; }
+.mv {
+  text-align: left; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 7px; align-items: center;
+  padding: 9px 11px; border-radius: 10px;
+  border: 1.5px solid var(--rule-strong); background: var(--paper); color: var(--ink); cursor: pointer;
+}
+.mv b { font: 700 .96rem/1.2 var(--body); }
+.mv small { grid-column: 1 / -1; font: 600 11.5px/1.3 var(--label); color: var(--ink-soft); }
+.mv:hover:not(:disabled) { border-color: var(--ink); }
+.mv[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.mv[aria-pressed="true"] small { color: var(--paper); opacity: .8; }
+.mv[aria-pressed="true"] .glyph { color: var(--paper); }
+.mv:disabled { border-style: dashed; background: transparent; color: var(--ink-mute); cursor: not-allowed; }
+.mv:disabled .glyph { opacity: .5; }
+.preview { font: 500 14px/1.45 var(--body); color: var(--ink-soft); margin: 10px 0 0; max-width: 70ch; }
+.command-side { display: grid; gap: 12px; align-content: start; }
+.command-side select { width: 100%; }
+.bag-note { font-size: 14px; color: var(--ink-soft); margin: 0; }
+.btn--roll { font-size: 1.08rem; padding: 15px 22px; }
+.btn--roll .mini-die { width: 16px; height: 16px; border-radius: 4px; }
+.log { border-top: 1px solid var(--rule); padding-top: 10px; }
+.log summary { cursor: pointer; font: 600 14px/1.3 var(--label); color: var(--ink-soft); }
+.log ol { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 10px; max-height: 340px; overflow: auto; font-size: 14.5px; }
+.log li b { font: 700 11px/1 var(--label); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-mute); display: block; margin-bottom: 3px; }
+
+/* ---------- round steps ---------- */
+.steps { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+.step {
+  counter-increment: step;
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  gap: 6px 14px;
+  padding-block: 20px;
+  border-top: 1px solid var(--rule);
+}
+.step::before {
+  content: counter(step);
+  grid-row: span 2;
+  font: 700 2.5rem/.9 var(--display);
+  font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 1;
+  color: var(--accent);
+}
+.step h3 { margin: 0 0 6px; font-size: 1.28rem; }
+.step p { max-width: 62ch; margin: 0; }
+.step-body > p + p { margin-top: 8px; }
+.why { grid-column: 2; border-left: 2px solid var(--rule); padding: 2px 0 2px 14px; max-width: 58ch; }
+.why p { font: italic 400 1rem/1.5 var(--display); font-variation-settings: "opsz" 18, "SOFT" 50; color: var(--ink-soft); margin: 0; }
+.why p + p { margin-top: 6px; }
+.why .label { font-style: normal; margin-bottom: 4px; font-size: 11px; }
+@media (min-width: 1240px) {
+  .step { grid-template-columns: 52px minmax(0, 60ch) minmax(0, 1fr); column-gap: 36px; }
+  .step::before { grid-row: auto; }
+  .why { grid-column: 3; grid-row: 1; align-self: start; }
+}
+
+/* ---------- types ---------- */
+.types-grid { display: grid; gap: 28px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+@media (min-width: 900px) { .types-grid { grid-template-columns: minmax(0, 400px) minmax(0, 1fr); gap: 36px; } }
+figure { margin: 0; }
+.ring { width: 100%; max-width: 440px; height: auto; display: block; color: var(--ink); }
+.ring-arc { fill: none; stroke: currentColor; stroke-width: 2; }
+.ring-opp { stroke: var(--rule-strong); stroke-width: 1.5; }
+.ring-mult { font: 800 15px var(--label); fill: currentColor; }
+.ring-center { font: 700 12px var(--label); fill: var(--ink-soft); letter-spacing: .06em; }
+.ring-center-bg { fill: var(--paper); stroke: var(--rule-strong); }
+.ring-node-label { font: 800 13px var(--label); letter-spacing: .08em; text-transform: uppercase; }
+.ring-node-ring { stroke: currentColor; stroke-width: 1.5; }
+.ring-who { font: 600 11px var(--body); fill: var(--ink-soft); }
+figcaption { font-size: 14.5px; color: var(--ink-soft); margin-top: 10px; max-width: 52ch; }
+.legend-note { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px 14px; align-items: start; padding: 14px 0 0; margin-top: 16px; border-top: 1px solid var(--rule); max-width: 52ch; }
+.legend-note p { margin: 0; }
+.matrix-wrap { overflow-x: auto; }
+table.matrix { border-collapse: collapse; font: 700 14px/1 var(--label); font-variant-numeric: tabular-nums; }
+.matrix caption { caption-side: bottom; text-align: left; font: 400 14px/1.45 var(--body); color: var(--ink-soft); padding-top: 10px; }
+.matrix th, .matrix td { padding: 9px 8px; text-align: center; border: 1px solid var(--rule); }
+.matrix thead th { border-top: 0; font-weight: 600; }
+.matrix th[scope="row"] { text-align: left; border-left: 0; }
+.matrix .corner { font: 600 10.5px/1.25 var(--label); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); text-align: left; border-top: 0; border-left: 0; }
+.matrix td.sup { background: var(--accent-wash); color: var(--ink); }
+.matrix td.res { background: var(--blush-wash); color: var(--ink); }
+.matrix td.even { color: var(--ink-mute); font-weight: 500; }
+.lore { list-style: none; margin: 22px 0 0; padding: 0; display: grid; gap: 12px; }
+.lore li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; align-items: baseline; }
+.lore .vs { display: inline-flex; gap: 5px; align-items: center; font: 600 12px/1 var(--label); color: var(--ink-soft); white-space: nowrap; }
+.lore p { margin: 0; font: italic 400 1.02rem/1.45 var(--display); font-variation-settings: "opsz" 18, "SOFT" 60; }
+.who-line { font-size: 15px; color: var(--ink-soft); margin: 18px 0 0; padding-top: 12px; border-top: 1px solid var(--rule); }
+.who-line b { color: var(--ink); }
+
+/* ---------- units ---------- */
+.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr)); gap: 14px; }
+.unit {
+  background: var(--paper); border: 1px solid var(--rule); border-radius: 12px;
+  padding: 16px 16px 18px; display: grid; gap: 12px; align-content: start;
+}
+.unit-head { display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 12px; align-items: center; }
+.unit-icon { font-size: 34px; line-height: 1; width: 54px; height: 54px; display: grid; place-items: center; border-radius: 12px; background: var(--well); }
+.unit h4 { font-size: 1.35rem; }
+.unit-sub { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 5px; font: 500 13.5px/1.2 var(--body); color: var(--ink-soft); }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(52px, 1fr)); margin: 0; border-block: 1px solid var(--rule); }
+.stats div { padding: 8px 4px 9px; text-align: center; border-left: 1px solid var(--rule-soft); }
+.stats div:first-child { border-left: 0; }
+.stats dt { font: 600 10px/1 var(--label); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-soft); }
+.stats dd { margin: 5px 0 0; font: 800 1.45rem/1 var(--label); font-variant-numeric: tabular-nums; }
+.unit p { margin: 0; font-size: 15.5px; }
+.unit-list { display: grid; gap: 4px; font-size: 14.5px; }
+.unit-list .label { margin: 0; font-size: 10.5px; }
+.links { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.links a { font-weight: 600; }
+
+/* ---------- moves ---------- */
+.defend-note { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; align-items: center; padding: 14px 16px; border-radius: 12px; background: var(--well); margin-bottom: 18px; max-width: 820px; }
+.defend-note p { margin: 0; }
+.cutdemo { display: flex; gap: 4px; align-items: center; }
+.filters { display: grid; gap: 12px; padding: 14px 16px 16px; border: 1px solid var(--rule); border-radius: 12px; background: var(--paper); margin-bottom: 14px; }
+.filter-row { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: end; }
+.filter-row .field { flex: 1 1 200px; }
+.filter-row .field--search { flex: 2 1 260px; }
+.filter-row input[type="search"], .filter-row select { width: 100%; }
+.seg-wrap { display: grid; gap: 5px; min-width: 0; }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg button {
+  display: inline-flex; align-items: center; gap: 6px;
+  font: 600 13px/1 var(--label); padding: 7px 11px; border-radius: 99px;
+  border: 1.5px solid var(--rule-strong); background: transparent; color: var(--ink); cursor: pointer;
+}
+.seg button:hover { border-color: var(--ink); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.seg button[aria-pressed="true"] .glyph { color: var(--paper); }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--g); box-shadow: 0 0 0 1px var(--rule-strong); flex: none; }
+.filter-foot { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; }
+.count { font: 600 14px/1.3 var(--label); color: var(--ink-soft); margin: 0; }
+.linkish { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; font: 600 14px/1.3 var(--body); }
+.tag-key { font-size: 14px; color: var(--ink-soft); margin: 0 0 16px; max-width: 90ch; }
+.tag-key b { color: var(--ink); font-weight: 700; }
+.move-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 14px; }
+.move {
+  background: var(--paper); border: 1px solid var(--rule); border-radius: 12px;
+  padding: 13px 16px 16px; display: grid; gap: 9px; align-content: start;
+  transition: box-shadow .4s, border-color .4s;
+}
+.move.flash { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
+.move-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.kind { display: inline-flex; align-items: center; gap: 6px; font: 700 11px/1 var(--label); letter-spacing: .1em; text-transform: uppercase; color: var(--ink); }
+.move-user { font: 600 12.5px/1.2 var(--label); color: var(--ink-soft); text-align: right; }
+.move h4 { font-size: 1.32rem; }
+.move-dice { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; font: 600 13px/1.2 var(--label); color: var(--ink-soft); }
+.pips { display: inline-flex; gap: 3px; }
+.pd { width: 15px; height: 15px; border-radius: 4px; background: radial-gradient(circle, var(--die-atk-pip) 0 1.8px, var(--die-atk) 2.3px); }
+.pd.cut { background: transparent; box-shadow: inset 0 0 0 1.5px var(--die-atk); opacity: .7; }
+.move-stats { display: grid; grid-template-columns: auto auto minmax(0, 1fr); margin: 0; border-block: 1px solid var(--rule-soft); }
+.move-stats div { padding: 6px 12px 7px 0; margin-right: 12px; border-right: 1px solid var(--rule-soft); }
+.move-stats div:last-child { border-right: 0; margin-right: 0; }
+.move-stats dt { font: 600 10px/1 var(--label); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-soft); }
+.move-stats dd { margin: 4px 0 0; font: 800 1.12rem/1.1 var(--label); font-variant-numeric: tabular-nums; }
+.move-stats dd .none { color: var(--ink-mute); font-weight: 500; }
+.tags { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+.tag { font: 600 11.5px/1 var(--label); padding: 4px 7px; border-radius: 4px; border: 1px solid var(--rule); color: var(--ink-soft); background: var(--paper); }
+.tag--el { background: color-mix(in srgb, var(--g) 14%, var(--paper)); border-color: color-mix(in srgb, var(--g) 45%, var(--rule)); color: var(--ink); }
+.tag--st { background: var(--well); color: var(--ink); }
+.move-rule { margin: 0; font-size: 15.5px; line-height: 1.5; }
+.flavor { margin: 0; font: italic 400 1rem/1.4 var(--display); font-variation-settings: "opsz" 18, "SOFT" 70; color: var(--ink-soft); }
+.no-moves { padding: 24px; border: 1px dashed var(--rule-strong); border-radius: 12px; color: var(--ink-soft); }
+
+/* ---------- armory & field ---------- */
+.gear-group + .gear-group { margin-top: 26px; }
+.gear-list { list-style: none; margin: 0; padding: 0; border-top: 2px solid var(--ink); }
+.gear {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 8px 14px;
+  padding-block: 14px;
+  border-bottom: 1px solid var(--rule);
+}
+.gear-icon { font-size: 28px; line-height: 1; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 10px; background: var(--well); }
+.gear-main h4 { font-size: 1.15rem; }
+.gear-main p { margin: 4px 0 0; font-size: 15.5px; }
+.facts { grid-column: 2; display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 0; }
+.facts div { display: grid; gap: 3px; }
+.facts dt { font: 600 10px/1 var(--label); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-soft); }
+.facts dd { margin: 0; font: 600 14px/1.3 var(--body); }
+@media (min-width: 900px) {
+  .gear { grid-template-columns: 44px minmax(0, 1fr) minmax(0, 1.15fr); align-items: start; }
+  .facts { grid-column: 3; display: grid; grid-template-columns: repeat(4, auto); justify-content: start; }
+}
+.bag-cols { display: grid; gap: 22px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 900px) { .bag-cols { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.bag-col h4 { font-size: 1.2rem; }
+.bag-col > p { font-size: 14.5px; color: var(--ink-soft); margin: 4px 0 10px; }
+.item-list { list-style: none; margin: 0; padding: 0; border-top: 2px solid var(--ink); }
+.item { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 2px 10px; padding-block: 11px; border-bottom: 1px solid var(--rule); }
+.item-icon { font-size: 22px; line-height: 1.2; }
+.item-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 10px; align-items: baseline; }
+.item-head b { font-weight: 700; }
+.item p { grid-column: 2; margin: 0; font-size: 15px; color: var(--ink-soft); }
+.rows { list-style: none; margin: 0; padding: 0; border-top: 2px solid var(--ink); }
+.row { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 2px 10px; padding-block: 11px; border-bottom: 1px solid var(--rule); }
+.row .ic { font-size: 21px; line-height: 1.25; }
+.row-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.row-head b { font-weight: 700; }
+.row p { margin: 0; font-size: 15px; color: var(--ink-soft); grid-column: 2; }
+.effect { font: 700 10.5px/1 var(--label); letter-spacing: .08em; text-transform: uppercase; padding: 3px 6px; border-radius: 3px; }
+.effect--bad { background: var(--blush-wash); color: var(--danger); }
+.effect--good { background: var(--accent-wash); color: var(--accent); }
+.effect--mixed { background: var(--def-wash); color: var(--gold-ink); }
+.field-cols { display: grid; gap: 26px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 900px) { .field-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 40px; } }
+.field-cols h3 { margin-top: 0; font-size: 1.35rem; }
+.field-cols .sub { font-size: 15px; margin-bottom: 10px; }
+.subsection { margin-top: 52px; }
+
+/* ---------- orders ---------- */
+.orders-grid { display: grid; gap: 28px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+@media (min-width: 960px) { .orders-grid { grid-template-columns: minmax(0, 360px) minmax(0, 1fr); gap: 40px; } }
+.slip {
+  background: var(--paper);
+  border: 1px solid var(--rule-strong);
+  border-radius: 4px;
+  padding: 18px 20px 20px;
+  box-shadow: 0 14px 30px -24px var(--shade);
+  position: relative;
+}
+.slip-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; border-bottom: 3px double var(--rule-strong); padding-bottom: 10px; margin-bottom: 4px; flex-wrap: wrap; }
+.slip-head h4 { font-size: 1.3rem; }
+.slip-head span { font: 600 12px/1.2 var(--label); color: var(--ink-soft); }
+.slip dl { margin: 0; }
+.slip dl > div { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; padding-block: 10px; border-bottom: 1px dashed var(--rule); }
+.slip dt { font: 600 10.5px/1.4 var(--label); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); padding-top: 2px; }
+.slip dd { margin: 0; font-size: 15px; }
+.opt { display: flex; align-items: center; gap: 8px; }
+.opt + .opt { margin-top: 3px; }
+.radio { width: 13px; height: 13px; border-radius: 50%; border: 1.5px solid var(--ink); flex: none; }
+.radio.on { background: radial-gradient(circle, var(--ink) 0 3px, transparent 3.5px); }
+.box { width: 13px; height: 13px; border-radius: 3px; border: 1.5px solid var(--ink); flex: none; display: grid; place-items: center; font: 800 10px/1 var(--label); }
+.opt-sub { margin: 5px 0 0 21px; font-size: 13.5px; color: var(--ink-soft); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.slip-note { font: 500 12.5px/1.4 var(--body); color: var(--ink-mute); margin: 12px 0 0; }
+.doctrine { background: var(--paper); border: 1px solid var(--rule); border-radius: 12px; padding: 14px 16px; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 4px 12px; align-content: start; }
+.doctrine .ic { font-size: 24px; line-height: 1.2; }
+.doctrine h4 { font-size: 1.15rem; }
+.doctrine p { margin: 0; grid-column: 2; font-size: 15px; color: var(--ink-soft); }
+.doctrine-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); }
+.natives { margin-top: 26px; }
+.natives h4 { font-size: 1.15rem; margin-bottom: 8px; }
+.native-list { list-style: none; margin: 0; padding: 0; border-top: 2px solid var(--ink); }
+.native-list li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 4px 16px; padding-block: 10px; border-bottom: 1px solid var(--rule); font-size: 15px; }
+.native-list b { font-weight: 700; }
+.native-list span { color: var(--ink-soft); }
+@media (max-width: 560px) { .native-list li { grid-template-columns: minmax(0, 1fr); } }
+.live { margin-top: 26px; max-width: 66ch; }
+
+/* ---------- lab ---------- */
+.lab-form { display: grid; gap: 12px; }
+.lab-sides { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 880px) { .lab-sides { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.lab-sides .side .field { flex: 1 1 150px; }
+.lab-sides .side .field--n { flex: 0 1 76px; }
+.lab-sides .side .field--plan { flex: 1 1 100%; }
+.lab-out { display: grid; gap: 28px; grid-template-columns: minmax(0, 1fr); margin-top: 22px; }
+@media (min-width: 960px) { .lab-out { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px; } }
+.lab-card { border-top: 3px double var(--ink); padding-top: 12px; min-width: 0; }
+.lab-card h3 { margin: 0 0 4px; font-size: 1.35rem; }
+.lab-sub { font-size: 14.5px; color: var(--ink-soft); margin: 0 0 14px; }
+.lab-hero { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.big { font: 700 clamp(2.9rem, 7vw, 3.9rem)/1 var(--label); letter-spacing: -.03em; font-variation-settings: "opsz" 96; }
+.lab-hero span:last-child { font: 500 15px/1.3 var(--body); color: var(--ink-soft); max-width: 22ch; }
+.lab-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); margin: 0 0 14px; border-top: 1px solid var(--rule); }
+.lab-stats div { padding: 9px 12px 10px 0; border-bottom: 1px solid var(--rule); }
+.lab-stats dt { font: 600 10.5px/1.2 var(--label); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); }
+.lab-stats dd { margin: 4px 0 0; font: 700 1.25rem/1.15 var(--label); font-variant-numeric: tabular-nums; }
+.lab-stats dd small { display: block; font: 500 12.5px/1.3 var(--body); color: var(--ink-soft); margin-top: 2px; }
+.plans { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 560px) { .plans { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.plan { border-radius: 10px; padding: 10px 12px; background: var(--well); display: grid; gap: 6px; align-content: start; }
+.plan--atk { background: var(--atk-wash); }
+.plan--def { background: var(--def-wash); }
+.plan p { margin: 0; font-size: 14.5px; }
+.plan .who { margin-bottom: 2px; }
+.progress { height: 6px; border-radius: 99px; background: var(--well); overflow: hidden; margin: 12px 0; box-shadow: inset 0 0 0 1px var(--rule); }
+.progress span { display: block; height: 100%; width: 0; background: var(--accent); transition: width .15s linear; }
+.sim-note { font-size: 14px; color: var(--ink-soft); margin: 12px 0 0; }
+#labSimBtn { margin-bottom: 18px; }
+.stale { opacity: .45; }
+.ended { font-size: 14.5px; color: var(--ink-soft); margin: 10px 0 0; }
+
+/* ---------- paired bars (balance, lab) ---------- */
+.legend-row { display: flex; flex-wrap: wrap; gap: 6px 18px; font: 600 13px/1.2 var(--label); color: var(--ink-soft); margin-bottom: 8px; }
+.legend-row span { display: inline-flex; align-items: center; gap: 7px; }
+.sw { width: 12px; height: 12px; border-radius: 3px; background: var(--c); flex: none; }
+.duo { display: grid; gap: 3px; position: relative; }
+.duo::before, .axis-scale::before {
+  content: ""; position: absolute; top: -3px; bottom: -3px; left: 54px; right: 44px; pointer-events: none;
+  background-image: linear-gradient(to right, var(--rule) 0 1px, transparent 1px);
+  background-size: 25% 100%;
+  box-shadow: inset -1px 0 0 var(--rule);
+}
+.axis-scale::before { display: none; }
+.duo-row { display: grid; grid-template-columns: 46px minmax(0, 1fr); align-items: center; gap: 8px; }
+.duo-key { font: 600 11px/1 var(--label); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); }
+.duo-track { position: relative; height: 13px; margin-right: 44px; }
+.duo-fill { position: relative; display: block; height: 100%; border-radius: 0 4px 4px 0; background: var(--c); min-width: 2px; }
+.duo-fill--new { --c: var(--series-new); }
+.duo-fill--old { --c: var(--series-old); }
+.duo-val { position: absolute; top: 50%; transform: translate(6px, -50%); font: 700 12.5px/1 var(--label); font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+.axis { display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 8px; }
+.axis-scale { position: relative; height: 14px; margin-right: 44px; font: 600 10.5px/1 var(--label); color: var(--ink-mute); }
+.axis-scale span { position: absolute; top: 0; transform: translateX(-50%); }
+.axis-scale span:first-child { transform: none; }
+.axis-scale span:last-child { transform: translateX(-100%); }
+.bal { border-top: 2px solid var(--ink); }
+.bal-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; padding-block: 14px; border-bottom: 1px solid var(--rule); }
+@media (min-width: 860px) { .bal-row { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr) 76px; gap: 24px; align-items: center; } }
+.bal-name { font-weight: 700; line-height: 1.3; }
+.bal-why { font: italic 400 .98rem/1.4 var(--display); font-variation-settings: "opsz" 18, "SOFT" 60; color: var(--ink-soft); margin: 2px 0 0; }
+.bal-meta { font: 500 13px/1.35 var(--body); color: var(--ink-mute); margin: 4px 0 0; }
+.delta { font: 800 1.1rem/1 var(--label); font-variant-numeric: tabular-nums; display: flex; align-items: baseline; gap: 8px; }
+.delta small { display: block; font: 600 10.5px/1.2 var(--label); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); }
+@media (min-width: 860px) { .delta { display: block; } .delta small { margin-top: 3px; } }
+.bal-head { display: none; }
+@media (min-width: 860px) {
+  .bal-head { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr) 76px; gap: 24px; align-items: end; padding-bottom: 8px; }
+  .bal-head .label { margin: 0; }
+}
+.bal-axis-mobile { display: block; }
+@media (min-width: 860px) { .bal-axis-mobile { display: none; } }
+
+/* ---------- replays & code ---------- */
+.replay-grid { display: grid; gap: 28px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+@media (min-width: 960px) { .replay-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 380px); gap: 44px; } }
+.catchup { background: var(--paper); border: 1px solid var(--rule-strong); border-radius: 14px; padding: 16px 18px 18px; display: grid; gap: 8px; box-shadow: 0 14px 30px -26px var(--shade); }
+.catchup h4 { font-size: 1.3rem; }
+.catchup p { margin: 0; font-size: 14.5px; color: var(--ink-soft); }
+.catchup .cu-result { color: var(--ink); font-weight: 700; font-size: 15px; }
+.scrub { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 3px; margin-top: 6px; }
+.scrub-cell { display: grid; gap: 4px; justify-items: center; }
+.scrub-marks { height: 16px; font: 800 11px/16px var(--label); color: var(--ink); white-space: nowrap; }
+.scrub-bar { width: 100%; height: 6px; border-radius: 2px; background: var(--accent); }
+.scrub-n { font: 600 10px/1 var(--label); color: var(--ink-mute); }
+.scrub-key { font: 500 12.5px/1.4 var(--body); color: var(--ink-mute); }
+.code-list { list-style: none; margin: 0; padding: 0; border-top: 2px solid var(--ink); max-width: 80ch; }
+.code-list li { padding-block: 12px; border-bottom: 1px solid var(--rule); }
+.code-list li > b { display: block; font: 700 14px/1.3 var(--label); margin-bottom: 3px; }
+.colophon { border-top: 3px double var(--rule-strong); margin-top: 56px; padding-top: 16px; font-size: 14px; color: var(--ink-soft); }
+.colophon p { max-width: 80ch; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+}
+</style>
+
+<div class="codex" id="top">
+  <header class="masthead">
+    <div>
+      <div class="mast-top">
+        <p class="kicker">Panda Diplomacy · Invasions, second edition</p>
+        <span class="stamp">Draft for approval</span>
+      </div>
+      <h1 class="mast-title">The War <em>Codex</em></h1>
+      <p class="mast-pitch">Every invasion is now a battle you can watch: your squad against theirs, a move picked from a deep menu, and dice that decide how well it lands. Risk still sits underneath, so dice pair off highest against highest, ties go to the defender, and every loss is a real unit gone from the map.</p>
+    </div>
+    <aside class="edition" aria-label="In this edition">
+      <p class="label">In this edition</p>
+      <ul id="editionList"></ul>
+    </aside>
+  </header>
+
+  <div class="book">
+    <nav class="toc" id="toc" aria-label="Contents">
+      <div class="toc-bar">
+        <a class="toc-mark" href="#top">War Codex</a>
+        <button type="button" class="toc-toggle" id="tocToggle" aria-expanded="false" aria-controls="tocList">
+          <span class="label">Contents</span><span class="toc-current" id="tocCurrent">Try a clash</span>
+          <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 4.5 6 8.5l4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+      <ul class="toc-list" id="tocList">
+        <li><a href="#clash" data-top>Try a clash</a></li>
+        <li><a href="#round" data-top>How a round works</a></li>
+        <li><a href="#types" data-top>Types</a></li>
+        <li><a href="#units" data-top>Units and heroes</a></li>
+        <li><a href="#moves" data-top>Moves</a></li>
+        <li><a href="#armory" data-top>Armory and Bag</a></li>
+        <li class="toc-sub"><a href="#statuses">Statuses</a></li>
+        <li class="toc-sub"><a href="#field">Terrain and buildings</a></li>
+        <li><a href="#orders" data-top>Standing Orders</a></li>
+        <li><a href="#lab" data-top>Dice Lab</a></li>
+        <li><a href="#balance" data-top>Balance</a></li>
+        <li><a href="#replays" data-top>Replays</a></li>
+        <li><a href="#code" data-top>In the code</a></li>
+      </ul>
+    </nav>
+
+    <main id="main">
+      <!-- ============ 1. Try a clash ============ -->
+      <section class="chapter" id="clash" aria-labelledby="clash-h">
+        <header class="chapter-head">
+          <p class="kicker">Start here</p>
+          <h2 id="clash-h">Try a clash</h2>
+          <p class="lede">Pick two squads, choose a move and roll. This runs the real battle engine, so every die, pair and line of text below is exactly what the game will do.</p>
+        </header>
+
+        <div class="clash">
+          <div class="setup">
+            <fieldset class="side side--atk">
+              <legend><span class="mini-die mini-die--atk" aria-hidden="true"></span>&nbsp;Invaders: you</legend>
+              <div class="field"><label for="cAtkUnit">Squad</label><select id="cAtkUnit"></select></div>
+              <div class="field field--n"><label for="cAtkCount">How many</label><select id="cAtkCount"></select></div>
+              <div class="field"><label for="cAtkWeapon">Weapon</label><select id="cAtkWeapon"></select></div>
+              <div class="field"><label for="cAtkHero">Hero</label><select id="cAtkHero"></select></div>
+            </fieldset>
+            <fieldset class="side side--def">
+              <legend><span class="mini-die mini-die--def" aria-hidden="true"></span>&nbsp;Defenders: Mei</legend>
+              <div class="field"><label for="cDefUnit">Squad</label><select id="cDefUnit"></select></div>
+              <div class="field field--n"><label for="cDefCount">How many</label><select id="cDefCount"></select></div>
+              <div class="field"><label for="cDefWeapon">Weapon</label><select id="cDefWeapon"></select></div>
+              <div class="field"><label for="cDefHero">Hero</label><select id="cDefHero"></select></div>
+            </fieldset>
+            <fieldset class="side side--wide">
+              <legend>Battlefield</legend>
+              <div class="field"><label for="cTerrain">Terrain</label><select id="cTerrain"></select></div>
+              <label class="check" for="cFort"><input type="checkbox" id="cFort"> Fort</label>
+            </fieldset>
+          </div>
+
+          <div class="screen">
+            <div class="stage">
+              <div class="plate plate--def" id="plateDef"></div>
+              <div class="troops troops--def" id="troopsDef" aria-hidden="true"></div>
+              <div class="troops troops--atk" id="troopsAtk" aria-hidden="true"></div>
+              <div class="plate plate--atk" id="plateAtk"></div>
+            </div>
+            <div class="tray">
+              <div class="throw">
+                <div class="throw-head" id="headAtk"></div>
+                <div class="dice" id="diceAtk"></div>
+                <ul class="notes" id="notesAtk"></ul>
+              </div>
+              <div class="throw">
+                <div class="throw-head" id="headDef"></div>
+                <div class="dice" id="diceDef"></div>
+                <ul class="notes" id="notesDef"></ul>
+              </div>
+              <ol class="pairs" id="pairs" aria-label="Pairs, highest against highest"></ol>
+              <div class="react" id="reactBar" hidden></div>
+            </div>
+            <div class="textbox" id="textbox" aria-live="polite"></div>
+          </div>
+
+          <div class="command">
+            <div>
+              <p class="label" id="menuLabel">Your move</p>
+              <div class="menu" id="moveMenu" role="group" aria-labelledby="menuLabel"></div>
+              <p class="preview" id="movePreview"></p>
+            </div>
+            <div class="command-side">
+              <div class="field"><label for="cDefPlan">Mei's orders</label><select id="cDefPlan"></select></div>
+              <p class="bag-note">Each side carries one 💎 Lucky Gem. Mei's orders decide when she spends hers. If a pair goes against you, you get to decide on yours.</p>
+              <button type="button" class="btn btn--roll" id="rollBtn"><span class="mini-die mini-die--atk" aria-hidden="true"></span><span id="rollLabel">Roll the dice</span></button>
+              <button type="button" class="btn btn--ghost" id="newClashBtn">New clash</button>
+            </div>
+          </div>
+          <details class="log" id="clashLog"><summary>Battle log</summary><ol id="logList"></ol></details>
+        </div>
+      </section>
+
+      <!-- ============ 2. How a round works ============ -->
+      <section class="chapter" id="round" aria-labelledby="round-h">
+        <header class="chapter-head">
+          <p class="kicker">The procedure</p>
+          <h2 id="round-h">How a round works</h2>
+          <p class="lede">A battle is a run of rounds. Every round follows the same nine steps, in this order.</p>
+        </header>
+        <ol class="steps">
+          <li class="step">
+            <div class="step-body">
+              <h3>Both sides choose at the same time</h3>
+              <p>A move (Strike, Guard, Tactic or Signature), a Bag item, a switch to another squad, or, for attackers only, a retreat. The defender's choice comes from their Standing Orders, or from them directly if they're online (Live Defence).</p>
+            </div>
+            <aside class="why"><p class="label">Why</p><p>The defender is usually asleep, so the game can't wait for them. Their <a href="#orders">Standing Orders</a> fight for them instead.</p></aside>
+          </li>
+          <li class="step">
+            <div class="step-body">
+              <h3>Support lands first</h3>
+              <p>Switches, heals, reinforcements, smoke, caltrops and Thunder all happen before anyone throws.</p>
+            </div>
+          </li>
+          <li class="step">
+            <div class="step-body">
+              <h3>Both sides throw their dice together</h3>
+              <p>The dice count and bonus come from the move, the unit's attack (attackers) or defence (defenders), hero aura, Forts, statuses, terrain and gear. Nobody rolls more than <span data-n="maxDice">4</span> dice or fewer than <span data-n="minDice">1</span>.</p>
+            </div>
+            <aside class="why"><p class="label">Why</p><p>Attackers add attack and defenders add defence, exactly as today. Pandas stay stubborn defenders, and ogres stay terrible ones.</p><p>Defenders roll one die fewer from Strikes and Signatures (3 becomes 2, 2 becomes 1). That's Risk's 3 against 2. Without it, defenders got heavy two-dice moves for free.</p></aside>
+          </li>
+          <li class="step">
+            <div class="step-body">
+              <h3>Reactions</h3>
+              <p>After seeing the dice, either side may spend a Lucky Gem (re-throw one die), a Chance Cube Blessing (ties go to you) or the Josserkid's Loaded Dice (one die becomes a 6). Each side gets one reaction a round.</p>
+            </div>
+          </li>
+          <li class="step">
+            <div class="step-body">
+              <h3>Pair off, highest against highest</h3>
+              <p>The higher total wins the pair. Ties go to the defender, but Guard moves, Blessings and Dazzled can change that. A die with no partner does nothing.</p>
+            </div>
+            <aside class="why"><p class="label">Why</p><p>Guard moves add no dice bonus. Instead, ties go to you and lost pairs hurt <span data-n="guardLess">25%</span> less (Phalanx: <span data-n="phalanxLess">40%</span>, Bamboo Wall: <span data-n="wallLess">50%</span>). For attackers, this flips the defender's tie advantage for a round.</p></aside>
+          </li>
+          <li class="step">
+            <div class="step-body">
+              <h3>Every pair you win hurts</h3>
+              <p>Each one deals your move's power to the squad on point: <span data-n="super">×1.5</span> if your type beats theirs ("Super effective!"), <span data-n="resist">×0.75</span> if theirs beats yours ("Not very effective..."), <span data-n="legendTaken">×0.75</span> against Legends, and <span data-n="critMult">×1.5</span> on a crit (a winning natural <span data-n="critOn">6</span>). Every <span data-n="hp">10</span> damage fells one unit, and wounds carry over.</p>
+            </div>
+            <aside class="why"><p class="label">Why</p><p>HP is <span data-n="hp">10</span> for every unit. Different HP per unit double-counted the attack and defence stats the game already has, and made armed pandas beat pandas every single time. With equal HP, a lost pair still costs about one unit, as in Risk, and moves shift it: heavy hits deal 13 to 16, ranged and guard moves 7 or 8.</p><p>Crits land on a natural <span data-n="critOn">6</span>, on 5 or 6 in Gem Caves and for some moves, and on 4 or better for Golden Hour.</p></aside>
+          </li>
+          <li class="step">
+            <div class="step-body">
+              <h3>Effects fire</h3>
+              <p>Move effects go off (on a win, on doubles, on a crit, or always). Statuses tick down, and a wiped-out squad is replaced by the next one in line.</p>
+            </div>
+          </li>
+          <li class="step">
+            <div class="step-body">
+              <h3>Momentum builds</h3>
+              <p>+1 for every pair won, up to <span data-n="momentumMax">5</span>. At <span data-n="momentumMax">5</span>, the squad on point can unleash its Signature move, which spends it all.</p>
+            </div>
+          </li>
+          <li class="step">
+            <div class="step-body">
+              <h3>The battle ends</h3>
+              <p>When one side has nobody standing, when the attackers retreat (the defenders get a parting shot of <span data-n="shot">2 dice, each 5 or better dealing 8</span>, unless the line was cut or smoked), after a Ceasefire, or after <span data-n="roundLimit">20</span> rounds, when the invasion stalls and the attackers go home.</p>
+            </div>
+          </li>
+        </ol>
+      </section>
+
+      <!-- ============ 3. Types ============ -->
+      <section class="chapter" id="types" aria-labelledby="types-h">
+        <header class="chapter-head">
+          <p class="kicker">The matchups</p>
+          <h2 id="types-h">Types</h2>
+          <p class="lede">Every squad has a type. Four of them form a ring: each beats the next one round, and opposites are even. Heroes are Legends and stand outside the ring.</p>
+        </header>
+        <div class="types-grid">
+          <figure>
+            <div id="typeRing"></div>
+            <figcaption id="ringCaption">Follow an arrow: the type at its tail deals ×1.5 to the type at its head. Going against an arrow deals ×0.75. Opposites across the ring are even.</figcaption>
+            <div class="legend-note" id="legendNote"></div>
+          </figure>
+          <div>
+            <div class="matrix-wrap" id="typeMatrix"></div>
+            <ul class="lore" id="typeLore"></ul>
+            <p class="who-line" id="typeWho"></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 4. Units and heroes ============ -->
+      <section class="chapter" id="units" aria-labelledby="units-h">
+        <header class="chapter-head">
+          <p class="kicker">Who fights</p>
+          <h2 id="units-h">Units and heroes</h2>
+          <p class="lede">Attack and defence are the numbers you already know: they add to every die. HP is new, and it's the same <span data-n="hp">10</span> for every unit.</p>
+        </header>
+        <div class="card-grid" id="unitCards"></div>
+        <h3 id="heroes">Heroes</h3>
+        <p class="sub">Heroes join a battle fought from or in their region. Their aura adds to every die your side rolls, as it does today, and they also take the field as a one-hero squad you can switch in.</p>
+        <div class="card-grid" id="heroCards"></div>
+      </section>
+
+      <!-- ============ 5. Moves ============ -->
+      <section class="chapter" id="moves" aria-labelledby="moves-h">
+        <header class="chapter-head">
+          <p class="kicker">The menu</p>
+          <h2 id="moves-h">Moves</h2>
+          <p class="lede">Every squad brings its own moves, and gear adds more. Strikes deal damage. Guards win ties and soften blows. Tactics mostly deal nothing and do something else. Signatures need full Momentum.</p>
+        </header>
+        <div class="defend-note">
+          <div class="cutdemo" aria-hidden="true"><span class="pd"></span><span class="pd"></span><span class="pd cut"></span></div>
+          <p id="defendNote">Dice counts are written for attackers. Defending, a Strike or Signature rolls one die fewer (3 becomes 2, 2 becomes 1, never below 1). Guards and Tactics roll as written. That's Risk's 3 against 2.</p>
+        </div>
+        <div class="filters" role="search" aria-label="Filter moves">
+          <div class="filter-row">
+            <div class="field field--search"><label for="mSearch">Search</label><input type="search" id="mSearch" placeholder="Name, rule or flavour" autocomplete="off"></div>
+            <div class="field"><label for="mUser">Who can use it</label><select id="mUser"></select></div>
+          </div>
+          <div class="filter-row">
+            <div class="seg-wrap"><span class="flabel" id="mKindLabel">Kind</span><div class="seg" id="mKind" role="group" aria-labelledby="mKindLabel"></div></div>
+            <div class="seg-wrap"><span class="flabel" id="mElLabel">Element</span><div class="seg" id="mEl" role="group" aria-labelledby="mElLabel"></div></div>
+          </div>
+          <div class="filter-foot">
+            <p class="count" id="mCount" aria-live="polite"></p>
+            <button type="button" class="linkish" id="mClear">Clear filters</button>
+          </div>
+        </div>
+        <p class="tag-key" id="tagKey"></p>
+        <div class="move-grid" id="moveGrid"></div>
+        <p class="no-moves" id="noMoves" hidden>No moves match these filters. <button type="button" class="linkish" id="mClear2">Clear filters</button></p>
+      </section>
+
+      <!-- ============ 6. Armory, Bag, field ============ -->
+      <section class="chapter" id="armory" aria-labelledby="armory-h">
+        <header class="chapter-head">
+          <p class="kicker">Spending your resources</p>
+          <h2 id="armory-h">The Armory and the Bag</h2>
+          <p class="lede">Resources get new jobs. The Armory turns them into gear a squad carries into battle. The Bag holds power-ups you spend mid-fight.</p>
+        </header>
+        <h3 id="gear">Weapons and armour</h3>
+        <p class="sub">Each squad carries one weapon and one piece of armour, bought at the Bank's Armory for a region's stack. Gear breaks after 3 battles.</p>
+        <div id="gearGroups"></div>
+
+        <h3 id="bag">The Bag</h3>
+        <p class="sub">Power-ups bought at the Bank with resources. When you can use one depends on the item.</p>
+        <div class="bag-cols" id="bagCols"></div>
+
+        <div class="subsection" id="statuses">
+          <h3>Statuses</h3>
+          <p class="sub">A status is set by one round and felt in the next. Most last a single round.</p>
+          <ul class="rows" id="statusRows"></ul>
+        </div>
+
+        <div class="subsection" id="field">
+          <div class="field-cols">
+            <div>
+              <h3>Terrain</h3>
+              <p class="sub">Terrain comes from the region's resource. Each one gives moves of its element +1 die and adds a rule of its own.</p>
+              <ul class="rows" id="terrainRows"></ul>
+            </div>
+            <div>
+              <h3>Buildings in battle</h3>
+              <p class="sub">A defender's buildings join the fight.</p>
+              <ul class="rows" id="buildingRows"></ul>
+              <h3 style="margin-top:32px">World events in battle</h3>
+              <p class="sub">Events that already exist in the game reach into battles too.</p>
+              <ul class="rows" id="eventRows"></ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 7. Standing Orders ============ -->
+      <section class="chapter" id="orders" aria-labelledby="orders-h">
+        <header class="chapter-head">
+          <p class="kicker">Defending while you sleep</p>
+          <h2 id="orders-h">Standing Orders and Live Defence</h2>
+          <p class="lede">The game is asynchronous, so the defender is usually away. You set Standing Orders for each region on your own turn, and they fight for you until you're back.</p>
+        </header>
+        <div class="orders-grid">
+          <div>
+            <div class="slip" id="ordersSlip"></div>
+          </div>
+          <div>
+            <div class="doctrine-grid" id="doctrineCards"></div>
+            <div class="natives">
+              <h4>The native nations</h4>
+              <p class="sub" style="font-size:15px;margin-bottom:10px">Natives can't change their minds. Each nation always fights the same way.</p>
+              <ul class="native-list" id="nativeList"></ul>
+            </div>
+          </div>
+        </div>
+        <div class="live prose">
+          <h3 style="margin-top:0">Live Defence</h3>
+          <p>If you're online when someone invades, you get a prompt to take command. You then choose each round yourself, with a 20-second clock. Whenever the clock runs out, your orders take over for that round.</p>
+          <p>Computer players use the same battle AI, flavoured by their own doctrine.</p>
+        </div>
+      </section>
+
+      <!-- ============ 8. Dice Lab ============ -->
+      <section class="chapter" id="lab" aria-labelledby="lab-h">
+        <header class="chapter-head">
+          <p class="kicker">Work out the odds</p>
+          <h2 id="lab-h">Dice Lab</h2>
+          <p class="lede">Set up any fight and see how it's likely to go. The Lab throws one round 4,000 times, and can fight 500 whole battles with the computer playing both sides.</p>
+        </header>
+        <form class="lab-form" id="labForm" autocomplete="off">
+          <div class="lab-sides">
+            <fieldset class="side">
+              <legend><span class="mini-die mini-die--atk" aria-hidden="true"></span>&nbsp;Invaders</legend>
+              <div class="field"><label for="lAtkUnit">Squad</label><select id="lAtkUnit"></select></div>
+              <div class="field field--n"><label for="lAtkCount">How many</label><select id="lAtkCount"></select></div>
+              <div class="field"><label for="lAtkWeapon">Weapon</label><select id="lAtkWeapon"></select></div>
+              <div class="field"><label for="lAtkArmour">Armour</label><select id="lAtkArmour"></select></div>
+              <div class="field"><label for="lAtkHero">Hero</label><select id="lAtkHero"></select></div>
+              <label class="check" for="lAtkCatapult"><input type="checkbox" id="lAtkCatapult"> Siege Catapult</label>
+              <div class="field field--plan"><label for="lAtkPlan">Plan</label><select id="lAtkPlan"></select></div>
+            </fieldset>
+            <fieldset class="side">
+              <legend><span class="mini-die mini-die--def" aria-hidden="true"></span>&nbsp;Defenders</legend>
+              <div class="field"><label for="lDefUnit">Squad</label><select id="lDefUnit"></select></div>
+              <div class="field field--n"><label for="lDefCount">How many</label><select id="lDefCount"></select></div>
+              <div class="field"><label for="lDefWeapon">Weapon</label><select id="lDefWeapon"></select></div>
+              <div class="field"><label for="lDefArmour">Armour</label><select id="lDefArmour"></select></div>
+              <div class="field"><label for="lDefHero">Hero</label><select id="lDefHero"></select></div>
+              <div class="field field--plan"><label for="lDefPlan">Plan</label><select id="lDefPlan"></select></div>
+            </fieldset>
+          </div>
+          <fieldset class="side side--wide">
+            <legend>Battlefield</legend>
+            <div class="field"><label for="lTerrain">Terrain</label><select id="lTerrain"></select></div>
+            <label class="check" for="lFort"><input type="checkbox" id="lFort"> Defenders have a Fort</label>
+          </fieldset>
+        </form>
+        <div class="lab-out">
+          <section class="lab-card" aria-labelledby="labOneH">
+            <h3 id="labOneH">One round</h3>
+            <p class="lab-sub" id="labOpeners"></p>
+            <div class="lab-hero"><span class="big" id="labPAny">–</span><span>chance you win at least one pair</span></div>
+            <dl class="lab-stats" id="labStats"></dl>
+            <div class="plans" id="labPlans"></div>
+          </section>
+          <section class="lab-card" aria-labelledby="labSimH">
+            <h3 id="labSimH">Whole battles</h3>
+            <p class="lab-sub" id="labSimSub">The computer fights both sides to the end, 500 times.</p>
+            <button type="button" class="btn" id="labSimBtn">Simulate 500 whole battles</button>
+            <div class="progress" id="labProgress" hidden><span></span></div>
+            <div id="labSimOut" aria-live="polite"></div>
+          </section>
+        </div>
+      </section>
+
+      <!-- ============ 9. Balance ============ -->
+      <section class="chapter" id="balance" aria-labelledby="balance-h">
+        <header class="chapter-head">
+          <p class="kicker">Does it still feel like Risk?</p>
+          <h2 id="balance-h">Balance</h2>
+          <p class="lede">Computer against computer, 400 battles for each matchup, next to the same fight under today's Risk rules. Mirror matches track today's odds within a few points. Type advantage moves a fight by about 10 to 35 points.</p>
+        </header>
+        <div class="legend-row" aria-hidden="true"><span><i class="sw" style="--c:var(--series-new)"></i>New battle rules</span><span><i class="sw" style="--c:var(--series-old)"></i>Today's Risk rules</span><span>Attacker win rate</span></div>
+        <div class="bal" id="balanceRows"></div>
+      </section>
+
+      <!-- ============ 10. Replays ============ -->
+      <section class="chapter" id="replays" aria-labelledby="replays-h">
+        <header class="chapter-head">
+          <p class="kicker">After the fact</p>
+          <h2 id="replays-h">Replays and catching up</h2>
+        </header>
+        <div class="replay-grid">
+          <div class="prose">
+            <p>Every battle keeps a full record: the starting armies, each round's two choices, every die, every re-throw, and the seed of each throw.</p>
+            <p>The server does the rolling. Your browser then throws real-physics dice that are simulated in advance to land on the server's numbers, so the same seed replays the identical tumble for everyone.</p>
+            <p>When you come back, "Since your last turn" lists every battle you're allowed to see (fog rules apply) as a card. Tap one for the full replay at 1x, 2x or 4x, with a round scrubber marked for crits, knockouts and super-effective hits. Or watch a 20-second highlight reel.</p>
+            <p>Defenders see what their Standing Orders chose, and why.</p>
+          </div>
+          <div>
+            <p class="label">Your clash above, as a catch-up card</p>
+            <div class="catchup" id="catchup"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 11. In the code ============ -->
+      <section class="chapter" id="code" aria-labelledby="code-h">
+        <header class="chapter-head">
+          <p class="kicker">For the build</p>
+          <h2 id="code-h">How it plugs into the code</h2>
+          <p class="lede">The rules on this page are a working engine already: <code>shared/codex-data.js</code> holds every number and word (<code>CODEX</code>), and <code>shared/battle-engine.js</code> is pure rules over a plain object, with no rendering (<code>Battle</code>).</p>
+        </header>
+        <ul class="code-list">
+          <li><b>src/game/engine.ts</b>A <code>move</code> into an enemy region opens <code>s.battle</code> instead of resolving it on the spot. New actions: <code>battleRound { action, prep? }</code>, <code>battleReact { id, die }</code> and <code>battleAuto</code>. The server rolls with the game's existing seeded RNG. Ending your turn with a battle open lets Sun Tzu finish it.</li>
+          <li><b>The battle event</b>It carries BattleData v2, the full round log. Old battles still replay in today's <code>BattleView</code>.</li>
+          <li><b>Standing Orders</b>They live on each owned region: <code>orders: { doctrine, lead, traps, budget }</code>. Computer players use the same battle AI with their doctrine.</li>
+          <li><b>The Bank</b>It gets an Armory tab (gear per region stack, breaks after 3 battles) and a Bag (items per player).</li>
+          <li><b>Odds</b>The previews in <code>odds.ts</code> become <code>Battle.preview</code>. This page's Dice Lab uses <code>Battle.estimate</code>, the same machinery with more throws.</li>
+          <li><b>The screen</b>A new R3F <code>BattleScreen</code> replaces <code>BattleView</code>, and its dice tray component is shared with the start-of-turn roll.</li>
+          <li><b>This page</b>The clash calls <code>Battle.createBattle</code>, <code>beginRound</code>, <code>react</code> and <code>finishRound</code>, and prints the event texts. Mei's orders come from <code>Battle.aiAction</code>.</li>
+        </ul>
+      </section>
+    </main>
+  </div>
+
+  <footer class="colophon">
+    <p>Every number, move and line of flavour on this page is read from the battle engine's data, and the clash and the Dice Lab run the engine itself. Balance figures come from the simulation run for this draft.</p>
+  </footer>
+</div>
+
+<script>
+/*@include shared/codex-data.js*/
+/*@include shared/battle-engine.js*/
+/*@include shared/balance-data.js*/
+(() => {
+  "use strict";
+  const C = CODEX;
+  const R = C.RULES;
+  const $ = (s, el = document) => el.querySelector(s);
+  const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const pct = (x) => `${Math.round(x * 100)}%`;
+  const f1 = (x) => (Math.round(x * 10) / 10).toFixed(1);
+  const mult = (x) => `×${+Number(x).toFixed(2)}`;
+  const sign = (n) => (n > 0 ? `+${n}` : `${n}`);
+  const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  const sum = (o) => Object.values(o || {}).reduce((a, b) => a + b, 0);
+  const KIND_LABEL = { strike: "Strike", guard: "Guard", tactic: "Tactic", signature: "Signature" };
+  const UNIT_KEYS = Object.keys(C.UNITS);
+  const HERO_KEYS = Object.keys(C.HEROES);
+  const PLAYER_DOCTRINES = Object.keys(C.DOCTRINES).filter((k) => !C.DOCTRINES[k].native);
+  const PLACES = { bamboo: "Sichuan", stone: "Tibet", iron: "North China", rice: "South China", gems: "Japan" };
+  const placeFor = (t) => PLACES[t] || C.TERRAIN[t].label;
+  const firstTerrain = (el) => Object.keys(C.TERRAIN).find((k) => C.TERRAIN[k].element === el);
+
+  // ---------------------------------------------------------------- small renderers
+  const GLYPH = {
+    strike: '<path d="M2.6 13.4 11.4 4.6M7.6 3h5.4v5.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+    guard: '<path d="M8 1.6 13.6 3.9v4.2c0 3.2-2.5 5.4-5.6 6.4-3.1-1-5.6-3.2-5.6-6.4V3.9Z" fill="currentColor"/>',
+    tactic: '<path d="M8 1.4 14.6 8 8 14.6 1.4 8Z" fill="currentColor"/>',
+    signature: '<path d="m8 1 2.1 4.5 4.9.6-3.6 3.3 1 4.8L8 11.8l-4.4 2.4 1-4.8L1 6.1l4.9-.6Z" fill="currentColor"/>',
+    switch: '<path d="M2 5.2h10.5L10 2.7M14 10.8H3.5L6 13.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+    retreat: '<path d="M13.6 8H2.8M6.6 4 2.6 8l4 4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>',
+  };
+  const glyph = (k) => `<svg class="glyph glyph--${k}" viewBox="0 0 16 16" aria-hidden="true">${GLYPH[k] || ""}</svg>`;
+  const typeChip = (t) => {
+    const T = C.TYPES[t];
+    return T ? `<span class="type-chip" style="--chip:${T.color};--chip-ink:${T.ink}">${esc(T.label)}</span>` : "";
+  };
+  const goodChip = (g, n) => {
+    const G = C.GOODS[g];
+    return `<span class="good" style="--g:${G.color}" title="${esc(G.label)}">${G.icon}${n}</span>`;
+  };
+  const costHTML = (cost) => {
+    const e = Object.entries(cost || {}).filter(([, n]) => n);
+    return e.length ? `<span class="cost">${e.map(([g, n]) => goodChip(g, n)).join("")}</span>` : `<span class="free">Free</span>`;
+  };
+  const PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
+  function dieHTML(v, side, size = "") {
+    const on = PIPS[v] || [];
+    return `<span class="die die--${side}${size ? " " + size : ""}" role="img" aria-label="${v}">${Array.from({ length: 9 }, (_, i) => `<i${on.includes(i) ? ' class="on"' : ""}></i>`).join("")}</span>`;
+  }
+  function setPips(el, v) {
+    const on = PIPS[v] || [];
+    [...el.children].forEach((pip, i) => pip.classList.toggle("on", on.includes(i)));
+    el.setAttribute("aria-label", String(v));
+  }
+  function makeDie(v, side, size = "") {
+    const t = document.createElement("template");
+    t.innerHTML = dieHTML(v, side, size);
+    return t.content.firstElementChild;
+  }
+  function fillSelect(sel, options, value) {
+    sel.innerHTML = "";
+    let group = null;
+    let groupName;
+    for (const o of options) {
+      let parent = sel;
+      if (o.group) {
+        if (o.group !== groupName) {
+          group = document.createElement("optgroup");
+          group.label = o.group;
+          sel.append(group);
+          groupName = o.group;
+        }
+        parent = group;
+      }
+      const op = new Option(o.label, o.value);
+      op.disabled = Boolean(o.disabled);
+      parent.append(op);
+    }
+    const ok = options.find((o) => o.value === value && !o.disabled);
+    if (ok) sel.value = value;
+    else {
+      const first = options.find((o) => !o.disabled);
+      if (first) sel.value = first.value;
+    }
+  }
+
+  // ---------------------------------------------------------------- numbers inside the prose
+  function fillNumbers() {
+    const hps = [...new Set(Object.values(C.UNITS).map((u) => u.hp))];
+    const phal = C.MOVE_BY_ID.phalanx;
+    const shot = R.retreatShot;
+    const N = {
+      maxDice: R.maxDice,
+      minDice: R.minDice,
+      super: mult(C.SUPER),
+      resist: mult(C.RESIST),
+      legendTaken: mult(C.LEGEND_TAKEN),
+      critMult: mult(R.critMult),
+      critOn: R.critOn,
+      hp: hps.length === 1 ? hps[0] : hps.join(" or "),
+      momentumMax: R.momentumMax,
+      roundLimit: R.roundLimit,
+      guardLess: `${Math.round((1 - R.guardBrace) * 100)}%`,
+      phalanxLess: phal && phal.brace ? `${Math.round((1 - phal.brace) * 100)}%` : null,
+      wallLess: C.MOVE_BY_ID.bambooWall && C.MOVE_BY_ID.bambooWall.brace ? `${Math.round((1 - C.MOVE_BY_ID.bambooWall.brace) * 100)}%` : null,
+      shot: `${shot.dice} dice, each ${shot.hitOn} or better dealing ${shot.damage}`,
+    };
+    $$("[data-n]").forEach((el) => {
+      const v = N[el.dataset.n];
+      if (v != null) el.textContent = v;
+    });
+    $("#ringCaption").textContent = `Follow an arrow: the type at its tail deals ${mult(C.SUPER)} to the type at its head. Going against an arrow deals ${mult(C.RESIST)}. Opposites across the ring are even.`;
+    const eg = C.MOVES.find((m) => m.kind === "strike" && m.dice === 3);
+    $("#defendNote").innerHTML = `Dice counts are written for attackers. Defending, a Strike or Signature rolls ${R.defenderDiceCut === 1 ? "one die" : R.defenderDiceCut + " dice"} fewer (3 becomes 2, 2 becomes 1, never below ${R.minDice}). Guards and Tactics roll as written. That's Risk's 3 against 2${eg ? `: ${esc(eg.name)} rolls 3 attacking and 2 defending.` : "."}`;
+  }
+
+  function renderEdition() {
+    const rows = [
+      [Object.keys(C.UNITS).length, "units"],
+      [Object.keys(C.HEROES).length, "heroes"],
+      [C.MOVES.length, "moves"],
+      [Object.keys(C.WEAPONS).length, "pieces of gear"],
+      [Object.keys(C.ITEMS).length, "Bag items"],
+      [Object.keys(C.STATUSES).length, "statuses"],
+      [Object.keys(C.TERRAIN).length, "terrains"],
+      [Object.keys(C.DOCTRINES).length, "doctrines"],
+    ];
+    $("#editionList").innerHTML = rows.map(([n, t]) => `<li><b>${n}</b>${t}</li>`).join("");
+  }
+
+  // ---------------------------------------------------------------- navigation
+  function initNav() {
+    const toc = $("#toc");
+    const toggle = $("#tocToggle");
+    const cur = $("#tocCurrent");
+    const close = () => {
+      toc.classList.remove("open");
+      toggle.setAttribute("aria-expanded", "false");
+    };
+    toggle.addEventListener("click", () => {
+      const open = !toc.classList.contains("open");
+      toc.classList.toggle("open", open);
+      toggle.setAttribute("aria-expanded", String(open));
+    });
+    $("#tocList").addEventListener("click", (e) => {
+      if (e.target.closest("a")) close();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && toc.classList.contains("open")) {
+        close();
+        toggle.focus();
+      }
+    });
+    const links = $$("#tocList a");
+    const targets = links.map((a) => document.getElementById(a.hash.slice(1)));
+    let queued = false;
+    const update = () => {
+      queued = false;
+      const line = Math.min(window.innerHeight * 0.3, 240);
+      let idx = 0;
+      targets.forEach((t, i) => {
+        if (t && t.getBoundingClientRect().top <= line) idx = i;
+      });
+      links.forEach((a, i) => a.setAttribute("aria-current", i === idx ? "true" : "false"));
+      cur.textContent = links[idx].textContent;
+    };
+    window.addEventListener("scroll", () => {
+      if (!queued) {
+        queued = true;
+        requestAnimationFrame(update);
+      }
+    }, { passive: true });
+    window.addEventListener("resize", update);
+    update();
+  }
+
+  // ---------------------------------------------------------------- types
+  function typeRing() {
+    const start = Object.keys(C.TYPES).find((k) => C.TYPES[k].beats);
+    const ring = [];
+    let t = start;
+    while (t && !ring.includes(t) && ring.length < 8) {
+      ring.push(t);
+      t = C.TYPES[t].beats;
+    }
+    return ring;
+  }
+  const typeUsers = (t) => {
+    if (t === "legend") return "every hero";
+    return UNIT_KEYS.filter((u) => C.UNITS[u].type === t).map((u) => C.UNITS[u].plural).join(", ");
+  };
+  function renderTypes() {
+    const ring = typeRing();
+    const n = ring.length;
+    const cx = 210;
+    const cy = 172;
+    const r = 112;
+    const nr = 41;
+    const ang = (i) => ((-90 + (i * 360) / n) * Math.PI) / 180;
+    const P = (a, rad) => [cx + rad * Math.cos(a), cy + rad * Math.sin(a)];
+    const gap = (27 * Math.PI) / 180;
+    let arcs = "";
+    let labels = "";
+    ring.forEach((t, i) => {
+      const [x0, y0] = P(ang(i) + gap, r);
+      const [x1, y1] = P(ang(i + 1) - gap, r);
+      arcs += `<path class="ring-arc" d="M${x0.toFixed(1)} ${y0.toFixed(1)} A${r} ${r} 0 0 1 ${x1.toFixed(1)} ${y1.toFixed(1)}" marker-end="url(#ringArrow)"/>`;
+      const [lx, ly] = P((ang(i) + ang(i + 1)) / 2, r + 25);
+      labels += `<text class="ring-mult" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" dominant-baseline="central">${mult(C.typeMult(t, C.TYPES[t].beats))}</text>`;
+    });
+    let opp = "";
+    if (n === 4) {
+      for (const [a, b] of [[0, 2], [1, 3]]) {
+        const [x0, y0] = P(ang(a), r - nr - 4);
+        const [x1, y1] = P(ang(b), r - nr - 4);
+        opp += `<line class="ring-opp" x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}"/>`;
+      }
+      const even = C.typeMult(ring[0], ring[2]);
+      opp += `<rect class="ring-center-bg" x="${cx - 38}" y="${cy - 16}" width="76" height="32" rx="6"/><text class="ring-center" x="${cx}" y="${cy - 3}" text-anchor="middle">EVEN</text><text class="ring-center" x="${cx}" y="${cy + 11}" text-anchor="middle">${mult(even)}</text>`;
+    }
+    const nodes = ring
+      .map((t, i) => {
+        const T = C.TYPES[t];
+        const [x, y] = P(ang(i), r);
+        return `<g><circle class="ring-node-ring" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${nr}" fill="${T.color}"/><text x="${x.toFixed(1)}" y="${(y - 7).toFixed(1)}" text-anchor="middle" dominant-baseline="central" font-size="20">${T.icon}</text><text class="ring-node-label" x="${x.toFixed(1)}" y="${(y + 16).toFixed(1)}" text-anchor="middle" dominant-baseline="central" fill="${T.ink}">${esc(T.label)}</text></g>`;
+      })
+      .join("");
+    const claim = ring.map((t) => `${C.TYPES[t].label} beats ${C.TYPES[C.TYPES[t].beats].label}`).join(", ");
+    $("#typeRing").innerHTML = `<svg class="ring" viewBox="0 0 420 344" role="img" aria-label="The type ring: ${esc(claim)}. Opposites are even.">
+      <defs><marker id="ringArrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10Z" fill="currentColor"/></marker></defs>
+      ${opp}${arcs}${labels}${nodes}</svg>`;
+
+    const L = C.TYPES.legend;
+    if (L) {
+      $("#legendNote").innerHTML = `<span class="type-chip" style="--chip:${L.color};--chip-ink:${L.ink}">${L.icon} ${esc(L.label)}</span><p>Every hero is a Legend, outside the ring: ${mult(C.LEGEND_TAKEN)} from everything, ${mult(C.typeMult("legend", ring[0]))} to everything. <i>${esc(L.why)}</i></p>`;
+    }
+
+    const cols = [...ring, ...(C.TYPES.legend ? ["legend"] : [])];
+    const head = cols.map((d) => `<th scope="col">${typeChip(d)}</th>`).join("");
+    const rows = cols
+      .map((a) => {
+        const cells = cols
+          .map((d) => {
+            const x = C.typeMult(a, d);
+            const cls = x > 1 ? "sup" : x < 1 ? "res" : "even";
+            const word = x > 1 ? "super effective" : x < 1 ? "not very effective" : "even";
+            return `<td class="${cls}" title="${esc(C.TYPES[a].label)} into ${esc(C.TYPES[d].label)}: ${word}">${mult(x)}</td>`;
+          })
+          .join("");
+        return `<tr><th scope="row">${typeChip(a)}</th>${cells}</tr>`;
+      })
+      .join("");
+    $("#typeMatrix").innerHTML = `<table class="matrix"><caption>Damage when the row's type hits the column's type. Green cells are super effective, pink cells are not very effective.</caption><thead><tr><th class="corner" scope="col">Hits ↓ / takes →</th>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+
+    $("#typeLore").innerHTML = ring
+      .map((t) => {
+        const T = C.TYPES[t];
+        return `<li><span class="vs">${typeChip(t)} beats ${typeChip(T.beats)}</span><p>${esc(T.why)} <span class="sr-only">(${esc(typeUsers(t))})</span></p></li>`;
+      })
+      .join("");
+    $("#typeWho").innerHTML = `<b>Who's who:</b> ${[...ring, ...(C.TYPES.legend ? ["legend"] : [])].map((t) => `${esc(C.TYPES[t].label)} is ${esc(typeUsers(t))}`).join(" · ")}.`;
+  }
+
+  // ---------------------------------------------------------------- units & heroes
+  const movesBy = (user) => C.MOVES.filter((m) => m.user === user);
+  const moveLink = (m) => `<a href="#move-${m.id}" data-move="${m.id}">${esc(m.name)}</a>`;
+  const gearFor = (u) => Object.entries(C.WEAPONS).filter(([, w]) => w.fits.includes(u));
+  function renderUnits() {
+    $("#unitCards").innerHTML = UNIT_KEYS.map((k) => {
+      const u = C.UNITS[k];
+      const gear = gearFor(k);
+      return `<article class="unit" id="unit-${k}">
+        <div class="unit-head"><span class="unit-icon" aria-hidden="true">${u.icon}</span><div><h4>${esc(u.label)}</h4><div class="unit-sub">${typeChip(u.type)}<span>costs</span>${costHTML(u.cost)}</div></div></div>
+        <dl class="stats"><div><dt>HP</dt><dd>${u.hp}</dd></div><div><dt>Attack</dt><dd>${sign(u.atk)}</dd></div><div><dt>Defence</dt><dd>${sign(u.def)}</dd></div></dl>
+        <p>${esc(u.blurb)}</p>
+        <div class="unit-list"><p class="label">Knows</p><div class="links">${movesBy(k).map(moveLink).join("")}</div></div>
+        ${gear.length ? `<div class="unit-list"><p class="label">Can carry</p><div class="links">${gear.map(([, w]) => `<span>${w.icon} ${esc(w.label)}</span>`).join("")}</div></div>` : ""}
+      </article>`;
+    }).join("");
+    $("#heroCards").innerHTML = HERO_KEYS.map((k) => {
+      const h = C.HEROES[k];
+      return `<article class="unit" id="hero-${k}">
+        <div class="unit-head"><span class="unit-icon" aria-hidden="true">${h.icon}</span><div><h4>${esc(h.name)}</h4><div class="unit-sub">${typeChip(h.type)}<span>${esc(h.title)}</span></div></div></div>
+        <dl class="stats"><div><dt>HP</dt><dd>${h.hp}</dd></div><div><dt>Attack</dt><dd>${sign(h.atk)}</dd></div><div><dt>Defence</dt><dd>${sign(h.def)}</dd></div><div><dt>Aura</dt><dd>${sign(h.aura)}</dd></div></dl>
+        <p>${esc(h.blurb)}</p>
+        <div class="unit-list"><p class="label">Knows</p><div class="links">${movesBy(k).map(moveLink).join("")}</div></div>
+      </article>`;
+    }).join("");
+  }
+
+  // ---------------------------------------------------------------- moves
+  const TAGS = {
+    ranged: ["Ranged", `Pairs you lose hurt you ${Math.round((1 - CODEX.RULES.rangedTaken) * 100)}% less.`],
+    pierce: ["Pierce", "Their guard bonus and Fort don't count."],
+    once: ["Once", "Once per battle."],
+    reload: ["Reload", "Every other round."],
+    recoil: ["Recoil", "Your own squad takes damage."],
+    firstRound: ["Opener", "+1 die in the first round."],
+  };
+  const ON_TEXT = { win: "on a win", always: "always", crit: "on a crit", doubles: "on doubles", triples: "on triples" };
+  const TO_TEXT = { enemy: "the enemy", self: "your squad", team: "your whole side", brutes: "your ogres" };
+  function unlockers(m) {
+    return Object.entries(C.WEAPONS).filter(([, w]) => w.move === m.id);
+  }
+  function moveUsers(m) {
+    if (C.UNITS[m.user]) return { label: `${C.UNITS[m.user].icon} ${C.UNITS[m.user].label}`, keys: [`unit:${m.user}`] };
+    if (C.HEROES[m.user]) return { label: `${C.HEROES[m.user].icon} ${C.HEROES[m.user].name}`, keys: [`hero:${m.user}`] };
+    const gear = unlockers(m);
+    if (gear.length) {
+      const fits = new Set(gear.flatMap(([, w]) => w.fits));
+      return {
+        label: gear.map(([, w]) => `${w.icon} ${w.label}`).join(", "),
+        keys: [...gear.map(([k]) => `gear:${k}`), ...[...fits].map((u) => `unit:${u}`)],
+        gear: true,
+      };
+    }
+    return { label: m.user, keys: [] };
+  }
+  const defendDice = (m) => {
+    const pool = m.kind === "strike" || (m.kind === "signature" && !m.guard);
+    return pool ? Math.max(R.minDice, m.dice - R.defenderDiceCut) : m.dice;
+  };
+  function moveTags(m) {
+    const out = [];
+    if (m.element) {
+      const G = C.GOODS[m.element];
+      const T = C.TERRAIN[firstTerrain(m.element)];
+      out.push(`<li class="tag tag--el" style="--g:${G.color}" title="${T ? `+1 die in ${esc(T.label)}` : ""}">${G.icon} ${esc(G.label)}</li>`);
+    }
+    if (m.kind === "signature") out.push(`<li class="tag" title="Needs full Momentum, and spends it">Needs ${R.momentumMax} Momentum</li>`);
+    if (m.guard && m.kind !== "guard") out.push(`<li class="tag" title="Ties go to you">Guard</li>`);
+    for (const t of m.tags) if (TAGS[t]) out.push(`<li class="tag" title="${esc(TAGS[t][1])}">${TAGS[t][0]}</li>`);
+    if (m.critOn) out.push(`<li class="tag" title="A winning die on ${m.critOn} or more crits">Crits on ${m.critOn}+</li>`);
+    if (m.brace) out.push(`<li class="tag" title="Lost pairs hurt less">Lost pairs −${Math.round((1 - m.brace) * 100)}%</li>`);
+    if (m.splash) out.push(`<li class="tag" title="${esc(ON_TEXT[m.splashOn || "always"] || "")}">Splash ${m.splash}</li>`);
+    if (m.needs) out.push(`<li class="tag">${esc(C.BUILDINGS[m.needs].label)} only</li>`);
+    for (const e of m.effects || []) {
+      const S = C.STATUSES[e.status];
+      if (!S) continue;
+      out.push(`<li class="tag tag--st" title="${esc(cap(ON_TEXT[e.on] || e.on))}: ${esc(TO_TEXT[e.to] || e.to)} ${e.to === "team" || e.to === "brutes" ? "are" : "is"} ${esc(S.label)} for ${plural(e.turns || 1, "round", "rounds")}. ${esc(S.text)}">${S.icon} ${esc(S.label)}${e.to === "self" ? " (you)" : e.to === "team" ? " (your side)" : e.to === "brutes" ? " (ogres)" : ""}</li>`);
+    }
+    return out;
+  }
+  function moveCard(m) {
+    const u = moveUsers(m);
+    const dd = defendDice(m);
+    const pips = Array.from({ length: m.dice }, (_, i) => `<span class="pd${i >= dd ? " cut" : ""}"></span>`).join("");
+    const tags = moveTags(m);
+    return `<article class="move" id="move-${m.id}">
+      <div class="move-top"><span class="kind">${glyph(m.kind)}${KIND_LABEL[m.kind]}</span><span class="move-user">${esc(u.label)}</span></div>
+      <h4>${esc(m.name)}</h4>
+      <div class="move-dice"><span class="pips" aria-hidden="true">${pips}</span><span>${plural(m.dice, "die", "dice")}${dd !== m.dice ? `, ${dd} defending` : ""}</span></div>
+      <dl class="move-stats"><div><dt>Bonus</dt><dd>${m.bonus ? sign(m.bonus) : '<span class="none">—</span>'}</dd></div><div><dt>Power</dt><dd>${m.power || '<span class="none">—</span>'}</dd></div><div><dt>Cost</dt><dd>${costHTML(m.cost)}</dd></div></dl>
+      ${tags.length ? `<ul class="tags">${tags.join("")}</ul>` : ""}
+      <p class="move-rule">${esc(m.text)}</p>
+      <p class="flavor">${esc(m.flavor)}</p>
+    </article>`;
+  }
+
+  const moveFilter = { q: "", user: "", kinds: new Set(), el: "" };
+  let moveIndex = [];
+  function renderMoves() {
+    const grid = $("#moveGrid");
+    grid.innerHTML = C.MOVES.map(moveCard).join("");
+    moveIndex = C.MOVES.map((m) => {
+      const u = moveUsers(m);
+      const hay = [m.name, m.text, m.flavor, u.label, KIND_LABEL[m.kind], ...(m.tags || []), m.element || "", ...(m.effects || []).map((e) => (C.STATUSES[e.status] || {}).label || "")].join(" ").toLowerCase();
+      return { m, el: document.getElementById(`move-${m.id}`), keys: u.keys, gear: Boolean(u.gear), hay };
+    });
+
+    // who
+    const opts = [{ value: "", label: "Everyone" }];
+    for (const k of UNIT_KEYS) opts.push({ value: `unit:${k}`, label: `${C.UNITS[k].icon} ${C.UNITS[k].plural}`, group: "Units (with the gear they can carry)" });
+    for (const k of HERO_KEYS) opts.push({ value: `hero:${k}`, label: `${C.HEROES[k].icon} ${C.HEROES[k].name}`, group: "Heroes" });
+    for (const [k, w] of Object.entries(C.WEAPONS)) if (w.move) opts.push({ value: `gear:${k}`, label: `${w.icon} ${w.label}`, group: "Gear" });
+    fillSelect($("#mUser"), opts, "");
+
+    // kinds
+    $("#mKind").innerHTML = Object.keys(KIND_LABEL).map((k) => `<button type="button" data-kind="${k}" aria-pressed="false">${glyph(k)}${KIND_LABEL[k]}</button>`).join("");
+    // elements
+    const els = [...new Set(C.MOVES.map((m) => m.element).filter(Boolean))];
+    $("#mEl").innerHTML = `<button type="button" data-el="" aria-pressed="true">Any</button>` + els.map((g) => `<button type="button" data-el="${g}" aria-pressed="false"><span class="dot" style="--g:${C.GOODS[g].color}"></span>${C.GOODS[g].icon} ${esc(C.GOODS[g].label)}</button>`).join("") + `<button type="button" data-el="none" aria-pressed="false">No element</button>`;
+
+    $("#tagKey").innerHTML = Object.values(TAGS).map(([a, b]) => `<b>${a}</b>: ${esc(b.replace(/\.$/, ""))}`).join(". ") + `. Hollow dice are the ones defenders don't roll.`;
+
+    $("#mSearch").addEventListener("input", (e) => {
+      moveFilter.q = e.target.value.trim().toLowerCase();
+      applyMoveFilter();
+    });
+    $("#mUser").addEventListener("change", (e) => {
+      moveFilter.user = e.target.value;
+      applyMoveFilter();
+    });
+    $("#mKind").addEventListener("click", (e) => {
+      const b = e.target.closest("button");
+      if (!b) return;
+      const k = b.dataset.kind;
+      if (moveFilter.kinds.has(k)) moveFilter.kinds.delete(k);
+      else moveFilter.kinds.add(k);
+      b.setAttribute("aria-pressed", String(moveFilter.kinds.has(k)));
+      applyMoveFilter();
+    });
+    $("#mEl").addEventListener("click", (e) => {
+      const b = e.target.closest("button");
+      if (!b) return;
+      moveFilter.el = b.dataset.el;
+      $$("#mEl button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      applyMoveFilter();
+    });
+    $("#mClear").addEventListener("click", clearMoveFilter);
+    $("#mClear2").addEventListener("click", clearMoveFilter);
+    applyMoveFilter();
+
+    // Links to moves elsewhere on the page clear the filters so the card is there to land on.
+    document.addEventListener("click", (e) => {
+      const a = e.target.closest("a[data-move]");
+      if (!a) return;
+      const card = document.getElementById(`move-${a.dataset.move}`);
+      if (card && card.hidden) clearMoveFilter();
+      if (card) {
+        card.classList.add("flash");
+        setTimeout(() => card.classList.remove("flash"), 1600);
+      }
+    });
+  }
+  function clearMoveFilter() {
+    moveFilter.q = "";
+    moveFilter.user = "";
+    moveFilter.kinds.clear();
+    moveFilter.el = "";
+    $("#mSearch").value = "";
+    $("#mUser").value = "";
+    $$("#mKind button").forEach((b) => b.setAttribute("aria-pressed", "false"));
+    $$("#mEl button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.el === "")));
+    applyMoveFilter();
+  }
+  function applyMoveFilter() {
+    const f = moveFilter;
+    let shown = 0;
+    let own = 0;
+    for (const x of moveIndex) {
+      const m = x.m;
+      let ok = true;
+      if (f.q && !x.hay.includes(f.q)) ok = false;
+      if (ok && f.user && !x.keys.includes(f.user)) ok = false;
+      if (ok && f.kinds.size && !f.kinds.has(m.kind)) ok = false;
+      if (ok && f.el === "none" && m.element) ok = false;
+      if (ok && f.el && f.el !== "none" && m.element !== f.el) ok = false;
+      x.el.hidden = !ok;
+      if (ok) {
+        shown++;
+        if (!x.gear) own++;
+      }
+    }
+    let text = `Showing ${shown} of ${C.MOVES.length} moves`;
+    if (f.user.startsWith("unit:") && shown) text += ` (${own} of its own, ${shown - own} from gear)`;
+    $("#mCount").textContent = `${text}.`;
+    $("#noMoves").hidden = shown > 0;
+    $("#moveGrid").hidden = shown === 0;
+  }
+
+  // ---------------------------------------------------------------- armory, bag, field
+  function renderArmory() {
+    const SLOT = { weapon: "Weapons", armor: "Armour", army: "For the whole army" };
+    const SLOT_ONE = { weapon: "Weapon", armor: "Armour", army: "Army" };
+    const groups = {};
+    for (const [k, w] of Object.entries(C.WEAPONS)) (groups[w.slot] = groups[w.slot] || []).push([k, w]);
+    $("#gearGroups").innerHTML = Object.entries(groups)
+      .map(([slot, list]) => `<div class="gear-group"><p class="label">${SLOT[slot] || slot}</p><ul class="gear-list">${list
+        .map(([k, w]) => {
+          const fits = w.fits.length ? w.fits.map((u) => `<span title="${esc(C.UNITS[u].plural)}">${C.UNITS[u].icon}</span>`).join(" ") : "Any squad";
+          const unlock = w.move ? moveLink(C.MOVE_BY_ID[w.move]) : "—";
+          return `<li class="gear" id="gear-${k}"><span class="gear-icon" aria-hidden="true">${w.icon}</span><div class="gear-main"><h4>${esc(w.label)}</h4><p>${esc(w.text)}</p></div>
+            <dl class="facts"><div><dt>Slot</dt><dd>${SLOT_ONE[w.slot] || w.slot}</dd></div><div><dt>Fits</dt><dd>${fits}</dd></div><div><dt>Cost</dt><dd>${costHTML(w.cost)}</dd></div><div><dt>Unlocks</dt><dd>${unlock}</dd></div></dl></li>`;
+        })
+        .join("")}</ul></div>`)
+      .join("");
+
+    const WHEN = {
+      action: ["Instead of a move", `Uses your action for the round. Your squad still rolls ${plural(R.itemDice, "die", "dice")}, but deals no damage.`],
+      prep: ["Before the roll", "Free, alongside your move. Spent before anyone throws."],
+      reaction: ["After the roll", "Free, once both sides have seen the dice. One reaction per side per round."],
+    };
+    const byWhen = {};
+    for (const [k, it] of Object.entries(C.ITEMS)) (byWhen[it.when] = byWhen[it.when] || []).push([k, it]);
+    $("#bagCols").innerHTML = Object.keys(WHEN)
+      .filter((w) => byWhen[w])
+      .map((w) => `<div class="bag-col"><h4>${WHEN[w][0]}</h4><p>${esc(WHEN[w][1])}</p><ul class="item-list">${byWhen[w]
+        .map(([k, it]) => `<li class="item" id="item-${k}"><span class="item-icon" aria-hidden="true">${it.icon}</span><div class="item-head"><b>${esc(it.label)}</b>${costHTML(it.cost)}</div><p>${esc(it.text)}</p></li>`)
+        .join("")}</ul></div>`)
+      .join("");
+
+    $("#statusRows").innerHTML = Object.entries(C.STATUSES)
+      .map(([k, s]) => {
+        const e = s.good === true ? ["good", "Helps"] : s.good === false ? ["bad", "Hurts"] : ["mixed", "Both"];
+        return `<li class="row" id="status-${k}"><span class="ic" aria-hidden="true">${s.icon}</span><div class="row-head"><b>${esc(s.label)}</b><span class="effect effect--${e[0]}">${e[1]}</span></div><p>${esc(s.text)}</p></li>`;
+      })
+      .join("");
+
+    $("#terrainRows").innerHTML = Object.entries(C.TERRAIN)
+      .map(([k, t]) => {
+        const G = C.GOODS[t.element];
+        return `<li class="row"><span class="ic" aria-hidden="true">${t.icon}</span><div class="row-head"><b>${esc(t.label)}</b>${G ? `<span class="tag tag--el" style="--g:${G.color}" title="Regions that produce ${esc(G.label)}">${G.icon} ${esc(G.label)}</span>` : ""}</div><p>${esc(t.text)}</p></li>`;
+      })
+      .join("");
+    $("#buildingRows").innerHTML = Object.values(C.BUILDINGS).map((x) => `<li class="row"><span class="ic" aria-hidden="true">${x.icon}</span><div class="row-head"><b>${esc(x.label)}</b></div><p>${esc(x.text)}</p></li>`).join("");
+    $("#eventRows").innerHTML = Object.values(C.EVENTS).map((x) => `<li class="row"><span class="ic" aria-hidden="true">${x.icon}</span><div class="row-head"><b>${esc(x.label)}</b></div><p>${esc(x.text)}</p></li>`).join("");
+  }
+
+  // ---------------------------------------------------------------- standing orders
+  function renderOrders() {
+    const D = C.DOCTRINES;
+    const cal = C.ITEMS.caltrops;
+    const first = PLAYER_DOCTRINES[0];
+    $("#ordersSlip").innerHTML = `
+      <div class="slip-head"><h4>Standing Orders</h4><span>Example · Sichuan · ${C.TERRAIN.bamboo ? `${C.TERRAIN.bamboo.icon} ${esc(C.TERRAIN.bamboo.label)}` : ""}</span></div>
+      <dl>
+        <div><dt>Doctrine</dt><dd>${PLAYER_DOCTRINES.map((k) => `<div class="opt"><span class="radio${k === first ? " on" : ""}" aria-hidden="true"></span>${D[k].icon} ${esc(D[k].label)}</div>`).join("")}</dd></div>
+        <div><dt>Lead squad</dt><dd>${C.UNITS.panda ? `${C.UNITS.panda.icon} 4 ${esc(C.UNITS.panda.plural)}` : ""} meet the invaders first</dd></div>
+        <div><dt>Traps</dt><dd><div class="opt"><span class="box" aria-hidden="true">✓</span>${cal ? `${cal.icon} ${esc(cal.label)}` : ""}</div>${cal ? `<div class="opt-sub">Paid now: ${costHTML(cal.cost)}</div>` : ""}</dd></div>
+        <div><dt>Item budget</dt><dd>Up to 2 Bag items</dd></div>
+        <div><dt>Live Defence</dt><dd><div class="opt"><span class="box" aria-hidden="true">✓</span>Let me take command if I'm online</div></dd></div>
+      </dl>
+      <p class="slip-note">Set per region, on your own turn. Caltrops laid in advance hurt every invading squad as it steps in.</p>`;
+    $("#doctrineCards").innerHTML = PLAYER_DOCTRINES.map((k) => `<article class="doctrine"><span class="ic" aria-hidden="true">${D[k].icon}</span><h4>${esc(D[k].label)}</h4><p>${esc(D[k].text)}</p></article>`).join("");
+    $("#nativeList").innerHTML = Object.entries(C.NATIVE_DOCTRINE)
+      .map(([nat, dk]) => {
+        const d = D[dk];
+        return `<li><b>${esc(cap(C.NATIVE_NAMES[nat]))}</b><span>${d.icon} ${esc(d.label)}${d.native ? `: ${esc(d.text.replace(/^[^:]+:\s*/, ""))}` : ""}</span></li>`;
+      })
+      .join("");
+  }
+
+  // ---------------------------------------------------------------- balance & paired bars
+  function duo(newV, oldV, keys = ["New", "Today"]) {
+    const w = (v) => `${(Math.max(0, Math.min(1, v)) * 100).toFixed(1)}%`;
+    return `<div class="duo" role="img" aria-label="New rules ${pct(newV)}, today's Risk ${pct(oldV)}">
+      <div class="duo-row"><span class="duo-key">${keys[0]}</span><span class="duo-track"><span class="duo-fill duo-fill--new" style="width:${w(newV)}"></span><span class="duo-val" style="left:${w(newV)}">${pct(newV)}</span></span></div>
+      <div class="duo-row"><span class="duo-key">${keys[1]}</span><span class="duo-track"><span class="duo-fill duo-fill--old" style="width:${w(oldV)}"></span><span class="duo-val" style="left:${w(oldV)}">${pct(oldV)}</span></span></div>
+    </div>`;
+  }
+  const axis = () => `<div class="axis" aria-hidden="true"><span></span><span class="axis-scale">${[0, 25, 50, 75, 100].map((v) => `<span style="left:${v}%">${v}%</span>`).join("")}</span></div>`;
+  const deltaText = (a, b) => {
+    const d = Math.round(a * 100) - Math.round(b * 100);
+    return d === 0 ? "±0" : d > 0 ? `+${d}` : `−${-d}`;
+  };
+  function renderBalance() {
+    const rows = BALANCE.map(
+      (r) => `<div class="bal-row">
+        <div><div class="bal-name">${esc(r.name)}</div><p class="bal-why">${esc(r.why)}</p><p class="bal-meta">${f1(r.rounds)} rounds on average · attackers lose ${f1(r.atkLost)}, defenders ${f1(r.defLost)}</p></div>
+        <div><div class="bal-axis-mobile">${axis()}</div>${duo(r.newWin, r.oldWin)}</div>
+        <div class="delta">${deltaText(r.newWin, r.oldWin)}<small>points vs today</small></div>
+      </div>`
+    ).join("");
+    $("#balanceRows").innerHTML = `<div class="bal-head"><p class="label">Matchup</p>${axis()}<p class="label">Change</p></div>${rows}`;
+  }
+
+  // ---------------------------------------------------------------- side setup (clash & lab)
+  function setupSide(prefix, { max, armour, defaults }) {
+    const unit = $(`#${prefix}Unit`);
+    const count = $(`#${prefix}Count`);
+    const weapon = $(`#${prefix}Weapon`);
+    const arm = armour ? $(`#${prefix}Armour`) : null;
+    const hero = $(`#${prefix}Hero`);
+    fillSelect(unit, [...UNIT_KEYS.map((k) => ({ value: k, label: `${C.UNITS[k].icon} ${C.UNITS[k].plural}` })), { value: "", label: "No troops, hero alone" }], defaults.unit);
+    fillSelect(count, Array.from({ length: max }, (_, i) => ({ value: String(i + 1), label: String(i + 1) })), String(defaults.count));
+    fillSelect(hero, [{ value: "", label: "No hero" }, ...HERO_KEYS.map((k) => ({ value: k, label: `${C.HEROES[k].icon} ${C.HEROES[k].name}` }))], defaults.hero || "");
+    const refresh = () => {
+      const u = unit.value;
+      const fits = (slot) => Object.entries(C.WEAPONS).filter(([, w]) => w.slot === slot && w.fits.includes(u));
+      fillSelect(weapon, [{ value: "", label: "None" }, ...fits("weapon").map(([k, w]) => ({ value: k, label: `${w.icon} ${w.label}` }))], weapon.value || defaults.weapon || "");
+      weapon.disabled = !u;
+      count.disabled = !u;
+      if (arm) {
+        fillSelect(arm, [{ value: "", label: "None" }, ...fits("armor").map(([k, w]) => ({ value: k, label: `${w.icon} ${w.label}` }))], arm.value || "");
+        arm.disabled = !u;
+      }
+      if (!u && !hero.value) hero.value = HERO_KEYS[0];
+    };
+    unit.addEventListener("change", refresh);
+    hero.addEventListener("change", () => {
+      if (!hero.value && !unit.value) {
+        unit.value = UNIT_KEYS[0];
+        refresh();
+      }
+    });
+    refresh();
+    return {
+      read: () => ({ unit: unit.value, count: +count.value, weapon: weapon.value, armour: arm ? arm.value : "", hero: hero.value }),
+      els: [unit, count, weapon, arm, hero].filter(Boolean),
+    };
+  }
+  const squadsFor = (s) => (s.unit ? [{ unit: s.unit, count: s.count, gear: [s.weapon, s.armour].filter(Boolean) }] : []);
+  const fillTerrain = (sel, value) => fillSelect(sel, Object.entries(C.TERRAIN).map(([k, t]) => ({ value: k, label: `${t.icon} ${t.label} (${placeFor(k)})` })), value);
+
+  // ---------------------------------------------------------------- the clash
+  const clash = { b: null, seed: 84, choice: null, busy: false, phase: null, doctrine: "turtle", defName: "Mei", view: null, lines: null, resolveReact: null };
+  const CLASH_GOODS = () => ({ bamboo: 3, stone: 3, iron: 3, rice: 3, gems: 3, coin: 12, pandaCoin: 4, camCoin: 2 });
+  let skip = false;
+  const sleep = (ms) => new Promise((res) => (skip || reduceMotion ? res() : setTimeout(res, ms)));
+  let cAtk;
+  let cDef;
+  const randomSeed = () => 1 + Math.floor(Math.random() * 999999);
+
+  function clashConfig(seed) {
+    const a = cAtk.read();
+    const d = cDef.read();
+    const terrain = $("#cTerrain").value;
+    return {
+      seed,
+      terrain,
+      place: placeFor(terrain),
+      buildings: $("#cFort").checked ? ["fort"] : [],
+      atk: { name: "You", squads: squadsFor(a), hero: a.hero || undefined, goods: CLASH_GOODS(), bag: { luckyGem: 1 } },
+      def: { name: clash.defName, doctrine: clash.doctrine, squads: squadsFor(d), hero: d.hero || undefined, goods: CLASH_GOODS(), bag: { luckyGem: 1 } },
+    };
+  }
+  const snapSquad = (q) => ({ id: q.id, unit: q.unit, hero: q.hero, name: q.name, type: q.type, hp: q.hp, count: q.count, maxCount: q.maxCount, hpPer: q.hpPer, gear: [...(q.gear || [])], status: { ...(q.status || {}) } });
+  function viewFromBattle(b) {
+    const v = {};
+    for (const key of ["atk", "def"]) {
+      const s = b.sides[key];
+      v[key] = { squads: s.squads.map(snapSquad), active: s.active, momentum: s.momentum };
+    }
+    return v;
+  }
+
+  const plates = {};
+  function buildPlate(key) {
+    const el = $(key === "atk" ? "#plateAtk" : "#plateDef");
+    el.innerHTML = `<div class="plate-top"><span class="plate-owner"></span><span class="plate-type"></span></div>
+      <div class="plate-name"></div>
+      <div class="hp"><span class="hp-label">HP</span><span class="hp-track"><span class="hp-fill"></span></span><span class="hp-num"></span></div>
+      <div class="plate-meta"><span class="plate-count"></span><span class="momentum" role="img"></span></div>
+      <div class="plate-status"></div><div class="plate-reserve"></div>`;
+    const q = (s) => el.querySelector(s);
+    plates[key] = { el, owner: q(".plate-owner"), type: q(".plate-type"), name: q(".plate-name"), fill: q(".hp-fill"), num: q(".hp-num"), count: q(".plate-count"), mom: q(".momentum"), status: q(".plate-status"), reserve: q(".plate-reserve"), troops: $(key === "atk" ? "#troopsAtk" : "#troopsDef"), sig: null };
+    plates[key].owner.innerHTML = key === "atk" ? `<span class="mini-die mini-die--atk"></span>Invaders · You` : `<span class="mini-die mini-die--def"></span>Defenders · ${esc(clash.defName)}`;
+  }
+  function updatePlate(key) {
+    const p = plates[key];
+    const v = clash.view[key];
+    const sq = v.squads[v.active] || v.squads[0];
+    if (!sq) return;
+    const max = sq.maxCount * sq.hpPer;
+    const ratio = max ? Math.max(0, sq.hp) / max : 0;
+    p.type.innerHTML = typeChip(sq.type);
+    const gear = (sq.gear || []).map((g) => C.WEAPONS[g]).filter(Boolean);
+    p.name.innerHTML = `${esc(sq.hero ? `${C.HEROES[sq.hero].name}` : `${sq.count} ${sq.count === 1 ? C.UNITS[sq.unit].label : C.UNITS[sq.unit].plural}`)}${gear.length ? ` <span class="plate-gear" title="${esc(gear.map((w) => w.label).join(", "))}">${gear.map((w) => w.icon).join("")}</span>` : ""}`;
+    p.fill.style.width = `${(ratio * 100).toFixed(1)}%`;
+    p.fill.className = `hp-fill${ratio <= 0.2 ? " low" : ratio <= 0.5 ? " mid" : ""}`;
+    p.num.textContent = `${Math.max(0, sq.hp)}/${max}`;
+    p.count.textContent = sq.hero ? (sq.hp > 0 ? "Standing" : "Knocked out") : `${sq.count} of ${sq.maxCount} standing`;
+    const m = v.momentum;
+    p.mom.className = `momentum${m >= R.momentumMax ? " full" : ""}`;
+    p.mom.setAttribute("aria-label", `Momentum ${m} of ${R.momentumMax}`);
+    p.mom.title = `Momentum ${m} of ${R.momentumMax}`;
+    p.mom.innerHTML = Array.from({ length: R.momentumMax }, (_, i) => `<i class="${i < m ? "on" : ""}"></i>`).join("");
+    p.status.innerHTML = Object.entries(sq.status || {})
+      .filter(([k, n]) => n > 0 && C.STATUSES[k])
+      .map(([k, n]) => {
+        const S = C.STATUSES[k];
+        return `<span class="st ${S.good === false ? "bad" : S.good ? "good" : ""}" title="${esc(S.text)} (${plural(n, "round", "rounds")})">${S.icon} ${esc(S.label)}</span>`;
+      })
+      .join("");
+    const waiting = v.squads.filter((q, i) => i !== v.active && q.hp > 0);
+    p.reserve.textContent = waiting.length ? `Waiting: ${waiting.map((q) => (q.hero ? `${C.HEROES[q.hero].icon} ${C.HEROES[q.hero].name}` : `${C.UNITS[q.unit].icon} ${q.count} ${q.name}`)).join(", ")}` : "";
+    // troops
+    const sig = `${sq.id}:${sq.maxCount}:${sq.unit || sq.hero}`;
+    const icon = sq.hero ? C.HEROES[sq.hero].icon : C.UNITS[sq.unit].icon;
+    const figs = sq.hero ? 1 : Math.min(sq.maxCount, 12);
+    if (p.sig !== sig) {
+      p.troops.innerHTML = Array.from({ length: figs }, () => `<span class="fig">${icon}</span>`).join("");
+      p.troops.classList.toggle("troops--hero", Boolean(sq.hero));
+      p.sig = sig;
+    }
+    const up = sq.hero ? (sq.hp > 0 ? 1 : 0) : Math.min(sq.count, figs);
+    [...p.troops.children].forEach((f, i) => f.classList.toggle("down", i >= up));
+  }
+  function hitFx(key) {
+    if (reduceMotion || skip) return;
+    const t = plates[key].troops;
+    t.classList.remove("hit");
+    void t.offsetWidth;
+    t.classList.add("hit");
+  }
+
+  // The narrator
+  const tb = {
+    el: null,
+    clear() {
+      this.el.innerHTML = "";
+    },
+    add(text, cls = "") {
+      $$("p", this.el).forEach((p) => p.classList.add("old"));
+      const p = document.createElement("p");
+      if (cls) p.className = cls;
+      p.textContent = text;
+      this.el.append(p);
+      return p;
+    },
+    async type(text, cls = "") {
+      if (clash.lines) clash.lines.push(text);
+      const p = this.add("", cls);
+      if (skip || reduceMotion) {
+        p.textContent = text;
+        return;
+      }
+      p.classList.add("typing");
+      for (let i = 0; i < text.length; i += 3) {
+        if (skip) break;
+        p.textContent = text.slice(0, i + 3);
+        await new Promise((r) => setTimeout(r, 16));
+      }
+      p.textContent = text;
+      p.classList.remove("typing");
+      await sleep(240);
+    },
+  };
+
+  function lineFor(e) {
+    const D = clash.defName;
+    switch (e.t) {
+      case "roll":
+        return e.text ? { text: e.text } : null;
+      case "pairs": {
+        const aw = e.pairs.filter((p) => p.win === "atk").length;
+        const dw = e.pairs.length - aw;
+        const ties = e.pairs.filter((p) => p.tie);
+        let tie = "";
+        if (ties.length) tie = e.tieWinner === "atk" ? ` ${ties.length === 1 ? "The tie goes" : "Ties go"} to you.` : ` ${ties.length === 1 ? "The tie goes" : "Ties go"} to ${D}.`;
+        return { text: `You win ${plural(aw, "pair", "pairs")}, ${D} wins ${dw}.${tie}` };
+      }
+      case "damage": {
+        let pre = "";
+        if (e.amount > 0 && e.crits) pre += e.crits > 1 ? `${e.crits} critical hits! ` : "A critical hit! ";
+        if (e.amount > 0 && e.eff === "super") pre += "Super effective! ";
+        if (e.amount > 0 && e.eff === "resist") pre += "Not very effective... ";
+        return { text: pre + (e.text || ""), cls: e.amount > 0 && e.eff === "super" ? "super" : e.amount > 0 && e.eff === "resist" ? "resist" : "" };
+      }
+      case "momentum":
+        return e.value >= R.momentumMax ? { text: `${e.side === "atk" ? "Your" : `${D}'s`} Momentum is full. A Signature move is ready!` } : null;
+      case "end":
+        return { text: e.text, cls: "end" };
+      default:
+        return e.text ? { text: e.text } : null;
+    }
+  }
+
+  function applySnap(e) {
+    const v = clash.view;
+    if (e.squads) {
+      for (const key of ["atk", "def"]) {
+        v[key].squads = e.squads[key].map((q) => {
+          const old = v[key].squads.find((x) => x.id === q.id);
+          return { ...q, status: old ? old.status : {} };
+        });
+      }
+    }
+    if (e.after) {
+      for (const key of ["atk", "def"]) {
+        const q = v[key].squads.find((x) => x.id === e.after.id);
+        if (q) Object.assign(q, e.after);
+      }
+    }
+    if (e.t === "enter" && e.index >= 0) v[e.side].active = e.index;
+    updatePlate("atk");
+    updatePlate("def");
+  }
+
+  async function showEvent(e) {
+    const line = lineFor(e);
+    if (e.t === "damage") {
+      if (line) await tb.type(line.text, line.cls);
+      applySnap(e);
+      if (e.amount > 0) hitFx(e.side);
+      return;
+    }
+    if (e.t === "reroll") await rethrow(e);
+    else if (e.t === "pairs") showPairs(e.pairs, false);
+    else if (e.t === "momentum") {
+      clash.view[e.side].momentum = e.value;
+      updatePlate(e.side);
+    } else if (e.after || e.squads || e.t === "enter") applySnap(e);
+    if (line) await tb.type(line.text, line.cls);
+  }
+
+  function setThrowHead(key, plan, n, special) {
+    const head = $(key === "atk" ? "#headAtk" : "#headDef");
+    const notes = $(key === "atk" ? "#notesAtk" : "#notesDef");
+    const who = `<span class="who"><span class="mini-die mini-die--${key}" aria-hidden="true"></span>&nbsp;${key === "atk" ? "You" : esc(clash.defName)}</span>`;
+    if (!n) {
+      head.innerHTML = `${who}<b>No dice</b>`;
+      notes.innerHTML = "";
+      return;
+    }
+    if (!plan) {
+      head.innerHTML = `${who}<b>${esc(special || plural(n, "die", "dice"))}</b>`;
+      notes.innerHTML = "";
+      return;
+    }
+    const crit = plan.critOn > 6 ? ", can't crit" : plan.critOn < R.critOn ? `, crits on ${plan.critOn}+` : "";
+    head.innerHTML = `${who}<b>${plural(plan.dice, "die", "dice")}${plan.bonus ? ` at ${sign(plan.bonus)} each` : ""}</b><span>${plan.power ? `${plan.power} power a pair${crit}` : `no damage${crit}`}</span>`;
+    notes.innerHTML = (plan.notes || []).map((x) => `<li>${esc(x.label)} ${esc(x.value)}</li>`).join("");
+  }
+
+  async function throwDice(box, values, side) {
+    box.innerHTML = "";
+    const dice = values.map((v) => {
+      const d = makeDie(v, side);
+      box.append(d);
+      return d;
+    });
+    if (!values.length) {
+      box.innerHTML = `<span class="dice-empty">No dice this round.</span>`;
+      return;
+    }
+    if (skip || reduceMotion) return;
+    dice.forEach((d, i) => {
+      d.style.animationDelay = `${i * 45}ms`;
+      d.classList.add("tumbling");
+    });
+    const t0 = performance.now();
+    await new Promise((res) => {
+      const tick = () => {
+        if (skip || performance.now() - t0 > 640) {
+          dice.forEach((d, i) => {
+            setPips(d, values[i]);
+            d.classList.remove("tumbling");
+            d.style.animationDelay = "";
+          });
+          res();
+          return;
+        }
+        dice.forEach((d) => setPips(d, 1 + Math.floor(Math.random() * 6)));
+        setTimeout(tick, 75);
+      };
+      tick();
+    });
+  }
+
+  async function rethrow(e) {
+    const box = $(e.side === "atk" ? "#diceAtk" : "#diceDef");
+    const d = box.children[e.die];
+    if (!d || !d.classList.contains("die")) return;
+    if (!skip && !reduceMotion) {
+      d.classList.add("tumbling");
+      for (let i = 0; i < 6 && !skip; i++) {
+        setPips(d, 1 + Math.floor(Math.random() * 6));
+        await new Promise((r) => setTimeout(r, 75));
+      }
+      d.classList.remove("tumbling");
+    }
+    setPips(d, e.to);
+    d.classList.add("rerolled");
+    d.title = `Was ${e.from}`;
+  }
+
+  function showPairs(pairs, provisional) {
+    const aDice = $$("#diceAtk .die");
+    const dDice = $$("#diceDef .die");
+    [...aDice, ...dDice].forEach((d) => d.classList.remove("won", "lost", "spare"));
+    const usedA = new Set();
+    const usedD = new Set();
+    for (const p of pairs) {
+      usedA.add(p.ai);
+      usedD.add(p.di);
+      if (aDice[p.ai]) aDice[p.ai].classList.add(p.win === "atk" ? "won" : "lost");
+      if (dDice[p.di]) dDice[p.di].classList.add(p.win === "def" ? "won" : "lost");
+    }
+    const spareA = [];
+    const spareD = [];
+    aDice.forEach((d, i) => {
+      if (!usedA.has(i)) {
+        d.classList.add("spare");
+        spareA.push(i);
+      }
+    });
+    dDice.forEach((d, i) => {
+      if (!usedD.has(i)) {
+        d.classList.add("spare");
+        spareD.push(i);
+      }
+    });
+    const valsA = clash.dice ? clash.dice.atk : [];
+    const valsD = clash.dice ? clash.dice.def : [];
+    const D = esc(clash.defName);
+    const rows = pairs.map((p) => {
+      const aw = p.win === "atk";
+      const verdict = p.tie ? (aw ? "tie, yours" : `tie, ${D}'s`) : aw ? "beats" : "loses to";
+      const mark = (crit) => `<span class="win-mark" aria-label="wins">✓</span>${crit ? '<span class="crit-mark">Crit</span>' : ""}`;
+      return `<li class="pair ${aw ? "pair--atk" : "pair--def"}"><span class="pair-a">${dieHTML(p.aRaw, "atk", "sm")}<span class="pair-total" title="${p.aRaw} on the die, ${p.a} in total">${p.a}</span>${aw ? mark(p.crit) : ""}</span><span class="pair-verdict">${verdict}</span><span class="pair-d">${aw ? "" : mark(p.crit)}<span class="pair-total" title="${p.dRaw} on the die, ${p.d} in total">${p.d}</span>${dieHTML(p.dRaw, "def", "sm")}</span></li>`;
+    });
+    const spares = [...spareA.map((i) => dieHTML(valsA[i] || 1, "atk", "sm")), ...spareD.map((i) => dieHTML(valsD[i] || 1, "def", "sm"))];
+    if (spares.length) rows.push(`<li class="pair pair--spare"><span>${spares.join("")}No partner, so ${spares.length === 1 ? "this die does" : "these dice do"} nothing.</span></li>`);
+    const el = $("#pairs");
+    el.innerHTML = pairs.length ? `<li class="pairs-head">${provisional ? "Pairs so far (reactions can still change them)" : "Pairs, highest against highest"}</li>${rows.join("")}` : "";
+    el.classList.toggle("provisional", provisional);
+  }
+
+  function clearTray(msg) {
+    $("#diceAtk").innerHTML = "";
+    $("#diceDef").innerHTML = "";
+    $("#notesAtk").innerHTML = "";
+    $("#notesDef").innerHTML = "";
+    $("#pairs").innerHTML = "";
+    $("#headAtk").innerHTML = `<span class="who"><span class="mini-die mini-die--atk" aria-hidden="true"></span>&nbsp;You</span><b>${esc(msg || "Waiting for your move")}</b>`;
+    $("#headDef").innerHTML = `<span class="who"><span class="mini-die mini-die--def" aria-hidden="true"></span>&nbsp;${esc(clash.defName)}</span><b>Waiting</b>`;
+  }
+
+  const actionEnabled = (b, key, action) => {
+    const g = Battle.actionsFor(b, key);
+    if (action.kind === "move") return [...g.attack, ...g.defend, ...g.tactics, ...g.signature].some((a) => a.id === action.id && a.enabled);
+    if (action.kind === "switch") return g.squads.some((a) => a.to === action.to && a.enabled);
+    if (action.kind === "retreat") return g.retreat.some((a) => a.enabled);
+    return false;
+  };
+  function defaultAtkAction(b) {
+    const g = Battle.actionsFor(b, "atk");
+    const a = [...g.attack, ...g.defend, ...g.tactics, ...g.signature].find((x) => x.enabled);
+    if (a) return { kind: "move", id: a.id };
+    const s = g.squads.find((x) => x.enabled);
+    if (s) return { kind: "switch", to: s.to };
+    return { kind: "retreat" };
+  }
+  const sameAction = (x, y) => Boolean(x && y && x.kind === y.kind && x.id === y.id && x.to === y.to);
+
+  function moveSub(m) {
+    const bits = [KIND_LABEL[m.kind], plural(m.dice, "die", "dice")];
+    if (m.bonus) bits[1] += ` at ${sign(m.bonus)}`;
+    bits.push(m.power ? `power ${m.power}` : "no damage");
+    const cost = Battle.costText(m.cost);
+    if (cost) bits.push(cost);
+    return bits.join(" · ");
+  }
+  function renderMenu() {
+    const menu = $("#moveMenu");
+    const b = clash.b;
+    if (!b) return;
+    if (b.over) {
+      menu.innerHTML = `<p class="preview" style="margin:0">The battle is over. Press Fight again for a rematch, or change the squads above.</p>`;
+      clash.choice = null;
+      return;
+    }
+    const g = Battle.actionsFor(b, "atk");
+    const items = [];
+    for (const grp of ["attack", "defend", "tactics", "signature"]) for (const a of g[grp]) items.push({ a, action: { kind: "move", id: a.id }, title: a.move.name, sub: a.enabled ? moveSub(a.move) : a.reason, kind: a.move.kind });
+    for (const a of g.squads) items.push({ a, action: { kind: "switch", to: a.to }, title: `Switch to ${a.squad.name}`, sub: a.enabled ? `Rolls ${R.switchDice} dice this round` : a.reason, kind: "switch" });
+    for (const a of g.retreat) items.push({ a, action: { kind: "retreat" }, title: "Retreat", sub: a.enabled ? `Their parting shot: ${R.retreatShot.dice} dice, ${R.retreatShot.hitOn}+ hits for ${R.retreatShot.damage}` : a.reason, kind: "retreat" });
+    if (!clash.choice || !items.some((it) => it.a.enabled && sameAction(it.action, clash.choice))) clash.choice = defaultAtkAction(b);
+    menu.innerHTML = items
+      .map((it, i) => `<button type="button" class="mv" data-i="${i}" aria-pressed="${sameAction(it.action, clash.choice)}"${it.a.enabled ? "" : " disabled"}>${glyph(it.kind)}<b>${esc(it.title)}</b><small>${esc(it.sub)}</small></button>`)
+      .join("");
+    menu.onclick = (e) => {
+      const btn = e.target.closest(".mv");
+      if (!btn || btn.disabled || clash.busy) return;
+      clash.choice = items[+btn.dataset.i].action;
+      $$(".mv", menu).forEach((x) => x.setAttribute("aria-pressed", String(x === btn)));
+      updatePreview();
+    };
+  }
+
+  function renderDefPlan() {
+    const sel = $("#cDefPlan");
+    const b = clash.b;
+    const prev = sel.value || `orders:${clash.doctrine}`;
+    const opts = PLAYER_DOCTRINES.map((k) => ({ value: `orders:${k}`, label: `${C.DOCTRINES[k].icon} ${C.DOCTRINES[k].label}`, group: "Her Standing Orders decide" }));
+    if (b && !b.over) {
+      const g = Battle.actionsFor(b, "def");
+      for (const grp of ["attack", "defend", "tactics", "signature"]) for (const a of g[grp]) opts.push({ value: `move:${a.id}`, label: `${a.move.name}${a.enabled ? "" : ` (${a.reason})`}`, disabled: !a.enabled, group: "Or pick her move" });
+    }
+    fillSelect(sel, opts, prev);
+    if (sel.value !== prev) sel.value = `orders:${clash.doctrine}`;
+  }
+  function defAction() {
+    const b = clash.b;
+    const v = $("#cDefPlan").value;
+    if (v.startsWith("move:")) {
+      const action = { kind: "move", id: v.slice(5) };
+      if (actionEnabled(b, "def", action)) return action;
+    }
+    return Battle.aiAction(b, "def");
+  }
+  function atkAction() {
+    const b = clash.b;
+    if (clash.choice && (clash.choice.kind === "retreat" || actionEnabled(b, "atk", clash.choice))) return { ...clash.choice };
+    return defaultAtkAction(b);
+  }
+
+  function updatePreview() {
+    const el = $("#movePreview");
+    const b = clash.b;
+    const a = clash.choice;
+    if (!b || b.over || !a) {
+      el.textContent = "";
+      return;
+    }
+    if (a.kind === "retreat") {
+      el.textContent = `Retreating ends the battle. Mei keeps the region and gets a parting shot unless the line was cut or smoked.`;
+      return;
+    }
+    if (a.kind !== "move") {
+      el.textContent = "Switching spends the round bringing in the new squad, who rolls a couple of dice to cover the change.";
+      return;
+    }
+    const foe = Battle.likelyAction(b, "def");
+    const est = Battle.estimate(b, "atk", a, foe, 1500, Battle.mulberry(b.round * 131 + 17));
+    const n = Math.min(est.plan.dice, est.foePlan.dice);
+    const foeName = foe.kind === "move" ? C.MOVE_BY_ID[foe.id].name : foe.kind === "item" ? C.ITEMS[foe.id].label : "a switch";
+    el.innerHTML = `Odds panel: against a likely <b>${esc(foeName)}</b> you win ${f1(est.hits)} of ${plural(n, "pair", "pairs")} on average (at least one ${pct(est.pAny)} of the time), dealing about ${Math.round(est.dealt)} and taking about ${Math.round(est.taken)}.`;
+  }
+
+  function setRollLabel() {
+    const label = $("#rollLabel");
+    const btn = $("#rollBtn");
+    const b = clash.b;
+    btn.disabled = false;
+    if (clash.phase === "react") label.textContent = "Keep these dice";
+    else if (clash.busy) label.textContent = "Skip ahead";
+    else if (b && b.over) label.textContent = "Fight again";
+    else label.textContent = b && b.round ? `Roll round ${b.round + 1}` : "Roll the dice";
+  }
+
+  function askReaction(opts) {
+    clash.phase = "react";
+    setRollLabel();
+    const bar = $("#reactBar");
+    const lost = Battle.pairsNow(clash.b).filter((p) => p.win !== "atk").length;
+    tb.add(`You're losing ${plural(lost, "pair", "pairs")}. React before the pairs are counted?`, "prompt");
+    bar.hidden = false;
+    bar.innerHTML = opts.map((o, i) => `<button type="button" class="btn btn--small" data-i="${i}">${esc(o.icon)} ${esc(o.label)}${o.count ? ` (${o.count})` : ""}</button>`).join("") + `<span class="react-hint" id="reactHint">Or press Keep these dice.</span>`;
+    return new Promise((resolve) => {
+      const done = (x) => {
+        bar.hidden = true;
+        bar.innerHTML = "";
+        bar.onclick = null;
+        $$("#diceAtk .die").forEach((d) => {
+          d.classList.remove("pickable");
+          d.removeAttribute("tabindex");
+          d.setAttribute("role", "img");
+          d.onclick = null;
+          d.onkeydown = null;
+        });
+        clash.phase = null;
+        clash.resolveReact = null;
+        setRollLabel();
+        resolve(x);
+      };
+      clash.resolveReact = done;
+      bar.onclick = (e) => {
+        const btn = e.target.closest("button[data-i]");
+        if (!btn) return;
+        const o = opts[+btn.dataset.i];
+        if (!o.needsDie) {
+          done({ id: o.id });
+          return;
+        }
+        $("#reactHint").textContent = o.id === "luckyGem" ? "Now tap one of your red dice to re-throw it." : "Now tap one of your red dice to turn it into a 6.";
+        const dice = $$("#diceAtk .die");
+        dice.forEach((d, i) => {
+          d.classList.add("pickable");
+          d.tabIndex = 0;
+          d.setAttribute("role", "button");
+          d.setAttribute("aria-label", `Use it on your ${d.getAttribute("aria-label")}`);
+          d.onclick = () => done({ id: o.id, die: i });
+          d.onkeydown = (ev) => {
+            if (ev.key === "Enter" || ev.key === " ") {
+              ev.preventDefault();
+              done({ id: o.id, die: i });
+            }
+          };
+        });
+        if (dice[0]) dice[0].focus();
+      };
+    });
+  }
+
+  async function playRound({ instant = false } = {}) {
+    const b = clash.b;
+    if (!b || b.over || clash.busy) return;
+    clash.busy = true;
+    skip = instant;
+    setRollLabel();
+    const lines = [];
+    clash.lines = lines;
+    const P = Battle.beginRound(b, atkAction(), defAction());
+    clash.dice = P.dice;
+    const ev = P.events;
+    tb.clear();
+    tb.add(`Round ${P.round}`, "round-head");
+    const rollAt = ev.findIndex((e) => e.t === "roll");
+    let i = 0;
+    for (; i < (rollAt < 0 ? ev.length : rollAt); i++) await showEvent(ev[i]);
+    if (rollAt >= 0) {
+      const r = ev[rollAt];
+      $("#pairs").innerHTML = "";
+      if (r.plans) {
+        setThrowHead("atk", r.plans.atk, r.atk.length);
+        setThrowHead("def", r.plans.def, r.def.length);
+      } else {
+        setThrowHead("atk", null, r.atk.length);
+        setThrowHead("def", null, r.def.length, `Parting shot: ${plural(r.def.length, "die", "dice")}, ${R.retreatShot.hitOn}+ hits for ${R.retreatShot.damage}`);
+      }
+      await Promise.all([throwDice($("#diceAtk"), r.atk, "atk"), throwDice($("#diceDef"), r.def, "def")]);
+      if (r.text) await tb.type(r.text);
+      i = rollAt + 1;
+    }
+    if (!P.done) {
+      const now = Battle.pairsNow(b);
+      showPairs(now, true);
+      const opts = Battle.reactionsFor(b, "atk");
+      const losing = now.some((p) => p.win !== "atk");
+      if (instant) Battle.aiReact(b, "atk");
+      else if (opts.length && losing) {
+        const pick = await askReaction(opts);
+        if (pick) Battle.react(b, "atk", pick.id, pick.die || 0);
+      }
+      Battle.aiReact(b, "def");
+    }
+    Battle.finishRound(b);
+    for (; i < ev.length; i++) await showEvent(ev[i]);
+    clash.view = viewFromBattle(b);
+    updatePlate("atk");
+    updatePlate("def");
+    logRound(`Round ${P.round}`, lines);
+    clash.lines = null;
+    clash.busy = false;
+    skip = false;
+    renderMenu();
+    renderDefPlan();
+    setRollLabel();
+    updatePreview();
+    renderCatchup();
+  }
+
+  function logRound(title, lines) {
+    const li = document.createElement("li");
+    li.innerHTML = `<b>${esc(title)}</b>${lines.map(esc).join(" ")}`;
+    $("#logList").append(li);
+  }
+
+  function newClash(seed, autoplay = false) {
+    clash.seed = seed;
+    clash.choice = null;
+    clash.b = Battle.createBattle(clashConfig(seed));
+    clash.view = viewFromBattle(clash.b);
+    plates.atk.sig = null;
+    plates.def.sig = null;
+    updatePlate("atk");
+    updatePlate("def");
+    clearTray();
+    $("#logList").innerHTML = "";
+    tb.clear();
+    const opening = clash.b.opening.map((e) => e.text).filter(Boolean);
+    opening.forEach((t) => tb.add(t));
+    logRound(`Before the fight · throw seed ${seed}`, opening);
+    renderMenu();
+    renderDefPlan();
+    setRollLabel();
+    updatePreview();
+    renderCatchup();
+    if (autoplay) playRound({ instant: true });
+  }
+
+  function initClash() {
+    tb.el = $("#textbox");
+    cAtk = setupSide("cAtk", { max: 10, armour: false, defaults: { unit: "armedPanda", count: 5 } });
+    cDef = setupSide("cDef", { max: 10, armour: false, defaults: { unit: "panda", count: 4 } });
+    fillTerrain($("#cTerrain"), "iron");
+    buildPlate("atk");
+    buildPlate("def");
+    const restart = () => {
+      if (clash.busy) return;
+      newClash(randomSeed());
+    };
+    for (const el of [...cAtk.els, ...cDef.els, $("#cTerrain"), $("#cFort")]) el.addEventListener("change", restart);
+    $("#cDefPlan").addEventListener("change", (e) => {
+      const v = e.target.value;
+      if (v.startsWith("orders:")) {
+        clash.doctrine = v.slice(7);
+        if (clash.b) clash.b.sides.def.doctrine = clash.doctrine;
+      }
+    });
+    $("#rollBtn").addEventListener("click", () => {
+      if (clash.phase === "react" && clash.resolveReact) {
+        clash.resolveReact(null);
+        return;
+      }
+      if (clash.busy) {
+        skip = true;
+        return;
+      }
+      if (clash.b && clash.b.over) {
+        newClash(randomSeed());
+        return;
+      }
+      playRound();
+    });
+    $("#newClashBtn").addEventListener("click", () => {
+      if (clash.busy) return;
+      newClash(randomSeed());
+    });
+    $("#textbox").addEventListener("click", () => {
+      if (clash.busy && clash.phase !== "react") skip = true;
+    });
+    newClash(clash.seed, true);
+  }
+
+  // ---------------------------------------------------------------- catch-up card
+  function renderCatchup() {
+    const el = $("#catchup");
+    const b = clash.b;
+    if (!el || !b) return;
+    const s = Battle.summary(b);
+    const rounds = b.log.map((r) => {
+      const ev = r.events || [];
+      return {
+        crit: ev.some((e) => e.t === "damage" && e.crits > 0 && e.amount > 0),
+        sup: ev.some((e) => e.t === "damage" && e.eff === "super" && e.amount > 0),
+        ko: ev.some((e) => e.t === "faint"),
+        def: r.actions && r.actions.def,
+      };
+    });
+    const result = b.over ? b.result.text : b.round ? `Still going after ${plural(b.round, "round", "rounds")}.` : "Not started yet.";
+    const chose = rounds
+      .map((r) => r.def)
+      .filter(Boolean)
+      .map((a) => (a.kind === "move" ? C.MOVE_BY_ID[a.id].name : a.kind === "item" ? C.ITEMS[a.id].label : a.kind === "switch" ? "a switch" : a.kind));
+    const doc = C.DOCTRINES[b.sides.def.doctrine];
+    el.innerHTML = `<p class="label" style="margin:0">Since your last turn</p>
+      <h4>You invaded ${esc(b.place)}</h4>
+      <p class="cu-result">${esc(result)}</p>
+      <p>You lost ${plural(sum(s.atk.lost), "unit", "units")}. ${esc(clash.defName)} lost ${plural(sum(s.def.lost), "unit", "units")}.</p>
+      ${rounds.length ? `<div class="scrub" role="img" aria-label="Round markers">${rounds.map((r, i) => `<div class="scrub-cell"><span class="scrub-marks">${r.ko ? "KO" : ""}${r.crit ? "✦" : ""}${r.sup ? "▲" : ""}</span><span class="scrub-bar"></span><span class="scrub-n">${i + 1}</span></div>`).join("")}</div><p class="scrub-key">✦ crit · ▲ super effective · KO knockout</p>` : ""}
+      ${chose.length && doc ? `<p>${esc(clash.defName)}'s orders (${esc(doc.label)}) chose: ${esc(chose.join(", "))}.</p>` : ""}
+      <p>Replay at 1x, 2x or 4x, or watch the 20-second highlights.</p>`;
+  }
+
+  // ---------------------------------------------------------------- dice lab
+  let lAtk;
+  let lDef;
+  const LAB_GOODS = {
+    atk: { stone: 9, iron: 9, rice: 9, gems: 9, bamboo: 9, coin: 20, pandaCoin: 5 },
+    def: { stone: 3, iron: 3, rice: 3, gems: 1, bamboo: 3, coin: 6 },
+  };
+  const planDoctrine = (v, fallback) => (v && v.startsWith("orders:") ? v.slice(7) : fallback);
+  function labConfig(seed) {
+    const a = lAtk.read();
+    const d = lDef.read();
+    const terrain = $("#lTerrain").value;
+    return {
+      seed,
+      terrain,
+      place: placeFor(terrain),
+      buildings: $("#lFort").checked ? ["fort"] : [],
+      atk: { name: "You", squads: squadsFor(a), hero: a.hero || undefined, doctrine: planDoctrine($("#lAtkPlan").value, "counter"), goods: { ...LAB_GOODS.atk }, catapult: $("#lAtkCatapult").checked, bag: {} },
+      def: { name: "Mei", squads: squadsFor(d), hero: d.hero || undefined, doctrine: planDoctrine($("#lDefPlan").value, "counter"), goods: { ...LAB_GOODS.def }, bag: {} },
+    };
+  }
+  function refreshLabPlans() {
+    const b = Battle.createBattle(labConfig(1));
+    for (const key of ["atk", "def"]) {
+      const sel = $(key === "atk" ? "#lAtkPlan" : "#lDefPlan");
+      const side = b.sides[key];
+      const moves = Battle.movesOf(side, Battle.activeSquad(side));
+      const prev = sel.value;
+      const opts = [
+        ...PLAYER_DOCTRINES.map((k) => ({ value: `orders:${k}`, label: `${C.DOCTRINES[k].icon} ${C.DOCTRINES[k].label}`, group: "Standing Orders (the computer decides)" })),
+        ...moves.map((m) => ({ value: `move:${m.id}`, label: `${m.name} · ${KIND_LABEL[m.kind]}`, group: "One move (whenever it can)" })),
+      ];
+      const strike = moves.find((m) => m.kind === "strike") || moves[0];
+      const fallback = key === "atk" && strike ? `move:${strike.id}` : "orders:turtle";
+      fillSelect(sel, opts, opts.some((o) => o.value === prev) ? prev : fallback);
+    }
+  }
+  function planAction(b, key, plan) {
+    if (plan.startsWith("move:")) return { kind: "move", id: plan.slice(5) };
+    return Battle.aiAction(b, key);
+  }
+  function actionName(b, key, a) {
+    if (a.kind === "move") return C.MOVE_BY_ID[a.id].name;
+    if (a.kind === "switch") return `a switch to ${b.sides[key].squads[a.to].name}`;
+    if (a.kind === "item") return C.ITEMS[a.id].label;
+    return a.kind;
+  }
+  function planBox(key, plan, label) {
+    const crit = plan.critOn > 6 ? "Can't crit." : plan.critOn < R.critOn ? `Crits on ${plan.critOn}+.` : "";
+    return `<div class="plan plan--${key}"><span class="who"><span class="mini-die mini-die--${key}" aria-hidden="true"></span>&nbsp;${label}</span>
+      <p><b>${plural(plan.dice, "die", "dice")}${plan.bonus ? ` at ${sign(plan.bonus)} each` : ""}</b>, ${plan.power ? `power ${plan.power} a pair` : "no damage"}. ${crit}</p>
+      ${plan.notes && plan.notes.length ? `<ul class="notes">${plan.notes.map((x) => `<li>${esc(x.label)} ${esc(x.value)}</li>`).join("")}</ul>` : ""}</div>`;
+  }
+  function labEstimate() {
+    const b = Battle.createBattle(labConfig(1));
+    const aPlan = $("#lAtkPlan").value;
+    const dPlan = $("#lDefPlan").value;
+    const aAct = planAction(b, "atk", aPlan);
+    const dAct = planAction(b, "def", dPlan);
+    const est = Battle.estimate(b, "atk", aAct, dAct, 4000, Battle.mulberry(2718));
+    const n = Math.min(est.plan.dice, est.foePlan.dice);
+    const me = Battle.activeSquad(b.sides.atk);
+    const foe = Battle.activeSquad(b.sides.def);
+    const tgtDef = dAct.kind === "switch" ? b.sides.def.squads[dAct.to] : foe;
+    const tgtAtk = aAct.kind === "switch" ? b.sides.atk.squads[aAct.to] : me;
+    const unitsOf = (dmg, q) => (q.hero ? `${pct(Math.min(1, dmg / q.hpPer))} of ${C.HEROES[q.hero].name}'s HP` : `about ${f1(dmg / q.hpPer)} units`);
+    const multIn = C.typeMult(tgtDef.type, tgtAtk.type);
+    const eff = (x) => (x > 1 ? "super effective" : x < 1 ? "not very effective" : "even");
+    const opener = (who, plan, a, key) => (plan.startsWith("orders:") ? `${who} ${C.DOCTRINES[plan.slice(7)].label} orders open with ${actionName(b, key, a)}` : `${who} side opens with ${actionName(b, key, a)}`);
+    $("#labOpeners").textContent = `Round one. ${opener("Your", aPlan, aAct, "atk")}. ${opener("Mei's", dPlan, dAct, "def")}. That makes ${plural(n, "pair", "pairs")} to fight over.`;
+    $("#labPAny").textContent = n ? pct(est.pAny) : "–";
+    $("#labStats").innerHTML = `
+      <div><dt>Pairs you win</dt><dd>${f1(est.hits)}<small>of ${n}</small></dd></div>
+      <div><dt>Pairs they win</dt><dd>${f1(n - est.hits)}<small>of ${n}</small></dd></div>
+      <div><dt>You deal</dt><dd>${f1(est.dealt)}<small>${unitsOf(est.dealt, tgtDef)}</small></dd></div>
+      <div><dt>You take</dt><dd>${f1(est.taken)}<small>${unitsOf(est.taken, tgtAtk)}</small></dd></div>
+      <div><dt>Your hits</dt><dd>${mult(est.mult)}<small>${esc(C.TYPES[tgtAtk.type].label)} into ${esc(C.TYPES[tgtDef.type].label)}, ${eff(est.mult)}</small></dd></div>
+      <div><dt>Their hits</dt><dd>${mult(multIn)}<small>${esc(C.TYPES[tgtDef.type].label)} into ${esc(C.TYPES[tgtAtk.type].label)}, ${eff(multIn)}</small></dd></div>`;
+    $("#labPlans").innerHTML = planBox("atk", est.plan, "Your throw") + planBox("def", est.foePlan, "Their throw");
+  }
+
+  // Today's rules, as src/game/engine.ts battle() plays them: up to 3 dice against 2, highest against highest,
+  // ties to the defender, unit attack/defence plus hero and Fort bonuses on every die, fought to the last unit.
+  function riskOdds(aUnit, aCount, aBonus, dUnit, dCount, dBonus, trials = 4000) {
+    const rng = Battle.mulberry(99);
+    const d6 = () => 1 + Math.floor(rng() * 6);
+    const ua = C.UNITS[aUnit].atk;
+    const ud = C.UNITS[dUnit].def;
+    let wins = 0;
+    for (let t = 0; t < trials; t++) {
+      let a = aCount;
+      let d = dCount;
+      let guard = 0;
+      while (a > 0 && d > 0 && guard++ < 1000) {
+        const ad = Array.from({ length: Math.min(3, a) }, () => d6() + ua + aBonus).sort((x, y) => y - x);
+        const dd = Array.from({ length: Math.min(2, d) }, () => d6() + ud + dBonus).sort((x, y) => y - x);
+        for (let k = 0; k < Math.min(ad.length, dd.length); k++) {
+          if (ad[k] > dd[k]) d--;
+          else a--;
+          if (!a || !d) break;
+        }
+      }
+      if (d === 0) wins++;
+    }
+    return wins / trials;
+  }
+  function labRisk() {
+    const a = lAtk.read();
+    const d = lDef.read();
+    if (!a.unit || !d.unit) return null;
+    const aura = (h) => (h ? C.HEROES[h].aura : 0);
+    return riskOdds(a.unit, a.count, aura(a.hero), d.unit, d.count, aura(d.hero) + ($("#lFort").checked ? 1 : 0));
+  }
+
+  const labSim = { token: 0, has: false };
+  function labSimulate() {
+    const token = ++labSim.token;
+    const N = 500;
+    const cfg0 = labConfig(0);
+    const aPlan = $("#lAtkPlan").value;
+    const dPlan = $("#lDefPlan").value;
+    const fixed = (b, key, plan) => {
+      if (!plan.startsWith("move:")) return undefined;
+      const action = { kind: "move", id: plan.slice(5) };
+      return actionEnabled(b, key, action) ? action : undefined;
+    };
+    const acc = { n: 0, won: 0, how: {}, rounds: 0, aLost: 0, dLost: 0 };
+    const btn = $("#labSimBtn");
+    const bar = $("#labProgress");
+    btn.disabled = true;
+    btn.textContent = "Fighting…";
+    bar.hidden = false;
+    bar.firstElementChild.style.width = "0%";
+    $("#labSimOut").classList.add("stale");
+    const runOne = (i) => {
+      const cfg = JSON.parse(JSON.stringify(cfg0));
+      cfg.seed = 9001 + i * 7;
+      const b = Battle.createBattle(cfg);
+      let g = 0;
+      while (!b.over && g++ < 40) Battle.autoRound(b, fixed(b, "atk", aPlan), fixed(b, "def", dPlan));
+      const s = Battle.summary(b);
+      acc.n++;
+      if (b.result && b.result.winner === "atk") acc.won++;
+      const how = b.result ? b.result.how : "stalled";
+      acc.how[how] = (acc.how[how] || 0) + 1;
+      acc.rounds += b.round;
+      acc.aLost += sum(s.atk.lost);
+      acc.dLost += sum(s.def.lost);
+    };
+    const step = () => {
+      if (token !== labSim.token) return;
+      const t0 = performance.now();
+      try {
+        while (acc.n < N && performance.now() - t0 < 14) runOne(acc.n);
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = "Simulate 500 whole battles";
+        bar.hidden = true;
+        $("#labSimOut").classList.remove("stale");
+        $("#labSimOut").innerHTML = `<p class="sim-note">The simulation stopped: ${esc(err.message)}</p>`;
+        return;
+      }
+      bar.firstElementChild.style.width = `${((acc.n / N) * 100).toFixed(0)}%`;
+      if (acc.n < N) setTimeout(step, 0);
+      else finish();
+    };
+    const finish = () => {
+      btn.disabled = false;
+      btn.textContent = "Simulate 500 again";
+      bar.hidden = true;
+      labSim.has = true;
+      const win = acc.won / acc.n;
+      const risk = labRisk();
+      const HOW = { won: "taken", held: "held", retreat: "retreated", truce: "truce", stalled: "stalled" };
+      const ended = Object.keys(HOW)
+        .filter((k) => acc.how[k])
+        .map((k) => `${acc.how[k]} ${HOW[k]}`)
+        .join(" · ");
+      const out = $("#labSimOut");
+      out.classList.remove("stale");
+      out.innerHTML = `<div class="lab-hero"><span class="big">${pct(win)}</span><span>of invasions take the region</span></div>
+        ${risk != null ? `${axis()}${duo(win, risk)}<p class="sim-note">Today's Risk rules, for the same troops, heroes and Fort (no gear or terrain today): ${pct(risk)}.</p>` : `<p class="sim-note">No comparison with today's rules: heroes can't fight alone there.</p>`}
+        <dl class="lab-stats" style="margin-top:14px"><div><dt>Rounds</dt><dd>${f1(acc.rounds / acc.n)}<small>on average</small></dd></div><div><dt>Invaders lose</dt><dd>${f1(acc.aLost / acc.n)}<small>units on average</small></dd></div><div><dt>Defenders lose</dt><dd>${f1(acc.dLost / acc.n)}<small>units on average</small></dd></div></dl>
+        <p class="ended">How the ${acc.n} battles ended: ${esc(ended)}.</p>
+        <p class="sim-note">${aPlan.startsWith("move:") ? `Your side uses ${esc(C.MOVE_BY_ID[aPlan.slice(5)].name)} whenever it can and Counterpunch orders otherwise.` : `Your side follows ${esc(C.DOCTRINES[aPlan.slice(7)].label)} orders.`} ${dPlan.startsWith("move:") ? `Mei's side uses ${esc(C.MOVE_BY_ID[dPlan.slice(5)].name)} whenever it can and Counterpunch orders otherwise.` : `Mei's side follows ${esc(C.DOCTRINES[dPlan.slice(7)].label)} orders.`} Neither side carries Bag items.</p>`;
+    };
+    setTimeout(step, 0);
+  }
+  function labChanged() {
+    refreshLabPlans();
+    labEstimate();
+    if (labSim.has || $("#labSimBtn").disabled) {
+      labSim.token++;
+      const btn = $("#labSimBtn");
+      btn.disabled = false;
+      btn.textContent = "Simulate 500 whole battles";
+      $("#labProgress").hidden = true;
+      const out = $("#labSimOut");
+      out.classList.add("stale");
+      if (!$("#labStaleNote")) out.insertAdjacentHTML("afterbegin", `<p class="sim-note" id="labStaleNote" style="opacity:1">These results are for the old settings. Simulate again to update them.</p>`);
+    }
+  }
+  function initLab() {
+    lAtk = setupSide("lAtk", { max: 12, armour: true, defaults: { unit: "armedPanda", count: 5 } });
+    lDef = setupSide("lDef", { max: 12, armour: true, defaults: { unit: "panda", count: 5 } });
+    fillTerrain($("#lTerrain"), "iron");
+    refreshLabPlans();
+    $("#labForm").addEventListener("change", labChanged);
+    $("#labForm").addEventListener("submit", (e) => e.preventDefault());
+    $("#labSimBtn").addEventListener("click", labSimulate);
+    labEstimate();
+    const risk = labRisk();
+    $("#labSimOut").innerHTML = risk != null ? `<p class="sim-note">Under today's Risk rules this matchup goes to the invaders ${pct(risk)} of the time. Press the button to see the new rules.</p>` : "";
+  }
+
+  // ---------------------------------------------------------------- boot
+  const safely = (name, fn) => {
+    try {
+      fn();
+    } catch (err) {
+      console.error(`War Codex: ${name} failed`, err);
+    }
+  };
+  safely("numbers", fillNumbers);
+  safely("edition", renderEdition);
+  safely("types", renderTypes);
+  safely("units", renderUnits);
+  safely("moves", renderMoves);
+  safely("armory", renderArmory);
+  safely("orders", renderOrders);
+  safely("balance", renderBalance);
+  safely("clash", initClash);
+  safely("lab", initLab);
+  safely("nav", initNav);
+})();
+</script>

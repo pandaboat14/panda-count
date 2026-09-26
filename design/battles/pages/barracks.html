@@ -1,0 +1,1120 @@
+<title>The Barracks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Karla:wght@400;600;700&display=swap">
+<style>
+  :root {
+    --cream: #fdf2e0;
+    --paper: #fffaf3;
+    --ink: #1c1b17;
+    --ink-soft: #57544a;
+    --forest: #1f4b35;
+    --forest-deep: #143424;
+    --bamboo: #dcc79c;
+    --bamboo-deep: #b3955c;
+    --blush: #e9b8a8;
+    --danger: #a24a30;
+    --bg: var(--cream);
+    --surface: var(--paper);
+    --surface-2: #f7ead3;
+    --line: rgba(179, 149, 92, 0.38);
+    --accent: var(--forest);
+    --accent-strong: var(--forest-deep);
+    --accent-ink: var(--paper);
+    --accent-edge: var(--forest-deep);
+    --focus: var(--bamboo-deep);
+    --stage-a: #fbe8c8;
+    --stage-b: #f1e0bd;
+    --ground: #e6cf9f;
+    --plinth: #b3955c;
+    --ring: #1f4b35;
+    --shadow: rgba(60, 40, 10, 0.22);
+    --t-fluff-bg: #f3d3c8;
+    --t-fluff-ink: #7a3322;
+    --t-steel-bg: #d9dfe4;
+    --t-steel-ink: #33414d;
+    --t-brute-bg: #d5e0b4;
+    --t-brute-ink: #3f5219;
+    --t-glam-bg: #f6dd9c;
+    --t-glam-ink: #6b4a08;
+    --t-legend-bg: #1f4b35;
+    --t-legend-ink: #fffaf3;
+    --display: 'Fraunces', Georgia, 'Times New Roman', serif;
+    --body: 'Karla', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --label: 'Bricolage Grotesque', 'Karla', system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #111813;
+      --surface: #19221c;
+      --surface-2: #212c24;
+      --ink: #f4ecdc;
+      --ink-soft: #b9b19e;
+      --line: rgba(220, 199, 156, 0.2);
+      --accent: #8fd0a4;
+      --accent-strong: #c9ecd3;
+      --accent-ink: #0f1a13;
+      --accent-edge: #4f8a63;
+      --focus: #dcc79c;
+      --stage-a: #26362c;
+      --stage-b: #182019;
+      --ground: #37331f;
+      --plinth: #8a7247;
+      --ring: #8fd0a4;
+      --shadow: rgba(0, 0, 0, 0.45);
+      --t-fluff-bg: #5a3129;
+      --t-fluff-ink: #f7d3c7;
+      --t-steel-bg: #37424c;
+      --t-steel-ink: #dfe6ec;
+      --t-brute-bg: #3c4a22;
+      --t-brute-ink: #dbe8b6;
+      --t-glam-bg: #5b4513;
+      --t-glam-ink: #f8df9e;
+      --t-legend-bg: #8fd0a4;
+      --t-legend-ink: #0f1a13;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #111813;
+    --surface: #19221c;
+    --surface-2: #212c24;
+    --ink: #f4ecdc;
+    --ink-soft: #b9b19e;
+    --line: rgba(220, 199, 156, 0.2);
+    --accent: #8fd0a4;
+    --accent-strong: #c9ecd3;
+    --accent-ink: #0f1a13;
+    --accent-edge: #4f8a63;
+    --focus: #dcc79c;
+    --stage-a: #26362c;
+    --stage-b: #182019;
+    --ground: #37331f;
+    --plinth: #8a7247;
+    --ring: #8fd0a4;
+    --shadow: rgba(0, 0, 0, 0.45);
+    --t-fluff-bg: #5a3129;
+    --t-fluff-ink: #f7d3c7;
+    --t-steel-bg: #37424c;
+    --t-steel-ink: #dfe6ec;
+    --t-brute-bg: #3c4a22;
+    --t-brute-ink: #dbe8b6;
+    --t-glam-bg: #5b4513;
+    --t-glam-ink: #f8df9e;
+    --t-legend-bg: #8fd0a4;
+    --t-legend-ink: #0f1a13;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.5 var(--body);
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1260px; margin: 0 auto; padding-inline: 16px; padding-block: 22px 40px; }
+  header.top { display: grid; gap: 6px; margin-bottom: 18px; }
+  .eyebrow {
+    margin: 0;
+    font: 700 0.72rem/1.2 var(--label);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  h1 {
+    margin: 0;
+    font: 800 clamp(2.2rem, 6vw, 3.6rem)/0.95 var(--display);
+    color: var(--accent-strong);
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  h1 em { font-style: normal; color: var(--bamboo-deep); }
+  .lede { margin: 2px 0 0; max-width: 62ch; color: var(--ink-soft); font-size: 1.02rem; }
+
+  .layout { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr) 348px; align-items: start; }
+  @media (max-width: 940px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+  /* ---- stage ---- */
+  .stage-card { display: grid; gap: 0; border-radius: 24px; overflow: hidden; background: var(--surface); box-shadow: inset 0 0 0 2px var(--line), 0 18px 40px -28px var(--shadow); }
+  .stage {
+    position: relative;
+    height: clamp(360px, 62vh, 640px);
+    background: radial-gradient(120% 90% at 50% 38%, var(--stage-a) 0%, var(--stage-b) 100%);
+    overflow: hidden;
+  }
+  @media (max-width: 600px) { .stage { height: clamp(380px, 68vh, 560px); } }
+  .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: pan-y; cursor: pointer; outline: none; }
+  .stage canvas:focus-visible { box-shadow: inset 0 0 0 3px var(--focus); }
+  .stage.turntable canvas { cursor: grab; }
+  .stage.turntable canvas.dragging { cursor: grabbing; }
+  .toolbar {
+    position: absolute; top: 12px; left: 12px; right: 12px;
+    display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 8px;
+    pointer-events: none; z-index: 2;
+  }
+  .seg {
+    pointer-events: auto;
+    display: inline-flex; gap: 2px; padding: 4px;
+    border-radius: 99px;
+    background: color-mix(in srgb, var(--surface) 90%, transparent);
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.06), 0 8px 18px -12px var(--shadow);
+    backdrop-filter: blur(6px);
+  }
+  .seg button {
+    appearance: none; border: 0; cursor: pointer;
+    padding: 7px 14px; border-radius: 99px;
+    font: 700 0.86rem/1 var(--body);
+    color: var(--accent); background: transparent;
+    white-space: nowrap;
+  }
+  .seg button:hover { background: var(--surface-2); }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+  .seg button:focus-visible, .chip:focus-visible, .move:focus-visible, .swatch:focus-visible, .fighter:focus-visible, .linkish:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  @media (max-width: 480px) { .seg button { padding: 7px 10px; font-size: 0.8rem; } }
+  .hint {
+    position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%);
+    margin: 0; padding: 5px 12px; border-radius: 99px;
+    font: 600 0.78rem/1.3 var(--body); color: var(--ink-soft);
+    background: color-mix(in srgb, var(--surface) 82%, transparent);
+    white-space: nowrap; pointer-events: none; z-index: 2;
+  }
+  @media (max-width: 480px) { .hint { white-space: normal; text-align: center; width: max-content; max-width: calc(100% - 24px); } }
+  .tags { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+  .tag {
+    position: absolute; transform: translate(-50%, 0);
+    padding: 2px 9px; border-radius: 99px;
+    font: 700 0.72rem/1.4 var(--body); color: var(--ink);
+    background: color-mix(in srgb, var(--surface) 86%, transparent);
+    white-space: nowrap; pointer-events: auto; cursor: pointer; border: 0;
+  }
+  .tag[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+  .tags.hidden { display: none; }
+
+  /* ---- caption under the stage ---- */
+  .caption { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 18px; padding: 16px 20px 18px; border-top: 2px solid var(--line); }
+  @media (max-width: 600px) { .caption { grid-template-columns: minmax(0, 1fr); padding: 14px 16px 16px; } }
+  .who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+  .who h2 { margin: 0; font: 800 1.55rem/1.1 var(--display); color: var(--ink); text-wrap: balance; }
+  .who .title { font: 600 1.05rem/1.2 var(--display); color: var(--ink-soft); font-style: italic; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 10px; border-radius: 99px;
+    font: 800 0.72rem/1.3 var(--label); letter-spacing: 0.12em; text-transform: uppercase;
+    align-self: center;
+  }
+  .badge[data-type="Fluff"] { background: var(--t-fluff-bg); color: var(--t-fluff-ink); }
+  .badge[data-type="Steel"] { background: var(--t-steel-bg); color: var(--t-steel-ink); }
+  .badge[data-type="Brute"] { background: var(--t-brute-bg); color: var(--t-brute-ink); }
+  .badge[data-type="Glam"] { background: var(--t-glam-bg); color: var(--t-glam-ink); }
+  .badge[data-type="Legend"] { background: var(--t-legend-bg); color: var(--t-legend-ink); }
+  .lore { margin: 2px 0 0; max-width: 62ch; color: var(--ink); }
+  .kit { margin: 2px 0 0; color: var(--ink-soft); font-size: 0.92rem; }
+  .stats { display: flex; gap: 8px; align-items: flex-start; justify-content: flex-end; flex-wrap: wrap; }
+  @media (max-width: 600px) { .stats { justify-content: flex-start; } }
+  .stat { display: grid; justify-items: center; min-width: 64px; padding: 6px 10px 8px; border-radius: 14px; background: var(--surface-2); }
+  .stat b { font: 800 1.6rem/1 var(--label); font-variant-numeric: tabular-nums; color: var(--ink); }
+  .stat span { font: 700 0.66rem/1.2 var(--label); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-soft); margin-top: 3px; }
+  .readout { grid-column: 1 / -1; margin: 6px 0 0; font: 600 0.84rem/1.4 var(--label); color: var(--ink-soft); font-variant-numeric: tabular-nums; min-height: 1.4em; }
+  .readout strong { color: var(--ink); font-weight: 800; }
+
+  /* ---- control panel ---- */
+  .panel { display: grid; gap: 20px; padding: 18px; border-radius: 24px; background: var(--surface); box-shadow: inset 0 0 0 2px var(--line); }
+  .group { display: grid; gap: 9px; min-width: 0; }
+  .group h3 { margin: 0; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font: 800 0.72rem/1.2 var(--label); letter-spacing: 0.13em; text-transform: uppercase; color: var(--ink-soft); }
+  .group h3 small { font: 600 0.78rem/1.2 var(--body); letter-spacing: 0; text-transform: none; color: var(--ink-soft); opacity: 0.85; }
+  .sub { margin: 2px 0 -2px; font: 700 0.78rem/1.2 var(--body); color: var(--ink-soft); }
+  .fighters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .fighter {
+    appearance: none; border: 0; cursor: pointer; text-align: left;
+    display: grid; gap: 1px; padding: 8px 11px; border-radius: 14px;
+    background: var(--surface-2); color: var(--ink);
+    font: 700 0.9rem/1.2 var(--body);
+    box-shadow: inset 0 0 0 1.5px transparent;
+  }
+  .fighter small { font: 700 0.64rem/1.2 var(--label); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-soft); }
+  .fighter:hover { box-shadow: inset 0 0 0 1.5px var(--line); }
+  .fighter[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+  .fighter[aria-pressed="true"] small { color: inherit; opacity: 0.8; }
+  .fighter:disabled { opacity: 0.45; cursor: not-allowed; }
+  .moves { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .move {
+    appearance: none; border: 0; cursor: pointer;
+    padding: 9px 6px; border-radius: 12px;
+    font: 700 0.88rem/1.1 var(--body);
+    background: var(--accent); color: var(--accent-ink);
+    box-shadow: 0 2px 0 var(--accent-edge);
+  }
+  .move:hover { filter: brightness(1.08); }
+  .move:active { transform: translateY(1px); box-shadow: none; }
+  .move.ghost { background: var(--surface-2); color: var(--accent); box-shadow: inset 0 0 0 1.5px var(--line); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    appearance: none; border: 0; cursor: pointer;
+    padding: 6px 12px; border-radius: 99px;
+    font: 700 0.84rem/1.2 var(--body);
+    background: var(--surface-2); color: var(--accent);
+    box-shadow: inset 0 0 0 1.5px var(--line);
+  }
+  .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); box-shadow: none; }
+  .chip.fixed { cursor: default; background: var(--surface-2); color: var(--ink-soft); box-shadow: inset 0 0 0 1.5px var(--line); }
+  .swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+  .swatch {
+    appearance: none; cursor: pointer; width: 34px; height: 34px; border-radius: 50%;
+    border: 3px solid var(--surface); box-shadow: 0 0 0 1.5px var(--line);
+  }
+  .swatch[aria-pressed="true"] { box-shadow: 0 0 0 2.5px var(--ink); }
+  .slider { display: grid; gap: 4px; }
+  .slider label { display: flex; justify-content: space-between; font: 700 0.86rem/1.2 var(--body); color: var(--ink); }
+  .slider output { font: 800 0.95rem/1 var(--label); font-variant-numeric: tabular-nums; color: var(--accent); }
+  .slider input { width: 100%; accent-color: var(--accent); }
+  .note { margin: 0; font-size: 0.84rem; color: var(--ink-soft); }
+  .linkish { appearance: none; border: 0; background: none; padding: 0; font: 700 0.84rem/1.2 var(--body); color: var(--accent); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  footer.foot { margin-top: 18px; color: var(--ink-soft); font-size: 0.84rem; max-width: 80ch; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  [hidden] { display: none !important; }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <p class="eyebrow">Panda Diplomacy · Model gallery</p>
+    <h1>The <em>Barracks</em></h1>
+    <p class="lede">Pick how the troops look before invasions turn into battles. Switch the art style, choose a fighter and its kit, and try every move a battle can call for.</p>
+  </header>
+
+  <div class="layout">
+    <section class="stage-card" aria-label="Figure stage">
+      <div class="stage" id="stage">
+        <canvas id="scene" tabindex="0" role="img" aria-label="All nine fighters lined up in the Toybox style"></canvas>
+        <div class="tags" id="tags"></div>
+        <div class="toolbar">
+          <div class="seg" role="group" aria-label="View">
+            <button type="button" id="view-lineup" data-view="lineup" aria-pressed="true">Line-up</button>
+            <button type="button" id="view-character" data-view="character" aria-pressed="false">Character</button>
+            <button type="button" id="view-squad" data-view="squad" aria-pressed="false">Squad</button>
+          </div>
+          <div class="seg" role="group" aria-label="Art style">
+            <button type="button" id="style-toy" data-style="toy" aria-pressed="true">Toybox</button>
+            <button type="button" id="style-lowpoly" data-style="lowpoly" aria-pressed="false">Low-poly</button>
+            <button type="button" id="style-toon" data-style="toon" aria-pressed="false">Toon</button>
+          </div>
+        </div>
+        <p class="hint" id="hint">Tap a fighter to select it. Moves play for the whole line-up.</p>
+      </div>
+      <div class="caption" aria-live="polite">
+        <div>
+          <div class="who">
+            <h2 id="cap-name">Panda</h2>
+            <span class="title" id="cap-title" hidden></span>
+            <span class="badge" id="cap-type" data-type="Fluff">Fluff</span>
+          </div>
+          <p class="lore" id="cap-lore"></p>
+          <p class="kit" id="cap-kit"></p>
+        </div>
+        <div class="stats" id="cap-stats"></div>
+        <p class="readout" id="readout">Choose a move to see how long it takes and when the blow lands.</p>
+      </div>
+    </section>
+
+    <aside class="panel" aria-label="Controls">
+      <div class="group">
+        <h3>Fighter</h3>
+        <p class="sub">Units</p>
+        <div class="fighters" id="units"></div>
+        <p class="sub">Heroes</p>
+        <div class="fighters" id="heroes"></div>
+      </div>
+      <div class="group">
+        <h3>Moves <small id="moves-scope">whole line-up</small></h3>
+        <div class="moves" id="moves"></div>
+      </div>
+      <div class="group" id="kit-group">
+        <h3>Kit <small id="kit-for">for the Panda</small></h3>
+        <p class="sub">Weapon</p>
+        <div class="chips" id="weapons"></div>
+        <p class="sub" id="armour-label">Armour</p>
+        <div class="chips" id="armours"></div>
+      </div>
+      <div class="group">
+        <h3>Team colour</h3>
+        <div class="swatches" id="swatches" role="group" aria-label="Team colour"></div>
+      </div>
+      <div class="group" id="squad-group" hidden>
+        <h3>Squad <small id="squad-of">of Pandas</small></h3>
+        <div class="slider">
+          <label for="squad-size">Troops <output id="squad-size-out" for="squad-size">9</output></label>
+          <input type="range" id="squad-size" min="1" max="9" step="1" value="9">
+        </div>
+        <div class="slider">
+          <label for="casualties">Casualties <output id="casualties-out" for="casualties">0</output></label>
+          <input type="range" id="casualties" min="0" max="9" step="1" value="0">
+        </div>
+        <p class="note" id="squad-note">Fallen troops topple, sink and fade. Lower the casualties to bring them back.</p>
+      </div>
+    </aside>
+  </div>
+  <footer class="foot">Every figure is built from simple shapes in code, so the same nine characters can be rendered as glossy vinyl toys, faceted low-poly pieces or inked cartoons. Battle types follow the game: Fluff, Steel, Brute, Glam and Legend.</footer>
+</div>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+/*@include shared/models.js*/
+
+// ---------------------------------------------------------------------------------------------
+// Game data (from src/game/rules.ts)
+// ---------------------------------------------------------------------------------------------
+const FIGHTERS = {
+  panda: { name: 'Panda', type: 'Fluff', lore: 'Cheap, stubborn defenders. Every 3 pandas you own earn 1 PandaCoin a turn.', stats: [['0', 'Attack'], ['1', 'Defense']], kit: 'Bare paws and a team scarf' },
+  armedPanda: { name: 'Armed Panda', type: 'Steel', lore: 'A panda with a bamboo spear and a tin helmet.', stats: [['1', 'Attack'], ['2', 'Defense']], kit: 'Short bamboo spear, tin helmet, team tabard' },
+  nacam: { name: 'NACAM Ogre', type: 'Brute', lore: 'Not A Classically Attractive Male. Ugly, jacked with rage, hits hard.', stats: [['2', 'Attack'], ['0', 'Defense']], kit: 'Wooden club, team loincloth' },
+  cam: { name: 'CAM', type: 'Glam', lore: 'Classically Attractive Males. Jacked, beautiful and expensive. Great at everything.', stats: [['2', 'Attack'], ['2', 'Defense']], kit: 'Fists, team headband and shorts' },
+  casey: { name: 'Casey', title: 'the Norse God', type: 'Legend', lore: 'By far the most powerful being alive. Every 3 turns he can call down Thunder on any region you can see.', stats: [['+3', 'Every die']], kit: 'Storm hammer, winged helmet, cape with team trim' },
+  ping: { name: 'Ping', title: 'the Panda Diplomat', type: 'Legend', lore: 'Master of panda diplomacy. Bank trades at 2:1 and +2 PandaCoin every turn.', stats: [['+1', 'Every die']], kit: 'Jade fan, scholar’s cap, robe with team sash' },
+  cockpenis: { name: 'Cock Penis', title: 'the Ogre Warlord', type: 'Legend', lore: 'Commands the NACAM hordes. Ogres cost less to hire and need no upkeep.', stats: [['+1', 'Every die']], kit: 'War axe, iron spike crown, fur pauldrons, war paint' },
+  piecer: { name: 'The Piecer Captain', title: 'Gondola Engineer', type: 'Legend', lore: 'Builds gondola lines for half price, and troops leaving his region can ride two lines in one turn.', stats: [['+1', 'Every die']], kit: 'Big wrench, hard hat, hi-vis vest, cable coil' },
+  josserkid: { name: 'The Josserkid', title: 'the Trickster', type: 'Legend', lore: 'Sees through the fog up to 3 regions away, and pickpockets a resource once a turn.', stats: [['+1', 'Every die']], kit: 'Card fan, jester hat, half mask' },
+};
+const UNIT_KINDS = ['panda', 'armedPanda', 'nacam', 'cam'];
+const HERO_KINDS = ['casey', 'ping', 'cockpenis', 'piecer', 'josserkid'];
+const PLAYER_COLORS = [
+  ['#d64a2b', 'Red'], ['#2b6fd6', 'Blue'], ['#e0a526', 'Gold'], ['#8a3fd1', 'Purple'],
+  ['#14a38b', 'Teal'], ['#d6368f', 'Pink'], ['#5b7d1f', 'Olive'], ['#0f1f4d', 'Navy'],
+];
+const MOVES = [['idle', 'Idle'], ['attack', 'Attack'], ['throw', 'Throw'], ['cast', 'Cast'], ['guard', 'Guard'], ['hit', 'Hit'], ['faint', 'Faint'], ['cheer', 'Cheer'], ['walk', 'Walk']];
+const ATTACK_NAMES = { thrust: 'spear thrust', smash: 'overhead smash', smash2: 'two-handed chop', pound: 'double-fist pound', punch: 'haymaker punch', bump: 'belly bump', swing: 'wrench swing', swat: 'fan swat', slash: 'spinning card slash' };
+const THROW_NAMES = { arrow: 'bamboo arrow', gemArrow: 'gem-tipped arrow', stone: 'sling stone', card: 'card flick', gust: 'fan gust', lightning: 'lightning hurl', spear: 'javelin throw', rock: 'rock throw', dumbbell: 'dumbbell toss', bolt: 'bolt toss' };
+// What each unit carries, so the caption can describe the loadout after upgrades.
+const KIT = {
+  panda: { weapon: 'bare paws', armour: null, wear: 'a team scarf' },
+  armedPanda: { weapon: 'a short bamboo spear', armour: 'a dented tin helmet', wear: 'a team tabard' },
+  nacam: { weapon: 'a wooden club', armour: null, wear: 'a team loincloth' },
+  cam: { weapon: 'bare fists', armour: null, wear: 'a team headband and shorts' },
+};
+const WEAPON_KIT = { bambooSpear: 'a long sharpened bamboo spear', bambooBow: 'a bamboo bow and quiver', gemArrows: 'a bamboo bow with gem-tipped arrows', sling: 'a sling', ironGlaive: 'an iron glaive', spikedClub: 'a spiked club', gemKnuckles: 'glowing gem knuckles' };
+const ARMOUR_KIT = { ironHelm: 'a crested iron helm', towerShield: 'a tall tower shield' };
+const CAST_NAMES = { panda: 'rally', armedPanda: 'rally', nacam: 'chest pound', cam: 'flex', casey: 'storm call', ping: 'calming fan', cockpenis: 'war cry', piecer: 'wrench twirl', josserkid: 'vanishing spin' };
+
+// ---------------------------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------------------------
+const state = { view: 'lineup', style: 'toy', kind: 'panda', team: '#d64a2b', gear: {}, squadSize: 9, casualties: 0 };
+for (const k of Models.KINDS) state.gear[k] = { weapon: null, armour: null };
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
+const $ = (id) => document.getElementById(id);
+const gearIds = (k) => [state.gear[k].weapon, state.gear[k].armour].filter(Boolean);
+
+// ---------------------------------------------------------------------------------------------
+// Renderer, scene, lighting
+// ---------------------------------------------------------------------------------------------
+const stageEl = $('stage');
+const canvas = $('scene');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.NeutralToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.setClearColor(0x000000, 0);
+
+const scene = new THREE.Scene();
+const pmrem = new THREE.PMREMGenerator(renderer);
+const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environment = envTex;
+const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+
+const hemi = new THREE.HemisphereLight('#fff6e8', '#b59a6a', 0.5);
+scene.add(hemi);
+const key = new THREE.DirectionalLight('#fff1dc', 2.2);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.bias = -0.0004;
+key.shadow.normalBias = 0.02;
+key.shadow.radius = 4;
+scene.add(key, key.target);
+const rim = new THREE.DirectionalLight('#dfe9ff', 0.55);
+scene.add(rim, rim.target);
+
+const LIGHTS = {
+  toy: { env: 0.85, hemi: 0.45, key: 2.2, rim: 0.55 },
+  lowpoly: { env: 0.7, hemi: 0.6, key: 2.35, rim: 0.45 },
+  toon: { env: 0.0, hemi: 1.35, key: 1.8, rim: 0.3 },
+};
+function applyLighting() {
+  const L = LIGHTS[state.style];
+  scene.environmentIntensity = L.env;
+  hemi.intensity = L.hemi;
+  key.intensity = L.key;
+  rim.intensity = L.rim;
+}
+
+// Warm ground that fades into the stage background.
+function radialTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d');
+  const grd = g.createRadialGradient(128, 128, 20, 128, 128, 128);
+  grd.addColorStop(0, '#ffffff');
+  grd.addColorStop(0.45, '#ffffff');
+  grd.addColorStop(0.8, '#555555');
+  grd.addColorStop(1, '#000000');
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 256, 256);
+  return new THREE.CanvasTexture(c);
+}
+const fade = radialTexture();
+const groundMat = new THREE.MeshBasicMaterial({ color: '#e6cf9f', transparent: true, alphaMap: fade, depthWrite: false });
+const ground = new THREE.Mesh(new THREE.CircleGeometry(1, 64), groundMat);
+ground.rotation.x = -Math.PI / 2;
+ground.renderOrder = -2;
+const shadowCatcher = new THREE.Mesh(new THREE.CircleGeometry(1, 64), new THREE.ShadowMaterial({ color: '#3b2a10', opacity: 0.2, depthWrite: false }));
+shadowCatcher.receiveShadow = true;
+shadowCatcher.renderOrder = -1;
+ground.add(shadowCatcher);
+shadowCatcher.position.z = 0.0005;
+scene.add(ground);
+
+const ringMat = new THREE.MeshBasicMaterial({ color: '#1f4b35', transparent: true, opacity: 0.85, depthWrite: false });
+const selRing = new THREE.Mesh(new THREE.RingGeometry(0.86, 1, 48), ringMat);
+selRing.rotation.x = -Math.PI / 2;
+selRing.renderOrder = 1;
+scene.add(selRing);
+
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+function applyTheme() {
+  groundMat.color.set(cssVar('--ground') || '#e6cf9f');
+  shadowCatcher.material.opacity = document.documentElement.dataset.theme === 'dark' || (matchMedia('(prefers-color-scheme: dark)').matches && document.documentElement.dataset.theme !== 'light') ? 0.35 : 0.2;
+  ringMat.color.set(cssVar('--ring') || '#1f4b35');
+  if (plinth) plinth.userData.setColor(cssVar('--plinth') || '#b3955c');
+  for (const r of risers) r.userData.setColor(cssVar('--plinth') || '#b3955c');
+}
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class', 'style'] });
+
+// ---------------------------------------------------------------------------------------------
+// Views
+// ---------------------------------------------------------------------------------------------
+const world = new THREE.Group();
+scene.add(world);
+let figures = []; // { fig, kind }
+let squad = null, banner = null, fort = null, plinth = null;
+let risers = [];
+const turntable = new THREE.Group();
+let spin = 0.35, spinVel = 0, lastInteract = -10;
+let fitBox = new THREE.Box3();
+let camDir = new THREE.Vector3(0, 0.3, 1).normalize();
+let lookAt = new THREE.Vector3();
+let lastMove = null;
+let clock = 0;
+
+function styleMaterial(color) {
+  if (state.style === 'toon') return new THREE.MeshToonMaterial({ color });
+  if (state.style === 'lowpoly') return new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: 0.85 });
+  return new THREE.MeshPhysicalMaterial({ color, roughness: 0.4, clearcoat: 0.8, clearcoatRoughness: 0.2 });
+}
+function makePlinth(r) {
+  const segs = state.style === 'lowpoly' ? 10 : 64;
+  const g = new THREE.Group();
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 1.04, 0.12, segs), styleMaterial(cssVar('--plinth') || '#b3955c'));
+  top.position.y = 0.06;
+  const band = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.045, r * 1.045, 0.035, segs, 1, true), styleMaterial(state.team));
+  band.position.y = 0.05;
+  for (const m of [top, band]) { m.castShadow = true; m.receiveShadow = true; g.add(m); }
+  g.userData.setColor = (c) => top.material.color.set(c);
+  g.userData.setTeam = (c) => band.material.color.set(c);
+  g.userData.height = 0.12;
+  return g;
+}
+function makeRiser(w, d, h) {
+  const g = new THREE.Group();
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), styleMaterial(cssVar('--plinth') || '#b3955c'));
+  m.position.y = h / 2;
+  m.castShadow = true;
+  m.receiveShadow = true;
+  g.add(m);
+  g.userData.setColor = (c) => m.material.color.set(c);
+  return g;
+}
+function disposeObject(o) {
+  o.traverse((n) => {
+    if (n.isMesh) {
+      n.geometry.dispose();
+      (Array.isArray(n.material) ? n.material : [n.material]).forEach((m) => m.dispose());
+    }
+  });
+}
+function clearView() {
+  for (const e of figures) e.fig.dispose();
+  figures = [];
+  if (squad) { squad.dispose(); squad = null; }
+  for (const p of [banner, fort]) if (p) { p.userData.dispose(); }
+  banner = fort = null;
+  for (const p of [plinth, ...risers]) if (p) { p.removeFromParent(); disposeObject(p); }
+  plinth = null;
+  risers = [];
+  turntable.removeFromParent();
+  turntable.clear();
+  world.clear();
+  $('tags').innerHTML = '';
+}
+function newFigure(kind) {
+  return Models.buildFigure(kind, { style: state.style, teamColor: state.team, gear: gearIds(kind), seed: Models.KINDS.indexOf(kind) * 101 + 5 });
+}
+
+function lineupRows(aspect) {
+  if (aspect < 0.9) return [['cam', 'casey', 'cockpenis'], ['armedPanda', 'nacam', 'josserkid'], ['panda', 'ping', 'piecer']];
+  return [['casey', 'ping', 'cockpenis', 'piecer', 'josserkid'], ['panda', 'armedPanda', 'nacam', 'cam']];
+}
+function buildLineup() {
+  const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
+  const rows = lineupRows(aspect);
+  const n = rows.length;
+  const rowGap = 1.25;
+  let maxW = 0;
+  rows.forEach((row, r) => {
+    const back = n - 1 - r; // 0 = front row
+    const rise = back * 0.26;
+    const z = -back * rowGap;
+    const figs = row.map((k) => ({ kind: k, fig: newFigure(k) }));
+    const widths = figs.map((e) => Math.max(0.72, Math.min(1.2, e.fig.footprint * 0.82)));
+    const total = widths.reduce((a, b) => a + b, 0) + (figs.length - 1) * 0.16;
+    maxW = Math.max(maxW, total);
+    let x = -total / 2;
+    figs.forEach((e, i) => {
+      x += widths[i] / 2;
+      e.fig.root.position.set(x + (back % 2 ? 0 : 0), rise, z);
+      e.row = back;
+      world.add(e.fig.root);
+      figures.push(e);
+      x += widths[i] / 2 + 0.16;
+    });
+  });
+  if (n > 1) {
+    for (let b = 1; b < n; b++) {
+      const rz = makeRiser(maxW + 0.8, rowGap, b * 0.26);
+      rz.position.z = -b * rowGap;
+      world.add(rz);
+      risers.push(rz);
+    }
+  }
+  camDir.set(0, aspect < 0.9 ? 0.38 : 0.26, 1).normalize();
+  addTags();
+}
+function buildCharacter() {
+  const fig = newFigure(state.kind);
+  plinth = makePlinth(Math.max(0.5, Math.min(0.95, fig.footprint * 0.62)));
+  turntable.add(plinth);
+  fig.root.position.y = plinth.userData.height;
+  turntable.add(fig.root);
+  figures.push({ kind: state.kind, fig });
+  world.add(turntable);
+  turntable.rotation.y = spin;
+  camDir.set(0, 0.22, 1).normalize();
+}
+function buildSquad() {
+  const hero = HERO_KINDS.includes(state.kind);
+  const size = hero ? 1 : state.squadSize;
+  const alive = Math.max(0, size - Math.min(state.casualties, size));
+  squad = Models.buildSquad(state.kind, alive, { style: state.style, teamColor: state.team, gear: gearIds(state.kind), maxVisible: 9, seed: 42 });
+  world.add(squad.root);
+  const f0 = squad.figures[0];
+  banner = Models.buildProp('banner', { style: state.style, teamColor: state.team });
+  banner.position.set(f0.footprint * 2.3 + 0.4, 0, -1.2 * f0.footprint);
+  banner.rotation.y = -0.25;
+  world.add(banner);
+  fort = Models.buildProp('fort', { style: state.style, teamColor: state.team });
+  fort.position.set(-f0.footprint * 2.2 - 1.3, 0, -3.4 * f0.footprint - 1.2);
+  fort.rotation.y = 0.5;
+  fort.scale.setScalar(0.9);
+  world.add(fort);
+  const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
+  camDir.set(0.28, aspect < 0.9 ? 0.8 : 0.5, 1).normalize();
+}
+function addTags() {
+  const tags = $('tags');
+  tags.innerHTML = '';
+  for (const e of figures) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'tag';
+    b.textContent = FIGHTERS[e.kind].name.replace(/^The /, '');
+    b.setAttribute('aria-pressed', String(e.kind === state.kind));
+    b.addEventListener('click', () => select(e.kind));
+    tags.appendChild(b);
+    e.tag = b;
+  }
+}
+
+function buildView() {
+  clearView();
+  applyLighting();
+  if (state.view === 'lineup') buildLineup();
+  else if (state.view === 'character') buildCharacter();
+  else buildSquad();
+  applyTheme();
+  stageEl.classList.toggle('turntable', state.view === 'character');
+  fit();
+  updateSelectionRing();
+  // settle poses so the first frame is already standing
+  for (const e of figures) e.fig.update(0.016);
+  if (squad) squad.update(0.016);
+  if (banner) banner.userData.update(0.016);
+  updateCanvasLabel();
+}
+
+// Fit the camera around whatever is in the world group.
+function fit() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (!w || !h) return;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  world.updateMatrixWorld(true);
+  fitBox.makeEmpty();
+  if (state.view === 'squad' && squad) {
+    for (const f of squad.figures) fitBox.expandByObject(f.root);
+    if (banner) fitBox.expandByObject(banner);
+    fitBox.expandByPoint(new THREE.Vector3(0, 0, 0.6));
+  } else {
+    for (const e of figures) fitBox.expandByObject(e.fig.root);
+    if (plinth) fitBox.expandByObject(plinth);
+  }
+  if (fitBox.isEmpty()) fitBox.set(new THREE.Vector3(-1, 0, -1), new THREE.Vector3(1, 1.5, 1));
+  const size = fitBox.getSize(new THREE.Vector3());
+  const center = fitBox.getCenter(new THREE.Vector3());
+  const vfov = THREE.MathUtils.degToRad(camera.fov);
+  // keep the figures inside the area left free by the toolbar (top) and the hint (bottom)
+  const tb = document.querySelector('.toolbar'), hint = $('hint');
+  const mt = (tb ? tb.offsetTop + tb.offsetHeight : 52) + 10, mb = (hint && !hint.hidden ? hint.offsetHeight + 16 : 12) + 4;
+  const free = Math.max(0.45, (h - mt - mb) / h);
+  const tanV = Math.tan(vfov / 2), tanH = tanV * camera.aspect;
+  const pad = state.view === 'character' ? 1.12 : state.view === 'squad' ? 1.04 : 1.06;
+  const halfH = (size.y / 2) * pad, halfW = (Math.max(size.x, size.z * 0.55) / 2) * pad;
+  let dist = Math.max(halfH / (tanV * free), halfW / tanH) + size.z * 0.45;
+  dist = Math.max(dist, state.view === 'character' ? 2.4 : state.view === 'squad' ? 6.5 : 4.5);
+  lookAt.copy(center);
+  // shift the view so the content is centred in the free area
+  const fwd = camDir.clone().negate();
+  const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0)).normalize();
+  const upv = new THREE.Vector3().crossVectors(right, fwd).normalize();
+  const worldPerPx = (2 * dist * tanV) / h;
+  lookAt.addScaledVector(upv, ((mt - mb) / 2) * worldPerPx);
+  camera.position.copy(lookAt).addScaledVector(camDir, dist);
+  camera.near = 0.1;
+  camera.far = dist * 4 + 20;
+  camera.lookAt(lookAt);
+  camera.updateProjectionMatrix();
+  const span = Math.max(size.x, size.z) + 4;
+  ground.scale.setScalar(span * 0.85 + 3);
+  ground.position.set(center.x, 0.001, center.z - 0.5);
+  key.position.set(center.x - span * 0.45, span * 0.9 + 4, center.z + span * 0.7 + 3);
+  key.target.position.copy(center);
+  const sc = key.shadow.camera;
+  sc.left = -span; sc.right = span; sc.top = span; sc.bottom = -span; sc.near = 0.5; sc.far = span * 4 + 20;
+  sc.updateProjectionMatrix();
+  rim.position.set(center.x + span, span * 0.6 + 2, center.z - span - 2);
+  rim.target.position.copy(center);
+}
+
+function updateSelectionRing() {
+  const e = figures.find((x) => x.kind === state.kind);
+  if (state.view === 'lineup' && e) {
+    selRing.visible = true;
+    const r = Math.max(0.3, e.fig.footprint * 0.42);
+    selRing.scale.setScalar(r);
+    selRing.position.set(e.fig.root.position.x, e.fig.root.position.y + 0.012, e.fig.root.position.z);
+  } else selRing.visible = false;
+  for (const x of figures) if (x.tag) x.tag.setAttribute('aria-pressed', String(x.kind === state.kind));
+}
+
+// ---------------------------------------------------------------------------------------------
+// UI
+// ---------------------------------------------------------------------------------------------
+function fighterButton(k) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'fighter';
+  b.id = 'fighter-' + k;
+  b.dataset.kind = k;
+  b.innerHTML = `<span></span><small></small>`;
+  b.firstChild.textContent = FIGHTERS[k].name;
+  b.lastChild.textContent = FIGHTERS[k].type;
+  b.addEventListener('click', () => select(k));
+  return b;
+}
+UNIT_KINDS.forEach((k) => $('units').appendChild(fighterButton(k)));
+HERO_KINDS.forEach((k) => $('heroes').appendChild(fighterButton(k)));
+for (const [id, label] of MOVES) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'move' + (id === 'idle' || id === 'walk' ? ' ghost' : '');
+  b.id = 'move-' + id;
+  b.textContent = label;
+  b.addEventListener('click', () => playMove(id));
+  $('moves').appendChild(b);
+}
+for (const [hex, name] of PLAYER_COLORS) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'swatch';
+  b.id = 'team-' + name.toLowerCase();
+  b.style.background = hex;
+  b.dataset.hex = hex;
+  b.setAttribute('aria-label', name + ' team');
+  b.title = name;
+  b.setAttribute('aria-pressed', String(hex === state.team));
+  b.addEventListener('click', () => setTeam(hex));
+  $('swatches').appendChild(b);
+}
+document.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => setView(b.dataset.view)));
+document.querySelectorAll('[data-style]').forEach((b) => b.addEventListener('click', () => setStyle(b.dataset.style)));
+
+function setPressed(selector, fn) {
+  document.querySelectorAll(selector).forEach((b) => b.setAttribute('aria-pressed', String(fn(b))));
+}
+function setView(v) {
+  if (v === state.view) return;
+  state.view = v;
+  setPressed('[data-view]', (b) => b.dataset.view === v);
+  buildView();
+  refreshUI();
+}
+function setStyle(s) {
+  if (s === state.style) return;
+  const old = state.style;
+  state.style = s;
+  setPressed('[data-style]', (b) => b.dataset.style === s);
+  buildView();
+  Models.clearCache(old);
+  refreshUI();
+}
+function setTeam(hex) {
+  state.team = hex;
+  setPressed('.swatch', (b) => b.dataset.hex === hex);
+  for (const e of figures) e.fig.setTeamColor(hex);
+  if (squad) squad.setTeamColor(hex);
+  if (banner) banner.userData.setTeamColor(hex);
+  if (fort) fort.userData.setTeamColor(hex);
+  if (plinth) plinth.userData.setTeam(hex);
+}
+function select(k) {
+  const changed = k !== state.kind;
+  state.kind = k;
+  if (state.view === 'character' && changed) buildView();
+  else if (state.view === 'squad' && changed) buildView();
+  updateSelectionRing();
+  refreshUI();
+  updateCanvasLabel();
+}
+function setGear(slot, id) {
+  const g = state.gear[state.kind];
+  g[slot] = id;
+  const ids = gearIds(state.kind);
+  for (const e of figures) if (e.kind === state.kind) e.fig.setGear(ids);
+  if (squad) squad.setGear(ids);
+  refreshUI();
+  if (state.view !== 'squad') {
+    const e = figures.find((x) => x.kind === state.kind);
+    if (e) {
+      const r = e.fig.play(slot === 'weapon' && id && Models.WEAPONS[id].slot === 'weapon' ? 'attack' : 'cheer');
+      showReadout(slot === 'weapon' && id ? 'attack' : 'cheer', r, e.fig);
+    }
+  }
+}
+function playMove(name) {
+  let r, fig;
+  if (state.view === 'squad' && squad) {
+    r = squad.play(name, { stagger: 0.07 });
+    fig = squad.leader;
+  } else if (state.view === 'lineup') {
+    const order = [...figures].sort((a, b) => (a.kind === state.kind ? -1 : b.kind === state.kind ? 1 : 0));
+    order.forEach((e, i) => {
+      const delay = i === 0 ? 0 : 0.04 * i;
+      if (delay === 0) {
+        const rr = e.fig.play(name);
+        r = rr;
+        fig = e.fig;
+      } else e.pending = { name, t: delay };
+    });
+  } else {
+    const e = figures[0];
+    r = e.fig.play(name);
+    fig = e.fig;
+  }
+  lastMove = name;
+  showReadout(name, r, fig);
+}
+function moveLabel(name, fig) {
+  if (!fig) return name;
+  if (name === 'attack') return ATTACK_NAMES[fig.attackKind] || 'attack';
+  if (name === 'throw') return THROW_NAMES[fig.throwKind] || 'throw';
+  if (name === 'cast') return CAST_NAMES[fig.kind] || 'cast';
+  return { idle: 'idle', guard: 'guard', hit: 'hit recoil', faint: 'faint', cheer: 'victory cheer', walk: 'walk cycle' }[name] || name;
+}
+function showReadout(name, r, fig) {
+  const who = state.view === 'lineup' ? FIGHTERS[state.kind].name : state.view === 'squad' ? 'Squad leader' : FIGHTERS[state.kind].name;
+  const label = moveLabel(name, fig);
+  let text;
+  if (name === 'idle') text = `<strong>${who}</strong> · back to idle. Fainted fighters get up.`;
+  else if (name === 'walk') text = `<strong>${who}</strong> · ${label}, loops every ${r.duration.toFixed(2)} s`;
+  else if (name === 'faint') text = `<strong>${who}</strong> · ${label} · ${r.duration.toFixed(2)} s, then stays down until Idle`;
+  else if (r.impact > 0) text = `<strong>${who}</strong> · ${label} · ${r.duration.toFixed(2)} s · ${name === 'throw' ? 'lets go' : name === 'cast' ? 'power lands' : 'blow lands'} at ${r.impact.toFixed(2)} s`;
+  else text = `<strong>${who}</strong> · ${label} · ${r.duration.toFixed(2)} s`;
+  $('readout').innerHTML = text;
+}
+
+function refreshUI() {
+  const k = state.kind, F = FIGHTERS[k], hero = HERO_KINDS.includes(k);
+  setPressed('.fighter', (b) => b.dataset.kind === k);
+  $('cap-name').textContent = F.name;
+  $('cap-title').hidden = !F.title;
+  $('cap-title').textContent = F.title || '';
+  $('cap-type').textContent = F.type;
+  $('cap-type').dataset.type = F.type;
+  $('cap-lore').textContent = F.lore;
+  const g = state.gear[k];
+  $('cap-kit').textContent = 'Kit: ' + kitLine(k, g);
+  $('cap-stats').innerHTML = '';
+  for (const [v, l] of F.stats) {
+    const d = document.createElement('div');
+    d.className = 'stat';
+    d.innerHTML = '<b></b><span></span>';
+    d.firstChild.textContent = v;
+    d.lastChild.textContent = l;
+    $('cap-stats').appendChild(d);
+  }
+  // kit pickers
+  $('kit-for').textContent = 'for ' + (F.name.startsWith('The ') ? F.name.replace(/^The /, 'the ') : (hero ? F.name : 'the ' + F.name));
+  const weapons = $('weapons'), armours = $('armours');
+  weapons.innerHTML = '';
+  armours.innerHTML = '';
+  if (hero) {
+    const sig = Models.INFO[k].signature;
+    const c = document.createElement('span');
+    c.className = 'chip fixed';
+    c.textContent = Models.WEAPONS[sig].label + ' · always carried';
+    weapons.appendChild(c);
+    $('armour-label').hidden = true;
+    armours.hidden = true;
+  } else {
+    $('armour-label').hidden = false;
+    armours.hidden = false;
+    const addChip = (parent, slot, id, label) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip';
+      b.id = slot + '-' + (id || 'none');
+      b.textContent = label;
+      b.setAttribute('aria-pressed', String((g[slot] || null) === id));
+      b.addEventListener('click', () => setGear(slot, id));
+      parent.appendChild(b);
+    };
+    addChip(weapons, 'weapon', null, 'Standard');
+    for (const id of Models.weaponsFor(k, 'weapon')) addChip(weapons, 'weapon', id, Models.WEAPONS[id].label);
+    addChip(armours, 'armour', null, 'None');
+    for (const id of Models.weaponsFor(k, 'armour')) addChip(armours, 'armour', id, Models.WEAPONS[id].label);
+  }
+  // scope labels and hint
+  $('moves-scope').textContent = state.view === 'lineup' ? 'whole line-up' : state.view === 'squad' ? 'whole squad' : F.name;
+  $('hint').textContent = state.view === 'lineup'
+    ? 'Tap a fighter to select it. Moves play for the whole line-up.'
+    : state.view === 'character' ? 'Drag to turn the plinth.' : 'A battle-camera view of one squad.';
+  // squad controls
+  $('squad-group').hidden = state.view !== 'squad';
+  const size = hero ? 1 : state.squadSize;
+  $('squad-size').disabled = hero;
+  $('squad-size').value = String(size);
+  $('squad-size-out').textContent = String(size);
+  $('casualties').max = String(size);
+  $('casualties').value = String(Math.min(state.casualties, size));
+  $('casualties-out').textContent = String(Math.min(state.casualties, size));
+  $('squad-of').textContent = hero ? 'of one' : 'of ' + (k === 'cam' ? 'CAMs' : k === 'nacam' ? 'NACAM Ogres' : k === 'armedPanda' ? 'Armed Pandas' : 'Pandas');
+  $('squad-note').textContent = hero
+    ? 'Heroes are one of a kind, so they fight alone. Casualties knock them down.'
+    : 'Fallen troops topple, sink and fade. Lower the casualties to bring them back.';
+}
+function kitLine(k, g) {
+  if (!KIT[k]) return FIGHTERS[k].kit;
+  const K = KIT[k];
+  const bow = g.weapon === 'bambooBow' || g.weapon === 'gemArrows';
+  const parts = [g.weapon ? WEAPON_KIT[g.weapon] : K.weapon];
+  if (g.armour) parts.push(ARMOUR_KIT[g.armour] + (g.armour === 'towerShield' && bow ? ' slung on the back' : ''));
+  else if (K.armour) parts.push(K.armour);
+  parts.push(K.wear);
+  const text = parts.length > 1 ? parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1] : parts[0];
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+function updateCanvasLabel() {
+  const styleName = { toy: 'Toybox', lowpoly: 'Low-poly', toon: 'Toon' }[state.style];
+  const F = FIGHTERS[state.kind];
+  const text = state.view === 'lineup'
+    ? `All nine fighters lined up in the ${styleName} style, ${F.name} selected`
+    : state.view === 'character' ? `${F.name} on a turntable, ${styleName} style`
+      : `A squad of ${F.name} figures in the ${styleName} style`;
+  canvas.setAttribute('aria-label', text);
+}
+
+$('squad-size').addEventListener('input', (ev) => {
+  state.squadSize = +ev.target.value;
+  state.casualties = Math.min(state.casualties, state.squadSize);
+  $('squad-size-out').textContent = String(state.squadSize);
+  $('casualties').max = String(state.squadSize);
+  $('casualties').value = String(state.casualties);
+  $('casualties-out').textContent = String(state.casualties);
+  if (squad) squad.setCount(state.squadSize - state.casualties);
+});
+$('casualties').addEventListener('input', (ev) => {
+  state.casualties = +ev.target.value;
+  $('casualties-out').textContent = String(state.casualties);
+  const size = HERO_KINDS.includes(state.kind) ? 1 : state.squadSize;
+  if (squad) squad.setCount(size - state.casualties);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Pointer: tap to select (line-up), drag to turn (character) or look around (squad)
+// ---------------------------------------------------------------------------------------------
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+let drag = null;
+canvas.addEventListener('pointerdown', (e) => {
+  drag = { id: e.pointerId, x: e.clientX, y: e.clientY, lastX: e.clientX, t: performance.now(), moved: 0 };
+  if (state.view === 'character') {
+    canvas.setPointerCapture(e.pointerId);
+    canvas.classList.add('dragging');
+  }
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (!drag || drag.id !== e.pointerId) return;
+  const dx = e.clientX - drag.lastX;
+  drag.moved += Math.abs(dx) + Math.abs(e.clientY - drag.y) * 0.1;
+  drag.lastX = e.clientX;
+  if (state.view === 'character') {
+    const d = (dx / Math.max(200, canvas.clientWidth)) * Math.PI * 1.6;
+    spin += d;
+    spinVel = d / Math.max(1 / 120, (performance.now() - drag.t) / 1000);
+    drag.t = performance.now();
+    lastInteract = clock;
+  }
+});
+function endDrag(e) {
+  if (!drag || drag.id !== e.pointerId) return;
+  const moved = drag.moved;
+  drag = null;
+  canvas.classList.remove('dragging');
+  if (moved < 6 && state.view === 'lineup') pick(e);
+}
+canvas.addEventListener('pointerup', endDrag);
+canvas.addEventListener('pointercancel', () => { drag = null; canvas.classList.remove('dragging'); });
+function pick(e) {
+  const r = canvas.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  const hits = raycaster.intersectObjects(figures.map((x) => x.fig.root), true);
+  for (const h of hits) {
+    const f = h.object.userData.fig;
+    if (f) {
+      select(f.kind);
+      return;
+    }
+  }
+}
+canvas.addEventListener('keydown', (e) => {
+  if (state.view === 'character' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+    spin += e.key === 'ArrowLeft' ? -0.2 : 0.2;
+    lastInteract = clock;
+    e.preventDefault();
+  } else if (state.view === 'lineup' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+    const order = Models.KINDS;
+    const i = order.indexOf(state.kind);
+    select(order[(i + (e.key === 'ArrowLeft' ? -1 : 1) + order.length) % order.length]);
+    e.preventDefault();
+  }
+});
+
+// ---------------------------------------------------------------------------------------------
+// Loop
+// ---------------------------------------------------------------------------------------------
+const tmpV = new THREE.Vector3();
+let visible = true;
+new IntersectionObserver((ents) => { visible = ents[0].isIntersecting; }, { threshold: 0.01 }).observe(stageEl);
+let resizePending = false;
+new ResizeObserver(() => {
+  if (resizePending) return;
+  resizePending = true;
+  requestAnimationFrame(() => {
+    resizePending = false;
+    const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
+    const rowsNow = lineupRows(aspect).length;
+    if (state.view === 'lineup' && figures.length && rowsNow !== (lastRows || rowsNow)) { lastRows = rowsNow; buildView(); }
+    else { lastRows = rowsNow; fit(); updateSelectionRing(); }
+  });
+}).observe(stageEl);
+let lastRows = 0;
+
+let last = performance.now();
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
+  last = now;
+  if (!visible || document.hidden) return;
+  clock += dt;
+  for (const e of figures) {
+    if (e.pending) {
+      e.pending.t -= dt;
+      if (e.pending.t <= 0) {
+        e.fig.play(e.pending.name);
+        e.pending = null;
+      }
+    }
+    e.fig.update(dt);
+  }
+  if (squad) squad.update(dt);
+  if (banner) banner.userData.update(dt);
+  if (state.view === 'character') {
+    if (!drag) {
+      spin += spinVel * dt;
+      spinVel *= Math.pow(0.04, dt);
+      if (!reduceMotion.matches && clock - lastInteract > 2.5) spin += dt * 0.35;
+    }
+    turntable.rotation.y = spin;
+  }
+  if (state.view === 'lineup' && selRing.visible) {
+    const s = 1 + (reduceMotion.matches ? 0 : Math.sin(clock * 3) * 0.03);
+    selRing.material.opacity = 0.75 + (reduceMotion.matches ? 0 : Math.sin(clock * 3) * 0.12);
+    const e = figures.find((x) => x.kind === state.kind);
+    if (e) selRing.scale.setScalar(Math.max(0.3, e.fig.footprint * 0.42) * s);
+  }
+  renderer.render(scene, camera);
+  placeTags();
+}
+function placeTags() {
+  const tags = $('tags');
+  const show = state.view === 'lineup' && canvas.clientWidth >= 520;
+  tags.classList.toggle('hidden', !show);
+  if (!show) return;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  for (const e of figures) {
+    if (!e.tag) continue;
+    tmpV.copy(e.fig.root.position);
+    const below = !e.row;
+    if (below) tmpV.z += 0.3;
+    else tmpV.y += e.fig.height + 0.06;
+    tmpV.project(camera);
+    e.tag.style.left = ((tmpV.x + 1) / 2) * w + 'px';
+    e.tag.style.top = ((1 - tmpV.y) / 2) * h + (below ? 4 : -24) + 'px';
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Start: the line-up in Toybox style, all nine visible
+// ---------------------------------------------------------------------------------------------
+refreshUI();
+buildView();
+lastRows = lineupRows(canvas.clientWidth / Math.max(1, canvas.clientHeight)).length;
+requestAnimationFrame(frame);
+window.__barracks = { state, setView, setStyle, select, setTeam, playMove, setGear, figures: () => figures, squad: () => squad, Models };
+</script>

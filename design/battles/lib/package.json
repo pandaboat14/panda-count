@@ -1,0 +1,16 @@
+{
+  "name": "panda-battle-prototypes-lib",
+  "version": "1.0.0",
+  "description": "Local copies of three and cannon-es for the prototype tests",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cannon-es": "^0.20.0",
+    "three": "^0.186.1"
+  }
+}
