@@ -94,7 +94,7 @@ export function ArmyPanel({
       <section className="act">
         <h3>🦸 Your heroes</h3>
         {sum.heroes.length === 0 ? (
-          <p className="muted small">No heroes yet. They add to every die in battles fought from or in their region.</p>
+          <p className="muted small">No heroes yet. They join battles fought from or in their region, adding to every die and fighting as a squad of their own.</p>
         ) : (
           <ul className="army-heroes">
             {sum.heroes.map((h) => (
@@ -153,7 +153,7 @@ export function ArmyPanel({
         </ul>
       </section>
 
-      <DefaultOrders ctx={ctx} onManage={onManage} />
+      {!ctx.over && <DefaultOrders ctx={ctx} onManage={onManage} />}
 
       <section className="act">
         <h3>⚔️ How battles are won</h3>

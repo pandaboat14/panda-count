@@ -1180,7 +1180,6 @@ i.heat { background: radial-gradient(circle, #d64828 0%, #e97846 55%, #e9b8a8 10
 
 /* Battles: the Bank's Bag and Armory, and Standing Orders */
 .chip.on .n { color: inherit; opacity: .8; }
-.chip .n { margin-left: 2px; }
 .kit h4 { margin: 14px 0 6px; font: 800 .72rem var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--forest-deep); }
 .kit h4 .muted { display: block; font: 400 .8rem var(--sans); letter-spacing: 0; text-transform: none; }
 .kit-item .stepper { background: var(--paper); }
