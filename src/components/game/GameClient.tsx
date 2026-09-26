@@ -34,6 +34,8 @@ type Tab = "plan" | "army" | "region" | "heroes" | "diplomacy" | "chat" | "bank"
 
 // How long each of the other Kirds' moves stays on screen, so there's time to read it.
 const FEED_MS = 8500;
+// While the move bar is up, the camera aims this many degrees south of the action, so it shows above the bar.
+const MOVE_RAISE = 12;
 // Routine bookkeeping that isn't worth a caption.
 const QUIET = new Set(["endTurn", "turn", "income"]);
 
@@ -168,21 +170,24 @@ export function GameClient({ initial }: { initial: GamePayload }) {
     }
   };
 
-  const focusOn = useCallback((id: string, also?: string | null) => {
+  // Flies the camera to a region, or halfway between two. `raise` aims that many degrees south of the spot, so it
+  // sits above the middle of the screen (clear of the move bar along the bottom).
+  const focusOn = useCallback((id: string, also?: string | null, raise = 0) => {
     const a = REGION_BY_ID.get(id);
     const b = also ? REGION_BY_ID.get(also) : undefined;
     if (!a) return;
-    if (!b) {
-      setFocus({ lat: a.lat, lng: a.lng, seq: Date.now() });
-      return;
+    let { lat, lng } = a;
+    if (b) {
+      // Halfway along the great circle, so both regions stay on screen.
+      const v = (d: { lat: number; lng: number }) => {
+        const [la, ln] = [(d.lat * Math.PI) / 180, (d.lng * Math.PI) / 180];
+        return [Math.cos(la) * Math.cos(ln), Math.cos(la) * Math.sin(ln), Math.sin(la)];
+      };
+      const [x, y, z] = v(a).map((n, i) => n + v(b)[i]);
+      lat = (Math.atan2(z, Math.hypot(x, y)) * 180) / Math.PI;
+      lng = (Math.atan2(y, x) * 180) / Math.PI;
     }
-    // Halfway along the great circle, so both regions stay on screen.
-    const v = (d: { lat: number; lng: number }) => {
-      const [lat, lng] = [(d.lat * Math.PI) / 180, (d.lng * Math.PI) / 180];
-      return [Math.cos(lat) * Math.cos(lng), Math.cos(lat) * Math.sin(lng), Math.sin(lat)];
-    };
-    const [x, y, z] = v(a).map((n, i) => n + v(b)[i]);
-    setFocus({ lat: (Math.atan2(z, Math.hypot(x, y)) * 180) / Math.PI, lng: (Math.atan2(y, x) * 180) / Math.PI, seq: Date.now() });
+    setFocus({ lat: Math.max(-85, lat - raise), lng, seq: Date.now() });
   }, []);
 
   // ---- replay of everything since your last turn ----
@@ -300,7 +305,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
       setMove({ from, to });
       setMoveNote(null);
       if (from) setSelected(from);
-      if (from) focusOn(from, to);
+      if (from) focusOn(from, to, MOVE_RAISE);
       // Phones: tuck the panel away so the whole map is free to tap.
       if (panelOpen && window.matchMedia("(max-width: 760px)").matches) {
         setPanelOpen(false);
@@ -322,7 +327,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
     (from: string | null, to: string | null) => {
       setMove({ from, to });
       if (from) setSelected(from);
-      if (from) focusOn(from, to);
+      if (from) focusOn(from, to, MOVE_RAISE);
     },
     [focusOn],
   );
