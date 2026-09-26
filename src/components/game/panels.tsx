@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { NAME_MAX, checkRegionName, type Action, type GameEvent, type GameView, type RegionView, type Units } from "@/game/engine";
 import { NEIGHBORS, REGION_BY_ID, lineId, placeName, type Resource } from "@/game/regions";
 import {
+  BLOODTHIRST_ROUNDS,
   BUILDINGS,
   BUILDING_TYPES,
   EXCHANGE,
@@ -12,16 +13,20 @@ import {
   HEROES,
   HERO_IDS,
   RESOURCES,
+  SANCTION_INFO,
+  TRIAL_AT,
   UNITS,
   UNIT_TYPES,
   type Cost,
   type Good,
   type HeroId,
+  type Sanction,
   type UnitType,
 } from "@/game/rules";
 import { costLabel, fillCost } from "@/game/advisor";
 import { canReplay } from "@/game/battleScript";
 import { attackOdds, type Odds } from "@/game/odds";
+import { onTrial, sanctionIcons, sanctionLabels, sanctionedIn, tribunalSits } from "@/game/tribunal";
 import { Avatar } from "../Avatar";
 import { Race } from "./Race";
 import { CostChips, Stepper, affordable, times } from "./bits";
@@ -99,7 +104,8 @@ export function DoButton({
 }) {
   const goods = meOf(ctx.view).goods ?? {};
   const can = affordable(cost, goods);
-  const fill = can ? null : fillCost(goods, cost, ctx.view.prices.buyPrice);
+  // Under trade sanctions the Bank won't sell you what's missing.
+  const fill = can || sanctionedIn(ctx.view, ctx.view.me, "trade") ? null : fillCost(goods, cost, ctx.view.prices.buyPrice);
   const off = disabled || ctx.busy || !ctx.myTurn || (!can && !fill);
   return (
     <button
@@ -126,6 +132,19 @@ function OddsInline({ odds }: { odds: Odds | null }) {
   if (!odds) return null;
   const pct = Math.round(odds.win * 100);
   return <span className={`odds-chip ${pct >= 75 ? "good" : pct >= 45 ? "fair" : "bad"}`}>{pct}% with everyone rested</span>;
+}
+
+// Why a button is greyed out for a convicted war criminal, and for how long.
+export function SanctionNote({ view, sanction, children }: { view: GameView; sanction: Sanction; children?: React.ReactNode }) {
+  const sentence = meOf(view).sentence;
+  if (!sentence?.sanctions.includes(sanction)) return null;
+  const info = SANCTION_INFO[sanction];
+  return (
+    <p className="small sanction-note">
+      {info.icon} <strong>{info.label}</strong>: {children ?? `war criminals can't ${info.rule}`}.{" "}
+      {`Your sentence has ${sentence.turnsLeft} turn${sentence.turnsLeft === 1 ? "" : "s"} left.`}
+    </p>
+  );
 }
 
 export function OddsLine({ odds }: { odds: Odds | null }) {
@@ -355,6 +374,7 @@ function Gondolas({ ctx, from }: { ctx: Ctx; from: RegionView }) {
   const { view } = ctx;
   const me = meOf(view);
   const strike = view.modifiers.some((m) => m.kind === "gondolaStrike");
+  const banned = sanctionedIn(view, view.me, "gondolas");
   return (
     <section className="act">
       <h3>🚡 Urban gondolas</h3>
@@ -362,6 +382,7 @@ function Gondolas({ ctx, from }: { ctx: Ctx; from: RegionView }) {
         Build a line to a neighbour to move or attack along it. Cost: <CostChips cost={view.prices.gondola} have={me.goods} />
         {strike && " · ⚠️ Gondola strike this round"}
       </p>
+      <SanctionNote view={view} sanction="gondolas">war criminals can&rsquo;t build gondola lines, but your old lines still run</SanctionNote>
       <ul className="gondola-list">
         {NEIGHBORS.get(from.id)!.map((n) => {
           const line = view.lines.find((l) => l.id === lineId(from.id, n));
@@ -371,7 +392,7 @@ function Gondolas({ ctx, from }: { ctx: Ctx; from: RegionView }) {
               {line ? (
                 <span className="muted small">{line.owner === view.me ? "✅ your line" : `${playerName(view, line.owner)}'s line`}</span>
               ) : (
-                <DoButton ctx={ctx} cost={view.prices.gondola} action={{ type: "gondola", from: from.id, to: n }} disabled={strike}>
+                <DoButton ctx={ctx} cost={view.prices.gondola} action={{ type: "gondola", from: from.id, to: n }} disabled={strike || banned}>
                   Build
                 </DoButton>
               )}
@@ -387,9 +408,11 @@ function Recruit({ ctx, region }: { ctx: Ctx; region: RegionView }) {
   const { view } = ctx;
   const [n, setN] = useState<Record<string, number>>({ panda: 1, nacam: 1, cam: 1, armedPanda: 1 });
   const rows: UnitType[] = ["panda", "nacam", "cam"];
+  const embargo = sanctionedIn(view, view.me, "arms");
   return (
     <section className="act">
       <h3>🪖 Recruit</h3>
+      <SanctionNote view={view} sanction="arms" />
       {rows.map((t) => {
         const cost = times(view.prices.units[t], n[t]);
         const needsGym = t === "cam" && !region.buildings?.includes("gym");
@@ -406,7 +429,7 @@ function Recruit({ ctx, region }: { ctx: Ctx; region: RegionView }) {
             </div>
             <div className="recruit-buy">
               <Stepper value={n[t]} min={1} max={20} onChange={(v) => setN({ ...n, [t]: v })} label={UNITS[t].plural} />
-              <DoButton ctx={ctx} cost={cost} action={{ type: "recruit", region: region.id, unit: t as "panda" | "nacam" | "cam", count: n[t] }} disabled={needsGym}>
+              <DoButton ctx={ctx} cost={cost} action={{ type: "recruit", region: region.id, unit: t as "panda" | "nacam" | "cam", count: n[t] }} disabled={needsGym || embargo}>
                 <CostChips cost={cost} />
               </DoButton>
             </div>
@@ -425,6 +448,7 @@ function Recruit({ ctx, region }: { ctx: Ctx; region: RegionView }) {
               ctx={ctx}
               cost={times(UNITS.armedPanda.cost, Math.min(n.armedPanda, region.units!.panda))}
               action={{ type: "arm", region: region.id, count: Math.min(n.armedPanda, region.units!.panda) }}
+              disabled={embargo}
             >
               <CostChips cost={times(UNITS.armedPanda.cost, Math.min(n.armedPanda, region.units!.panda))} />
             </DoButton>
@@ -462,9 +486,11 @@ function HeroMoves({ ctx, region, heroes, startThunder }: { ctx: Ctx; region: Re
   const { view, busy, act } = ctx;
   const me = meOf(view);
   const dests = NEIGHBORS.get(region.id)!.filter((n) => regionView(view, n).owner === view.me && usableLine(view, region.id, n));
+  const onStrike = sanctionedIn(view, view.me, "heroes");
   return (
     <section className="act">
       <h3>🦸 Heroes here</h3>
+      <SanctionNote view={view} sanction="heroes">your heroes add nothing in battle and won&rsquo;t use their powers</SanctionNote>
       {heroes.map((h) => (
         <div key={h} className="recruit-row">
           <div>
@@ -480,8 +506,8 @@ function HeroMoves({ ctx, region, heroes, startThunder }: { ctx: Ctx; region: Re
               </button>
             ))}
             {h === "casey" && (
-              <button className="btn small danger" disabled={busy || (me.thunderReadyTurn ?? 0) > view.turn} onClick={startThunder}>
-                ⚡ Thunder{(me.thunderReadyTurn ?? 0) > view.turn ? ` (ready turn ${me.thunderReadyTurn})` : ""}
+              <button className="btn small danger" disabled={busy || onStrike || (me.thunderReadyTurn ?? 0) > view.turn} onClick={startThunder}>
+                ⚡ Thunder{onStrike ? " (on strike)" : (me.thunderReadyTurn ?? 0) > view.turn ? ` (ready turn ${me.thunderReadyTurn})` : ""}
               </button>
             )}
           </div>
@@ -523,10 +549,12 @@ export function HeroesPanel({ ctx, selected }: { ctx: Ctx; selected: string | nu
   const { view } = ctx;
   const me = meOf(view);
   const home = selected && regionView(view, selected).owner === view.me ? selected : me.capital!;
+  const onStrike = sanctionedIn(view, view.me, "heroes");
   return (
     <div className="panel-body">
       <h2>Hall of Heroes</h2>
       <p className="muted small">One of each in the whole world. Heroes arrive in {regionName(view, home)} (select one of your regions to change that). Beaten heroes flee back here, except Casey, who is captured.</p>
+      <SanctionNote view={view} sanction="heroes">no hero will sign up with a war criminal, and yours won&rsquo;t fight</SanctionNote>
       {HERO_IDS.map((h) => {
         const hero = view.heroes[h];
         const info = HEROES[h];
@@ -546,7 +574,7 @@ export function HeroesPanel({ ctx, selected }: { ctx: Ctx; selected: string | nu
                 </p>
               ) : (
                 <div className="form-actions">
-                  <DoButton ctx={ctx} cost={cost} action={{ type: "recruitHero", hero: h, region: home }}>
+                  <DoButton ctx={ctx} cost={cost} action={{ type: "recruitHero", hero: h, region: home }} disabled={onStrike}>
                     Recruit <CostChips cost={cost} have={me.goods} />
                   </DoButton>
                 </div>
@@ -561,7 +589,8 @@ export function HeroesPanel({ ctx, selected }: { ctx: Ctx; selected: string | nu
 
 // ---------------------------------------------------------------- diplomacy
 
-export function DiplomacyPanel({ ctx, selected }: { ctx: Ctx; selected: string | null }) {
+// `children` sits right under the heading: the Tribunal goes there when a trial is open.
+export function DiplomacyPanel({ ctx, selected, children }: { ctx: Ctx; selected: string | null; children?: React.ReactNode }) {
   const { view, myTurn, busy, act } = ctx;
   const me = meOf(view);
   const loanFrom = selected && regionView(view, selected).owner === view.me ? selected : me.capital!;
@@ -571,10 +600,12 @@ export function DiplomacyPanel({ ctx, selected }: { ctx: Ctx; selected: string |
   const incoming = view.offers.filter((o) => o.to === view.me);
   const outgoing = view.offers.filter((o) => o.from === view.me);
   const josser = view.heroes.josserkid.owner === view.me;
+  const justice = tribunalSits(view);
 
   return (
     <div className="panel-body">
       <h2>Panda diplomacy</h2>
+      {children}
       {incoming.length > 0 && (
         <section className="act">
           <h3>📨 Offers for you</h3>
@@ -608,6 +639,7 @@ export function DiplomacyPanel({ ctx, selected }: { ctx: Ctx; selected: string |
         {view.players.map((p) => {
           const pact = p.id !== view.me && inPact(view, p.id);
           const active = p.seat === view.activeSeat;
+          const embargo = sanctionedIn(view, view.me, "trade") || sanctionedIn(view, p.id, "trade");
           return (
             <div key={p.id} className="kird">
               <div className="kird-head">
@@ -620,9 +652,24 @@ export function DiplomacyPanel({ ctx, selected }: { ctx: Ctx; selected: string |
                 {active && <span className="badge">playing</span>}
                 {pact && <span className="badge">🤝 pact</span>}
                 {p.oathbreaker && <span className="badge warn">💔 oathbreaker</span>}
+                {onTrial(view, p.id) && <span className="badge warn">⚖️ on trial</span>}
+                {p.sentence && (
+                  <span className="badge criminal" title={`${sanctionLabels(p.sentence.sanctions)} · ${p.sentence.turnsLeft} turn${p.sentence.turnsLeft === 1 ? "" : "s"} left`}>
+                    ☠️ war criminal {sanctionIcons(p.sentence.sanctions)}
+                  </span>
+                )}
               </div>
               <p className="muted small">
                 {p.regions} region{p.regions === 1 ? "" : "s"} · {p.cards} resource cards {p.heroes.length > 0 && `· ${p.heroes.map((h) => HEROES[h].icon).join("")}`}
+                {justice && (
+                  <>
+                    {" · "}
+                    <span className={`thirst${p.bloodthirst >= TRIAL_AT - 1 ? " hot" : ""}`} title={`Bloodthirst: attacks on other Kirds over the last ${BLOODTHIRST_ROUNDS} rounds`}>
+                      🩸 {p.bloodthirst}/{TRIAL_AT}
+                    </span>
+                  </>
+                )}
+                {p.convictions > 0 && ` · ☠️ convicted ${p.convictions === 1 ? "once" : `${p.convictions} times`}`}
               </p>
               {p.id !== view.me && myTurn && (
                 <div className="dest-list">
@@ -635,7 +682,14 @@ export function DiplomacyPanel({ ctx, selected }: { ctx: Ctx; selected: string |
                   ) : (
                     <button className="chip" disabled={busy} onClick={() => act({ type: "offerPact", to: p.id })}>🤝 Offer pact</button>
                   )}
-                  <button className="chip" disabled={busy} onClick={() => setTrading(trading === p.id ? null : p.id)}>💱 Trade</button>
+                  <button
+                    className="chip"
+                    disabled={busy || embargo}
+                    title={embargo ? "Trade sanctions: no trading with a convicted war criminal" : undefined}
+                    onClick={() => setTrading(trading === p.id ? null : p.id)}
+                  >
+                    💱 Trade{embargo ? " 🏦🚫" : ""}
+                  </button>
                   {josser && !pact && (
                     <button className="chip" disabled={busy || me.pickpocketTurn === view.turn} onClick={() => act({ type: "pickpocket", target: p.id })}>🃏 Pickpocket</button>
                   )}
@@ -656,6 +710,12 @@ export function DiplomacyPanel({ ctx, selected }: { ctx: Ctx; selected: string |
         })}
         {view.players.some((p) => p.bot) && <p className="muted small">🤖 Computer players answer offers at the start of their turn.</p>}
         <p className="muted small">Loaned pandas earn both sides 1 🐼 PandaCoin per panda every turn and come with a pact. Breaking a pact makes you an Oathbreaker (half PandaCoin for 3 rounds).</p>
+        {justice && (
+          <p className="muted small">
+            🩸 Bloodthirst counts each Kird&rsquo;s attacks on other Kirds over the last {BLOODTHIRST_ROUNDS} rounds. Reach {TRIAL_AT} and the
+            rest of you vote on whether they&rsquo;re a war criminal.
+          </p>
+        )}
       </section>
 
       {outgoing.length > 0 && (
@@ -738,9 +798,11 @@ export function BankPanel({ ctx }: { ctx: Ctx }) {
   const rate = view.prices.bankRate;
   const price = view.prices.buyPrice;
   const maxBuy = Math.max(1, Math.min(20, Math.floor((me.goods?.coin ?? 0) / price)));
+  const shut = !myTurn || busy || sanctionedIn(view, view.me, "trade");
   return (
     <div className="panel-body">
       <h2>World Bank</h2>
+      <SanctionNote view={view} sanction="trade">the World Bank won&rsquo;t serve a convicted war criminal</SanctionNote>
       <section className="act">
         <h3>🛒 Buy resources with Coin ({price} 🪙 each)</h3>
         <p className="muted small">Missing one card for a gondola or an army? Buy it. A Market drops the price to 2 🪙.</p>
@@ -753,7 +815,7 @@ export function BankPanel({ ctx }: { ctx: Ctx }) {
           <Stepper value={Math.min(buyN, maxBuy)} min={1} max={maxBuy} onChange={setBuyN} label="how many to buy" />
           <button
             className="btn small"
-            disabled={!myTurn || busy || (me.goods?.coin ?? 0) < price * Math.min(buyN, maxBuy)}
+            disabled={shut || (me.goods?.coin ?? 0) < price * Math.min(buyN, maxBuy)}
             onClick={() => act({ type: "buy", good: buyGood, count: Math.min(buyN, maxBuy) })}
           >
             Buy for {price * Math.min(buyN, maxBuy)} 🪙
@@ -778,7 +840,7 @@ export function BankPanel({ ctx }: { ctx: Ctx }) {
               <option key={g} value={g}>1 {GOOD_INFO[g].icon} {GOOD_INFO[g].label}</option>
             ))}
           </select>
-          <button className="btn small" disabled={!myTurn || busy || give === get || (me.goods?.[give] ?? 0) < rate} onClick={() => act({ type: "bankTrade", give, get })}>Trade</button>
+          <button className="btn small" disabled={shut || give === get || (me.goods?.[give] ?? 0) < rate} onClick={() => act({ type: "bankTrade", give, get })}>Trade</button>
         </div>
       </section>
       <section className="act">
@@ -788,7 +850,7 @@ export function BankPanel({ ctx }: { ctx: Ctx }) {
             <span>
               {x.pay} {GOOD_INFO[x.from].icon} {GOOD_INFO[x.from].label} → {x.get} {GOOD_INFO[x.to].icon} {GOOD_INFO[x.to].label}
             </span>
-            <button className="btn small" disabled={!myTurn || busy || (me.goods?.[x.from] ?? 0) < x.pay} onClick={() => act({ type: "exchange", from: x.from, to: x.to })}>
+            <button className="btn small" disabled={shut || (me.goods?.[x.from] ?? 0) < x.pay} onClick={() => act({ type: "exchange", from: x.from, to: x.to })}>
               Exchange
             </button>
           </div>
@@ -820,6 +882,7 @@ const LOG_FILTERS: Record<string, { label: string; types?: string[]; mine?: bool
   all: { label: "All" },
   battles: { label: "⚔️ Battles", types: ["battle", "capture", "thunder", "heroCaptured", "heroFled", "asylum"] },
   diplomacy: { label: "🤝 Diplomacy", types: ["offer", "pact", "loan", "betrayal", "trade", "decline", "pickpocket"] },
+  tribunal: { label: "⚖️ Tribunal", types: ["trial", "vote", "verdict", "pardon"] },
   world: { label: "🌍 World", types: ["world", "roll", "raid", "join", "leave", "skip", "rename"] },
   mine: { label: "🙋 Mine", mine: true },
 };

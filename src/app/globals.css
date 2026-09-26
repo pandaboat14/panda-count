@@ -1136,3 +1136,44 @@ i.heat { background: radial-gradient(circle, #d64828 0%, #e97846 55%, #e9b8a8 10
   .move-steps { order: 3; width: 100%; }
   .btn.move-troops, .end-turn { padding: 10px 16px; font-size: .95rem; }
 }
+/* War crimes: the Kirds' Tribunal */
+.tribunal { --court: #3d2f6b; --court-soft: #efe9f8; }
+.tribunal h3 { color: var(--court); }
+.trial { padding: 10px 12px; margin-top: 8px; border-radius: 14px; background: var(--court-soft); border: 1px solid color-mix(in srgb, var(--court) 25%, transparent); }
+.trial.mine { background: #fbeae4; border-color: color-mix(in srgb, #a24a30 40%, transparent); }
+.trial p { margin: 4px 0; }
+.trial-head { font-family: var(--serif); font-size: 1rem; }
+.charges { list-style: none; margin: 4px 0 6px; padding: 0; display: grid; gap: 2px; }
+.charges li { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.ballot { margin-top: 6px; }
+.sanction-pick { border: 0; margin: 4px 0 8px; padding: 0; display: grid; gap: 4px; min-width: 0; }
+.sanction-pick legend { padding: 0; margin-bottom: 4px; }
+.sanction {
+  display: grid; grid-template-columns: auto 26px 1fr; align-items: start; gap: 6px; cursor: pointer;
+  padding: 6px 8px; border-radius: 10px; background: var(--paper); border: 1px solid transparent;
+}
+.sanction input { margin: 3px 0 0; accent-color: #a24a30; }
+.sanction.on { border-color: #a24a30; background: #fbeae4; }
+.sanction-icon { font-size: 1.2rem; line-height: 1.2; text-align: center; }
+.sanction strong { font-size: .9rem; }
+.sanction .muted { display: block; margin-top: 1px; }
+.sanction-note { margin: 6px 0; padding: 6px 10px; border-radius: 10px; background: #fbeae4; color: #6b2d1c; }
+.badge.criminal { background: #2b2233; color: #f6d2c8; }
+.thirst { font-variant-numeric: tabular-nums; }
+.thirst.hot { color: #a24a30; font-weight: 800; }
+.thirst-note { margin: 4px 0; color: var(--ink-soft); }
+.thirst-note.warn { color: #6b2d1c; font-weight: 700; background: #fbeae4; padding: 6px 10px; border-radius: 10px; }
+.thirst-meter { height: 8px; border-radius: 8px; margin: 2px 0 6px; background: color-mix(in srgb, var(--ink) 10%, transparent); overflow: hidden; }
+.thirst-meter span { display: block; height: 100%; border-radius: 8px; background: #d9a441; }
+.thirst-meter.hot span { background: #a24a30; }
+.tribunal-pills { display: grid; gap: 4px; margin: 4px 0 0; justify-items: start; }
+.tribunal-pill {
+  max-width: min(360px, calc(100vw - 20px)); padding: 6px 10px; border: 0; border-radius: 12px; cursor: pointer; text-align: left;
+  background: #3d2f6b; color: var(--paper); font: 700 .8rem var(--sans); box-shadow: 0 4px 14px -8px rgba(0,0,0,.5);
+}
+.tribunal-pill:hover, .tribunal-pill:focus-visible { background: #2b2146; outline: none; }
+.tribunal-pill.mine { background: #a24a30; animation: glow 2s ease-in-out infinite; }
+.tribunal-pill.criminal { background: #2b2233; color: #f6d2c8; }
+.log-trial button, .log-verdict button { color: #3d2f6b; font-weight: 700; }
+.log-pardon button { color: var(--forest); }
+@media (prefers-reduced-motion: reduce) { .tribunal-pill.mine { animation: none; } }

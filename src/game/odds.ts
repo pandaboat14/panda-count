@@ -1,6 +1,7 @@
 // Battle odds for the attack preview and the advisor: replays the engine's own battle rules many times.
 import { battle, emptyUnits, unitTotal, type GameState, type GameView, type Units } from "./engine";
 import { HEROES, HERO_IDS, UNIT_TYPES } from "./rules";
+import { sanctionedIn } from "./tribunal";
 
 export type Odds = { win: number; attackerLoss: number; defenderLoss: number };
 
@@ -23,9 +24,9 @@ export function battleOdds(attacker: Units, atkBonus: number, defender: Units, d
   return { win: wins / sims, attackerLoss: aLoss / sims, defenderLoss: dLoss / sims };
 }
 
-// Hero bonus a player gets for battles in a region, from what the view shows.
+// Hero bonus a player gets for battles in a region, from what the view shows. (None while their heroes are on strike.)
 export function viewHeroBonus(view: GameView, pid: string | null | undefined, regionId: string) {
-  if (!pid) return 0;
+  if (!pid || sanctionedIn(view, pid, "heroes")) return 0;
   return HERO_IDS.reduce((n, h) => n + (view.heroes[h].owner === pid && view.heroes[h].region === regionId ? HEROES[h].combatBonus : 0), 0);
 }
 

@@ -9,6 +9,19 @@ export type Release = {
 export const RELEASES: Release[] = [
   {
     date: "2026-09-26",
+    title: "War crimes and the Kirds' Tribunal",
+    notes: [
+      "Attack other Kirds too often and the rest of the world can put you on trial for war crimes. Every Kird has a 🩸 Bloodthirst meter: each invasion of another Kird's land, or Thunder on it, adds 1 (2 if they hold less than half as many regions as you), and it counts for 3 rounds.",
+      "Reach 4 and the Kirds' Tribunal opens a trial. Everyone else votes Guilty or Not guilty in the Kirds tab, in secret, any time before the accused's next turn. Trials need at least 3 Kirds in the world.",
+      "Each guilty vote picks a punishment: a Ceasefire, an Arms embargo, a Gondola ban, Trade sanctions or Heroes on strike. A guilty verdict imposes every one picked for 3 turns (longer for repeat offenders), and attacking a war criminal is no crime until they've served it.",
+      "Fighting back is fair: every attack you suffer earns you one free strike back at the attacker. Attacking the Kird about to win never counts either.",
+      "Before you invade, the game shows what the attack will do to your Bloodthirst and warns you if it will put you on trial. The Army tab shows your meter and when each attack stops counting.",
+      "Computer players, and anyone on autopilot, sit on juries and vote with their interests, and a generous trade can buy their vote. On trial themselves, they may send you a gift. Hard ones count the votes before they cross the line.",
+      "Computer players take their turns faster when armies grow huge.",
+    ],
+  },
+  {
+    date: "2026-09-26",
     title: "Buildings you can see, troops you can drag",
     pr: 15,
     notes: [

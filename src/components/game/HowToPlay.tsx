@@ -1,7 +1,21 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { BUILDINGS, BUILDING_TYPES, HEROES, HERO_IDS, UNITS, UNIT_TYPES } from "@/game/rules";
+import {
+  BLOODTHIRST_ROUNDS,
+  BUILDINGS,
+  BUILDING_TYPES,
+  HEROES,
+  HERO_IDS,
+  REPEAT_OFFENDER_TURNS,
+  SANCTIONS,
+  SANCTION_INFO,
+  SENTENCE_TURNS,
+  TRIAL_AT,
+  TRIAL_MIN_KIRDS,
+  UNITS,
+  UNIT_TYPES,
+} from "@/game/rules";
 
 export function HowToPlay({ onClose }: { onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -147,6 +161,42 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
           invade someone you have a pact with. You can break it, but you&rsquo;ll be an Oathbreaker (half PandaCoin for 3 rounds) and
           everyone will know.
         </p>
+        <h3>⚖️ War crimes</h3>
+        <p>
+          Attack other Kirds too often and the rest of the world can put you on trial. (The Tribunal needs a jury, so it only sits in worlds
+          with {TRIAL_MIN_KIRDS} or more Kirds.)
+        </p>
+        <ul>
+          <li>
+            <strong>🩸 Bloodthirst.</strong> Every invasion of another Kird&rsquo;s land, and every Thunder on it, adds 1 to your Bloodthirst,
+            or 2 if they hold less than half as many regions as you. Attacks count for {BLOODTHIRST_ROUNDS} rounds, and everyone can see
+            everyone&rsquo;s meter. Some attacks don&rsquo;t count: hitting back once for every attack you suffered (an eye for an eye),
+            attacking the Kird about to win, and attacking a convicted war criminal. Natives never count.
+          </li>
+          <li>
+            <strong>⚖️ The trial.</strong> Reach {TRIAL_AT} and you&rsquo;re on trial. Everyone else votes Guilty or Not guilty in the 🤝 Kirds
+            tab, whenever they like, before your next turn starts; the verdict comes early once they all have. Ballots are secret and can
+            be changed until the verdict. Most votes wins, and a tie or an empty ballot box means Not guilty. Attacks you make while on
+            trial are added to the charges. Whatever the verdict, it wipes your Bloodthirst clean.
+          </li>
+          <li>
+            <strong>☠️ The sentence.</strong> Each juror who votes Guilty picks one punishment, and a guilty verdict imposes every one they
+            picked, for {SENTENCE_TURNS} of your turns ({REPEAT_OFFENDER_TURNS} more for each earlier conviction). Until it&rsquo;s served,
+            attacking you is no crime.
+            <ul>
+              {SANCTIONS.map((k) => (
+                <li key={k}>
+                  {SANCTION_INFO[k].icon} <strong>{SANCTION_INFO[k].label}</strong>: {SANCTION_INFO[k].blurb}
+                </li>
+              ))}
+            </ul>
+          </li>
+          <li>
+            <strong>🤝 Politics.</strong> On trial? Plead your case in chat, lean on your pact partners, or sweeten a juror with a generous
+            trade. Computer jurors can be bought, and hard ones stick up for fellow machines. The ballot is secret, though, so a bribe is a
+            gamble.
+          </li>
+        </ul>
         <h3>🌍 The world fights back</h3>
         <p>
           The Panda Nation guards Sichuan and Qinling, the NACAM Ogre Nation holds the cold and empty places, and the CAM Nation owns the
@@ -164,7 +214,7 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
         <p>
           Going somewhere without WiFi? Pick <strong>Autopilot</strong> in a game&rsquo;s ⋯ menu (careful or aggressive), or{" "}
           <strong>Autopilot all my games</strong> in the lobby. The computer plays your turns until you take back command, and leaves you
-          a recap of each one. If every person in a world is on autopilot, the world waits.
+          a recap of each one, including how it voted in any war crimes trial. If every person in a world is on autopilot, the world waits.
         </p>
         <h3>💾 Saving and finishing</h3>
         <p>

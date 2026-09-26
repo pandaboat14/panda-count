@@ -39,6 +39,7 @@ export function GameOver({ view, avatars, endedAt }: { view: GameView; avatars: 
             <span className="muted small">
               {p.regions} region{p.regions === 1 ? "" : "s"}
               {p.heroes.length > 0 && ` · ${p.heroes.map((h) => HEROES[h].icon).join("")}`}
+              {p.convictions > 0 && ` · ☠️ ${p.convictions} war crimes conviction${p.convictions === 1 ? "" : "s"}`}
             </span>
           </li>
         ))}

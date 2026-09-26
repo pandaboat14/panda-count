@@ -4,6 +4,7 @@ import { emptyUnits, unitTotal, type BattleData, type GameEvent, type GameView, 
 import { battleOdds, viewHeroBonus } from "./odds";
 import { NEIGHBORS, lineId, placeName } from "./regions";
 import { HEROES, HERO_IDS, NACAM_UPKEEP, PANDAS_PER_PANDACOIN, UNITS, UNIT_TYPES, type HeroId } from "./rules";
+import { sanctionedIn } from "./tribunal";
 
 export type ArmySummary = {
   total: Units;
@@ -76,8 +77,8 @@ export function regionReports(view: GameView): RegionReport[] {
       let danger: RegionReport["danger"] = null;
       for (const n of around) {
         const nb = byId.get(n);
-        // Natives never attack; only other Kirds' armies you can see count.
-        if (!nb || nb.fog || !nb.owner || nb.owner === view.me || pact(nb.owner) || !nb.units) continue;
+        // Natives never attack; only other Kirds' armies you can see count, and not those under a Ceasefire.
+        if (!nb || nb.fog || !nb.owner || nb.owner === view.me || pact(nb.owner) || !nb.units || sanctionedIn(view, nb.owner, "ceasefire")) continue;
         const send = { ...nb.units };
         const keep = (["panda", "armedPanda", "nacam", "cam"] as const).find((t) => send[t] > 0);
         if (!keep || unitTotal(send) < 2) continue;

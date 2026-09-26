@@ -25,7 +25,9 @@ import { BankPanel, DiplomacyPanel, HeroesPanel, LogPanel, RegionPanel, RenameCa
 import { BuildPanel, sitesFor, type Placement } from "./BuildPanel";
 import { restedIn } from "@/game/army";
 import { attackOdds } from "@/game/odds";
+import { attackCost, attackCostText, ballotsDue, sanctionedIn, tribunalSits } from "@/game/tribunal";
 import { HowToPlay } from "./HowToPlay";
+import { Tribunal, TribunalPills } from "./Tribunal";
 import { ArmyPanel } from "./ArmyPanel";
 import { MoveBar, moveOptions, moveSources } from "./MoveBar";
 import { PlanPanel } from "./PlanPanel";
@@ -57,6 +59,7 @@ const TONE: Record<string, Highlight["tone"]> = {
   move: "move",
   loan: "move",
   rename: "build",
+  trial: "battle",
 };
 
 // Moving troops: where from, then where to (either can still be unpicked).
@@ -363,10 +366,12 @@ export function GameClient({ initial }: { initial: GamePayload }) {
 
   // ---- clicking the board ----
   const sel = selected ? regionView(view, selected) : null;
-  const thunderTargets = useMemo(
-    () => (thunder ? view.regions.filter((r) => !r.fog && r.owner !== view.me).map((r) => r.id) : []),
-    [thunder, view],
-  );
+  const thunderTargets = useMemo(() => {
+    if (!thunder) return [];
+    // A Ceasefire keeps Casey off other Kirds' land; the natives are still fair game.
+    const ceasefire = sanctionedIn(view, view.me, "ceasefire");
+    return view.regions.filter((r) => !r.fog && r.owner !== view.me && !(ceasefire && r.owner)).map((r) => r.id);
+  }, [thunder, view]);
 
   // Tapping the region you picked for a building a second time builds it there (buying anything missing first).
   const buildHere = useCallback(
@@ -393,7 +398,8 @@ export function GameClient({ initial }: { initial: GamePayload }) {
         return;
       }
       if (thunder) {
-        if (thunderTargets.includes(id) && confirm(`Call Casey's thunder down on ${regionName(view, id)}?`)) {
+        const cost = tribunalSits(view) ? attackCost(view, regionView(view, id).owner) : null;
+        if (thunderTargets.includes(id) && confirm(`Call Casey's thunder down on ${regionName(view, id)}?${cost ? `\n\n${attackCostText(cost)}` : ""}`)) {
           act({ type: "thunder", target: id });
         }
         setThunder(false);
@@ -467,6 +473,8 @@ export function GameClient({ initial }: { initial: GamePayload }) {
     }
   };
   const pendingOffers = view.offers.filter((o) => o.to === view.me).length;
+  // Trials still waiting for your vote count as things to answer, like offers.
+  const votesDue = over ? 0 : ballotsDue(view).length;
 
   const invite = async () => {
     const url = `${location.origin}/game/join/${game.code}`;
@@ -548,7 +556,8 @@ export function GameClient({ initial }: { initial: GamePayload }) {
       else if (kind === "attack") {
         // The odds of sending everyone ready; once you pick who goes, the bar has the exact number.
         const odds = !move.to && unitTotal(ready) ? attackOdds(view, from, id, ready, 120) : null;
-        labels.push({ id, text: `⚔️ ${regionName(view, id)}${odds ? ` · ${Math.round(odds.win * 100)}%` : ""}`, tone: kind });
+        const trial = tribunalSits(view) && attackCost(view, regionView(view, id).owner)?.trial;
+        labels.push({ id, text: `⚔️ ${regionName(view, id)}${odds ? ` · ${Math.round(odds.win * 100)}%` : ""}${trial ? " ⚖️" : ""}`, tone: kind });
       } else if (id === move.to) labels.push({ id, text: `🚡 ${regionName(view, id)}`, tone: kind });
     }
     return labels;
@@ -683,6 +692,15 @@ export function GameClient({ initial }: { initial: GamePayload }) {
               : `⚠️ ${playerName(view, view.threat)} holds ${view.players.find((p) => p.id === view.threat)?.regions ?? view.goal} regions. Take some before their next turn, or they win!`}
           </p>
         )}
+        {!over && (
+          <TribunalPills
+            view={view}
+            onOpen={() => {
+              setTab("diplomacy");
+              setPanelOpen(true);
+            }}
+          />
+        )}
         <div className="goods-extras">
           <button type="button" className="your-land" onClick={showMyLand} title="Fly to each of your regions in turn">
             <FlagIcon color={me.color} mine size={22} />
@@ -750,7 +768,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
       {!panelOpen && !move && (
         <button className="panel-restore" onClick={() => setPanelOpen(true)} aria-label="Show the actions panel">
           ▴ Actions
-          {pendingOffers + unreadTotal > 0 && <span className="dot-count">{pendingOffers + unreadTotal}</span>}
+          {pendingOffers + votesDue + unreadTotal > 0 && <span className="dot-count">{pendingOffers + votesDue + unreadTotal}</span>}
         </button>
       )}
 
@@ -774,7 +792,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
           ).map(([t, icon, label]) => (
             <button key={t} className={tab === t ? "on" : ""} onClick={() => { setTab(t); setPanelOpen(true); }}>
               <span aria-hidden="true">{icon}</span> {label}
-              {t === "diplomacy" && pendingOffers > 0 && <span className="dot-count">{pendingOffers}</span>}
+              {t === "diplomacy" && pendingOffers + votesDue > 0 && <span className="dot-count">{pendingOffers + votesDue}</span>}
               {t === "chat" && unreadTotal > 0 && <span className="dot-count">{unreadTotal}</span>}
             </button>
           ))}
@@ -824,7 +842,11 @@ export function GameClient({ initial }: { initial: GamePayload }) {
             )}
             {tab === "build" && <BuildPanel ctx={ctx} placing={placing} setPlacing={startPlacing} />}
             {tab === "heroes" && <HeroesPanel ctx={ctx} selected={selected} />}
-            {tab === "diplomacy" && <DiplomacyPanel ctx={ctx} selected={selected} />}
+            {tab === "diplomacy" && (
+              <DiplomacyPanel ctx={ctx} selected={selected}>
+                <Tribunal ctx={ctx} />
+              </DiplomacyPanel>
+            )}
             {tab === "chat" && (
               <ChatPanel view={view} messages={game.messages} avatars={game.avatars} channel={channel} setChannel={setChannel} unread={unread} send={send} />
             )}

@@ -6,8 +6,9 @@ import { emptyUnits, unitTotal, type BattleData, type GameView, type Units } fro
 import { attackOdds } from "@/game/odds";
 import { NEIGHBORS, lineId } from "@/game/regions";
 import { UNITS, UNIT_TYPES } from "@/game/rules";
+import { attackCost, attackCostText, sanctionedIn, tribunalSits } from "@/game/tribunal";
 import { CostChips, Stepper } from "./bits";
-import { DoButton, NATIVE_LABEL, OddsLine, inPact, playerName, regionName, regionView, usableLine, type Ctx } from "./panels";
+import { DoButton, NATIVE_LABEL, OddsLine, SanctionNote, inPact, playerName, regionName, regionView, usableLine, type Ctx } from "./panels";
 
 // Moving troops, one clear step at a time: pick where from, pick where to, pick who goes, send.
 // The bar says which step you're on, the map rings every choice, and "Stop moving" always gets you out.
@@ -17,25 +18,32 @@ const unitLine = (u: Units) =>
     .map((t) => `${u[t]} ${UNITS[t].icon}`)
     .join(" ");
 
-// Your regions that can send troops right now: someone is rested, and there's a gondola line to ride.
+// Your regions that can send troops right now: someone is rested, and a gondola line goes somewhere they may go.
 export function moveSources(view: GameView) {
-  return view.regions.filter(
-    (r) => r.owner === view.me && unitTotal(restedIn(r)) > 0 && (NEIGHBORS.get(r.id) ?? []).some((n) => usableLine(view, r.id, n)),
-  );
+  return view.regions.filter((r) => r.owner === view.me && unitTotal(restedIn(r)) > 0 && moveOptions(view, r.id).lines.length > 0);
 }
 
-// Where troops in `from` can ride now, and where a new gondola line would let them go.
+// Where troops in `from` can ride now, and where a new gondola line would let them go. A war crimes sentence
+// can take either away: a Gondola ban stops new lines, and a Ceasefire puts other Kirds' land off-limits (`barred`).
 export function moveOptions(view: GameView, from: string) {
   const strike = view.modifiers.some((m) => m.kind === "gondolaStrike");
+  const banned = sanctionedIn(view, view.me, "gondolas");
+  const ceasefire = sanctionedIn(view, view.me, "ceasefire");
   const around = NEIGHBORS.get(from) ?? [];
-  const lines = around.filter((n) => usableLine(view, from, n));
-  const build = strike
-    ? []
-    : around.filter((n) => {
-        const r = regionView(view, n);
-        return r.owner !== view.me && !view.lines.some((l) => l.id === lineId(from, n)) && !(r.owner && inPact(view, r.owner));
-      });
-  return { lines, build, strike };
+  const offLimits = (n: string) => {
+    const owner = regionView(view, n).owner;
+    return ceasefire && Boolean(owner) && owner !== view.me;
+  };
+  const lines = around.filter((n) => usableLine(view, from, n) && !offLimits(n));
+  const barred = around.filter((n) => usableLine(view, from, n) && offLimits(n));
+  const build =
+    strike || banned
+      ? []
+      : around.filter((n) => {
+          const r = regionView(view, n);
+          return r.owner !== view.me && !view.lines.some((l) => l.id === lineId(from, n)) && !(r.owner && inPact(view, r.owner)) && !offLimits(n);
+        });
+  return { lines, build, strike, banned, barred };
 }
 
 type Pick = (from: string | null, to: string | null) => void;
@@ -116,9 +124,11 @@ function PickFrom({ ctx, go }: { ctx: Ctx; go: Pick }) {
         </div>
       ) : (
         <p className="muted small">
-          {anyoneRested
-            ? "None of your regions has a gondola line yet, and gondolas are the only way to move troops. Tap a region to build one."
-            : "Nobody can move right now: troops that moved or were just recruited rest until your next turn."}
+          {!anyoneRested
+            ? "Nobody can move right now: troops that moved or were just recruited rest until your next turn."
+            : sanctionedIn(view, view.me, "ceasefire")
+              ? "🕊️ Your Ceasefire keeps your troops out of other Kirds' land, and none of your gondola lines lead anywhere else yet."
+              : "None of your regions has a gondola line yet, and gondolas are the only way to move troops. Tap a region to build one."}
         </p>
       )}
     </>
@@ -127,12 +137,14 @@ function PickFrom({ ctx, go }: { ctx: Ctx; go: Pick }) {
 
 function PickTo({ ctx, from, go }: { ctx: Ctx; from: string; go: Pick }) {
   const { view } = ctx;
-  const { avail, ready, lines, build, strike, odds } = useMemo(() => {
+  const { avail, ready, lines, build, strike, banned, barred, odds, trials } = useMemo(() => {
     const avail = restedIn(regionView(view, from));
     const ready = unitTotal(avail);
     const options = moveOptions(view, from);
     const enemies = options.lines.filter((n) => regionView(view, n).owner !== view.me);
-    return { avail, ready, ...options, odds: new Map(enemies.map((n) => [n, ready ? attackOdds(view, from, n, avail, 120) : null])) };
+    // Invasions that would put you on trial for war crimes get a ⚖️.
+    const trials = new Set(enemies.filter((n) => tribunalSits(view) && attackCost(view, regionView(view, n).owner)?.trial));
+    return { avail, ready, ...options, trials, odds: new Map(enemies.map((n) => [n, ready ? attackOdds(view, from, n, avail, 120) : null])) };
   }, [view, from]);
   return (
     <>
@@ -155,13 +167,20 @@ function PickTo({ ctx, from, go }: { ctx: Ctx; from: string; go: Pick }) {
                 <button key={n} type="button" className={`chip${enemy ? " enemy" : ""}`} onClick={() => go(from, n)}>
                   {enemy ? "⚔️" : "➡️"} {regionName(view, n)}
                   {o ? ` · ${Math.round(o.win * 100)}%` : ""}
+                  {trials.has(n) ? " ⚖️" : ""}
                 </button>
               );
             })}
           </div>
+          {trials.size > 0 && <p className="muted small">⚖️ Invading there would put you on trial for war crimes.</p>}
         </>
-      ) : (
+      ) : barred.length ? null : (
         <p>No gondola lines from {regionName(view, from)} yet, and troops only travel by gondola.</p>
+      )}
+      {barred.length > 0 && (
+        <SanctionNote view={view} sanction="ceasefire">
+          war criminals can&rsquo;t invade other Kirds, so {barred.map((n) => regionName(view, n)).join(", ")} {barred.length === 1 ? "is" : "are"} off-limits
+        </SanctionNote>
       )}
       {build.length > 0 && (
         <>
@@ -178,6 +197,7 @@ function PickTo({ ctx, from, go }: { ctx: Ctx; from: string; go: Pick }) {
         </>
       )}
       {strike && <p className="muted small">⚠️ Gondola strike: no new lines can be built this round.</p>}
+      {banned && <SanctionNote view={view} sanction="gondolas" />}
       <div className="form-actions">
         <button type="button" className="btn ghost small" onClick={() => go(null, null)}>
           ↩ Pick a different region
@@ -196,6 +216,8 @@ function PickWho({ ctx, from, to, pick, go, setNote }: { ctx: Ctx; from: string;
   const n = unitTotal(units);
   const reinforce = target.owner === view.me;
   const odds = useMemo(() => (!reinforce && n ? attackOdds(view, from, to, units) : null), [reinforce, n, view, from, to, units]);
+  // Invading another Kird feeds your Bloodthirst (natives never count).
+  const thirst = !reinforce && tribunalSits(view) ? attackCost(view, target.owner) : null;
   const fromName = regionName(view, from);
   const toName = regionName(view, to);
   const back = (
@@ -217,17 +239,19 @@ function PickWho({ ctx, from, to, pick, go, setNote }: { ctx: Ctx; from: string;
       );
     }
     const strike = view.modifiers.some((m) => m.kind === "gondolaStrike");
+    const banned = sanctionedIn(view, view.me, "gondolas");
     return (
       <>
         <p>
           There&rsquo;s no gondola line from <strong>{fromName}</strong> to <strong>{toName}</strong> yet, and troops only travel by gondola.
         </p>
+        <SanctionNote view={view} sanction="gondolas" />
         <div className="form-actions">
           <DoButton
             ctx={ctx}
             cost={view.prices.gondola}
             action={{ type: "gondola", from, to }}
-            disabled={strike}
+            disabled={strike || banned}
             onDone={() => setNote(`🚡 Line built. Now choose who rides it to ${toName}.`)}
           >
             🚡 Build the line <CostChips cost={view.prices.gondola} />
@@ -242,6 +266,14 @@ function PickWho({ ctx, from, to, pick, go, setNote }: { ctx: Ctx; from: string;
     return (
       <>
         <p>You have a pact with {playerName(view, target.owner)}. Break it in the 🤝 Kirds tab first if you really mean to invade.</p>
+        <div className="form-actions">{back}</div>
+      </>
+    );
+  }
+  if (target.owner && !reinforce && sanctionedIn(view, view.me, "ceasefire")) {
+    return (
+      <>
+        <SanctionNote view={view} sanction="ceasefire" />
         <div className="form-actions">{back}</div>
       </>
     );
@@ -310,6 +342,7 @@ function PickWho({ ctx, from, to, pick, go, setNote }: { ctx: Ctx; from: string;
         </button>
       </div>
       {!reinforce && n > 0 && <OddsLine odds={odds} />}
+      {thirst && n > 0 && <p className={`small thirst-note${thirst.trial ? " warn" : ""}`}>{attackCostText(thirst)}</p>}
       {n > 0 && source.units && n === unitTotal(source.units) && <p className="small move-warn">⚠️ That leaves {fromName} empty: anyone could walk in.</p>}
       <p className="muted small">
         {view.heroes.piecer.owner === view.me && view.heroes.piecer.region === from
@@ -319,7 +352,7 @@ function PickWho({ ctx, from, to, pick, go, setNote }: { ctx: Ctx; from: string;
       {/* Pinned to the bottom of the bar, so the button that sends them is always in reach. */}
       <div className="form-actions move-actions">
         <button type="button" className={`btn${reinforce ? "" : " danger"}`} disabled={busy || !n} onClick={send}>
-          {reinforce ? `➡️ Send ${n} to ${toName}` : `⚔️ Invade ${toName} with ${n}`}
+          {reinforce ? `➡️ Send ${n} to ${toName}` : `⚔️ Invade ${toName} with ${n}${thirst?.trial ? " ⚖️" : ""}`}
         </button>
         {back}
       </div>

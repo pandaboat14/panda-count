@@ -2,7 +2,21 @@
 // mixed with some he "definitely also said" about pandas, gondolas and ogres.
 import type { Suggestion } from "./advisor";
 
-type Kind = "attack" | "line" | "recruit" | "ogre" | "market" | "offers" | "raid" | "end" | "welcome" | "waiting" | "opening";
+type Kind =
+  | "attack"
+  | "restraint"
+  | "line"
+  | "recruit"
+  | "ogre"
+  | "market"
+  | "offers"
+  | "vote"
+  | "trial"
+  | "raid"
+  | "end"
+  | "welcome"
+  | "waiting"
+  | "opening";
 
 const QUOTES: Record<Kind, string[]> = {
   attack: [
@@ -11,6 +25,12 @@ const QUOTES: Record<Kind, string[]> = {
     "Opportunities multiply as they are seized.",
     "Attack where the enemy is unprepared; appear where you are not expected.",
     "He who knows when to fight and when not to fight will be victorious.",
+  ],
+  // For an attack that would put you on trial for war crimes.
+  restraint: [
+    "There is no instance of a country having benefited from prolonged warfare.",
+    "Move not unless you see an advantage; fight not unless the position is critical.",
+    "The general who strikes too often answers to the Tribunal.",
   ],
   line: [
     "He who builds the gondola first, rides it first.",
@@ -34,6 +54,16 @@ const QUOTES: Record<Kind, string[]> = {
     "The supreme art of war is to subdue the enemy without fighting.",
     "Answer your letters, lest your friends become your enemies.",
     "Keep your friends close, and your panda loans closer.",
+  ],
+  vote: [
+    "In which army is there the greater constancy both in reward and punishment? That army will win.",
+    "Too frequent rewards betray a general at the end of his resources; too many punishments, one in dire distress. Vote wisely.",
+    "Punish the cruel, and even the ogres will learn their manners.",
+  ],
+  trial: [
+    "The general who wins makes many calculations in his tent before the verdict is read.",
+    "Hold out baits to entice the jury.",
+    "When you surround an army, leave an outlet free. When you face a jury, leave a gift.",
   ],
   raid: [
     "The general who hoards his bamboo feeds the ogres of the seventh roll.",
@@ -61,7 +91,9 @@ const QUOTES: Record<Kind, string[]> = {
 };
 
 function kindOf(t: Suggestion): Kind {
-  if (t.plan) return "attack";
+  if (t.plan) return t.warCrime ? "restraint" : "attack";
+  if (t.id.startsWith("vote-")) return "vote";
+  if (t.id === "trial") return "trial";
   if (t.id.startsWith("line-")) return "line";
   if (t.id === "recruit-ogre") return "ogre";
   if (t.id === "recruit") return "recruit";

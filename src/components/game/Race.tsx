@@ -1,6 +1,7 @@
 "use client";
 
 import type { GameView } from "@/game/engine";
+import { onTrial } from "@/game/tribunal";
 import { FlagIcon, initialOf } from "./Flag";
 
 // How close everyone is to the goal (or, in an endless world, who holds the most).
@@ -18,6 +19,8 @@ export function Race({ ctx }: { ctx: { view: GameView } }) {
               <FlagIcon color={p.color} mine={p.id === view.me} initial={initialOf(p.name)} size={16} />
               {p.bot ? "🤖 " : ""}
               {p.id === view.me ? "You" : p.name}
+              {onTrial(view, p.id) && <span title="On trial for war crimes"> ⚖️</span>}
+              {p.sentence && <span title="Convicted war criminal"> ☠️</span>}
             </span>
             <span className="race-bar" aria-hidden="true">
               <span style={{ width: `${Math.min(100, (p.regions / top) * 100)}%`, background: p.color }} />

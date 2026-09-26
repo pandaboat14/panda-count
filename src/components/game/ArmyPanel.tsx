@@ -5,9 +5,10 @@ import { armySummary, battleRecord, heroBonusText, regionReports } from "@/game/
 import { canReplay } from "@/game/battleScript";
 import { emptyUnits, unitTotal, type GameEvent, type Units } from "@/game/engine";
 import { battleOdds } from "@/game/odds";
-import { BUILDINGS, HEROES, NACAM_UPKEEP, UNITS, UNIT_TYPES, type UnitType } from "@/game/rules";
+import { BLOODTHIRST_ROUNDS, BUILDINGS, HEROES, NACAM_UPKEEP, TRIAL_AT, UNITS, UNIT_TYPES, type UnitType } from "@/game/rules";
+import { onTrial, sanctionLabels, tribunalSits } from "@/game/tribunal";
 import { CostChips, Stepper } from "./bits";
-import { OddsLine, playerName, regionName, type Ctx } from "./panels";
+import { OddsLine, meOf, playerName, regionName, type Ctx } from "./panels";
 
 const unitLine = (u: Partial<Units>) =>
   UNIT_TYPES.filter((t) => (u[t] ?? 0) > 0)
@@ -55,6 +56,8 @@ export function ArmyPanel({
       <p className="muted small">
         {sum.upkeep ? `Ogre wages: ${sum.upkeep} 🪙 a turn. ` : ""}Your pandas earn {sum.pandaCoinFromPandas} 🐼 a turn.
       </p>
+
+      {tribunalSits(view) && <Bloodthirst ctx={ctx} />}
 
       <section className="act">
         <h3>🪖 What you have</h3>
@@ -185,6 +188,57 @@ export function ArmyPanel({
         )}
       </section>
     </div>
+  );
+}
+
+// Your conscience: how close you are to a war crimes trial, which attacks still count, and who you may hit back.
+function Bloodthirst({ ctx }: { ctx: Ctx }) {
+  const { view } = ctx;
+  const me = meOf(view);
+  const n = me.bloodthirst;
+  const owed = Object.entries(me.grudges ?? {}).filter(([id, rounds]) => rounds.length && view.players.some((p) => p.id === id));
+  return (
+    <section className="act">
+      <h3>
+        🩸 Bloodthirst {n}/{TRIAL_AT}
+        {onTrial(view, view.me) && <span className="badge warn">⚖️ on trial</span>}
+        {me.sentence && <span className="badge criminal">☠️ war criminal</span>}
+      </h3>
+      <div className={`thirst-meter${n >= TRIAL_AT - 1 ? " hot" : ""}`} role="meter" aria-label="Bloodthirst" aria-valuemin={0} aria-valuemax={TRIAL_AT} aria-valuenow={n}>
+        <span style={{ width: `${Math.min(100, (n / TRIAL_AT) * 100)}%` }} />
+      </div>
+      <p className="muted small">
+        Each attack on another Kird adds 1 (2 if they hold less than half your regions) and counts for {BLOODTHIRST_ROUNDS} rounds. At {TRIAL_AT},
+        everyone else votes on whether you&rsquo;re a war criminal. Hitting back once for every attack you suffer, attacking the Kird about to win,
+        and attacking a convicted war criminal don&rsquo;t count.
+      </p>
+      {me.sentence && (
+        <p className="small">
+          ☠️ You&rsquo;re serving a sentence ({me.sentence.turnsLeft} turn{me.sentence.turnsLeft === 1 ? "" : "s"} left): {sanctionLabels(me.sentence.sanctions)}.
+          Until it&rsquo;s served, attacking you is no crime.
+        </p>
+      )}
+      {(me.crimes ?? []).length > 0 && (
+        <ul className="charges small">
+          {me.crimes!.map((c, i) => (
+            <li key={i}>
+              <span>
+                {c.kind === "thunder" ? "⚡ Thunder on" : "⚔️ Invaded"} {regionName(view, c.region)} ({playerName(view, c.victim)})
+              </span>
+              <span className="muted">
+                🩸{c.points} · fades after round {c.round + BLOODTHIRST_ROUNDS - 1}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {owed.length > 0 && (
+        <p className="small">
+          🗡️ Free strikes back (they won&rsquo;t count):{" "}
+          {owed.map(([id, rounds]) => `${playerName(view, id)}${rounds.length > 1 ? ` ×${rounds.length}` : ""}`).join(", ")}
+        </p>
+      )}
+    </section>
   );
 }
 
