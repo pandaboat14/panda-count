@@ -294,6 +294,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
                 <button role="menuitem" onClick={invite}>📨 Invite the Kirds</button>
                 <button role="menuitem" onClick={() => setHelp(true)}>📜 How to play</button>
                 <Link role="menuitem" href="/game">🎲 All your games</Link>
+                <Link role="menuitem" href="/releases">📰 Release notes</Link>
                 <button role="menuitem" className="danger" onClick={() => leave(false)}>🚪 Leave this game</button>
                 {game.hostId === view.me && (
                   <button role="menuitem" className="danger" onClick={() => leave(true)}>🗑️ End game for everyone</button>

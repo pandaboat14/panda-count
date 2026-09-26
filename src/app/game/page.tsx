@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { connection } from "next/server";
 import { hasDatabase } from "@/db";
+import { SiteFooter } from "@/components/SiteFooter";
 import { TopBar } from "@/components/TopBar";
 import { Lobby } from "@/components/game/Lobby";
 import { getUser, hasAuth } from "@/lib/auth/server";
@@ -36,6 +37,7 @@ export default async function GameLobbyPage() {
           <Lobby games={games} />
         )}
       </main>
+      <SiteFooter />
     </>
   );
 }

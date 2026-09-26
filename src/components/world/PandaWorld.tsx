@@ -6,6 +6,7 @@ import type { Panda } from "@/lib/types";
 import { fmtDate } from "@/lib/format";
 import { useReducedMotion } from "@/lib/hooks";
 import { SceneBoundary } from "../SceneBoundary";
+import { SiteFooter } from "../SiteFooter";
 import { TradingCardDialog } from "../TradingCard";
 
 const Scene = dynamic(() => import("./Scene"), { ssr: false, loading: () => null });
@@ -70,6 +71,7 @@ export function PandaWorld({ pandas, lastUpdated, canEdit, topBar }: Props) {
             Last checked <time dateTime={lastUpdated}>{fmtDate(lastUpdated)}</time> · Drag to look around, tap a panda
             for its card · Every US giant panda is on loan from China through conservation partnerships.
           </p>
+          <SiteFooter className="in-hud" />
         </div>
       </div>
 

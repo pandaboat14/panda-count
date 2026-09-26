@@ -7,6 +7,7 @@ import type { World } from "@/lib/types";
 import { fmtAsOf } from "@/lib/format";
 import { useReducedMotion } from "@/lib/hooks";
 import { SceneBoundary } from "../SceneBoundary";
+import { SiteFooter } from "../SiteFooter";
 import { COLORS, placeColor, type Selection } from "./GlobeScene";
 
 const GlobeScene = dynamic(() => import("./GlobeScene"), { ssr: false, loading: () => null });
@@ -107,6 +108,7 @@ export function WorldView({ places, wild, captive, canEdit, topBar }: Props) {
             {Math.max(0, captive.count - places.reduce((n, p) => n + p.count, 0))} at other zoos in China that aren&rsquo;t mapped
             one by one.
           </p>
+          <SiteFooter className="in-hud" />
         </div>
       </div>
 

@@ -708,3 +708,14 @@ i.heat { background: radial-gradient(circle, #d64828 0%, #e97846 55%, #e9b8a8 10
   .battle-top { grid-template-columns: 1fr 1fr; }
   .battle-title { grid-column: 1 / -1; grid-row: 1; }
 }
+
+/* Footer and release notes */
+.site-footer { padding: 8px 16px 28px; text-align: center; font-size: .8rem; color: var(--ink-soft); }
+.site-footer a { color: var(--forest); font-weight: 700; }
+.site-footer.in-hud { padding: 0; }
+.release-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 28px; }
+.release-list > li { border-left: 3px solid var(--forest); padding-left: 16px; }
+.release-list h2 { font-family: var(--serif); font-weight: 800; font-size: 1.35rem; margin: 2px 0 8px; }
+.release-list ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.release-date { margin: 0; font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); }
+.release-date a { color: var(--forest); }
