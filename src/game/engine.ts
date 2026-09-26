@@ -5,6 +5,8 @@
 import { NEIGHBORS, REGIONS, REGION_BY_ID, lineEnds, lineId, type NativeNation, type Resource } from "./regions";
 import {
   BUILDINGS,
+  BUY_PRICE,
+  BUY_PRICE_MARKET,
   COIN_PER_REGION,
   CURRENCIES,
   EXCHANGE,
@@ -16,6 +18,7 @@ import {
   HERO_IDS,
   MARKET_COIN,
   NACAM_UPKEEP,
+  NATIVE_CAP,
   NATIVE_GARRISON,
   PANDAS_PER_PANDACOIN,
   PLAYER_COLORS,
@@ -101,6 +104,9 @@ export type GameState = {
   rng: number;
   seq: number; // last event number handed out
   nextId: number;
+  // First Kird to hold this many regions wins; null (or missing, in older games) plays forever.
+  goal?: number | null;
+  winner?: string | null;
 };
 
 export type GameEvent = {
@@ -141,6 +147,7 @@ export type Action =
   | { type: "gondola"; from: string; to: string }
   | { type: "move"; from: string; to: string; units: Partial<Units> }
   | { type: "bankTrade"; give: Resource; get: Resource }
+  | { type: "buy"; good: Resource; count: number }
   | { type: "exchange"; from: Currency; to: Currency }
   | { type: "recruitHero"; hero: HeroId; region: string }
   | { type: "moveHero"; hero: HeroId; to: string }
@@ -259,6 +266,21 @@ export function heroCost(s: GameState, h: HeroId): Cost {
   return c;
 }
 
+export function buyPrice(s: GameState, pid: string) {
+  return ownedRegions(s, pid).some((r) => r.buildings.includes("market")) ? BUY_PRICE_MARKET : BUY_PRICE;
+}
+
+// Natives never grow past their cap (world events and regrowth both respect it).
+export function capNatives(r: RegionState) {
+  if (r.owner || !r.native) return;
+  const cap = NATIVE_CAP[r.native] ?? {};
+  for (const t of UNIT_TYPES) {
+    const max = cap[t] ?? 0;
+    if (r.units[t] > max) r.units[t] = max;
+  }
+  r.tired = clampTired(r.tired, r.units);
+}
+
 export function bankRate(s: GameState, pid: string) {
   if (hasHero(s, pid, "ping")) return 2;
   if (ownedRegions(s, pid).some((r) => r.buildings.includes("market"))) return 3;
@@ -278,7 +300,7 @@ function emit(s: GameState, out: GameEvent[], e: Draft) {
 // Catan's number distribution, stretched over the whole world.
 const TOKEN_BAG = [2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12];
 
-export function createGame(seed: number, now: number): GameState {
+export function createGame(seed: number, now: number, goal: number | null = null): GameState {
   const s: GameState = {
     version: 1,
     season: 1,
@@ -298,6 +320,8 @@ export function createGame(seed: number, now: number): GameState {
     rng: seed | 0,
     seq: 0,
     nextId: 1,
+    goal,
+    winner: null,
   };
   const tokens: number[] = [];
   while (tokens.length < REGIONS.length) tokens.push(...TOKEN_BAG);
@@ -324,7 +348,11 @@ function spawnRegion(s: GameState) {
   const score = (r: RegionState) => {
     const def = REGION_BY_ID.get(r.id)!;
     const nearest = taken.length ? Math.min(...taken.map((t) => approxDist(def, REGION_BY_ID.get(t.id)!))) : 10000;
-    return nearest + (r.native === "wild" ? 1500 : 0) + rand(s) * 800;
+    // A good start has soft neighbours to grow into and a mix of resources nearby.
+    const around = NEIGHBORS.get(r.id)!.map((n) => s.regions[n]);
+    const soft = around.filter((n) => !n.owner && (n.native === "wild" || !n.native)).length;
+    const mix = new Set(around.map((n) => REGION_BY_ID.get(n.id)!.resource)).size;
+    return Math.min(nearest, 6000) + (r.native === "wild" ? 1500 : 0) + Math.min(soft, 3) * 700 + mix * 250 + rand(s) * 800;
   };
   return candidates.sort((a, b) => score(b) - score(a))[0];
 }
@@ -364,8 +392,20 @@ export function addPlayer(s: GameState, id: string, name: string, bot?: BotLevel
   };
   s.players.push(p);
   settle(s, p, r);
+  // Every Kird starts with one gondola line toward its softest neighbour, so turn one has a move worth making.
+  const first = NEIGHBORS.get(r.id)!
+    .map((n) => s.regions[n])
+    .filter((n) => !n.owner && !s.lines[lineId(r.id, n.id)])
+    .sort((a, b) => unitTotal(a.units) - unitTotal(b.units) || (a.native === "wild" ? -1 : 1))[0];
+  if (first) s.lines[lineId(r.id, first.id)] = { owner: id, builtTurn: s.turn };
   const out: GameEvent[] = [];
-  emit(s, out, { actor: id, type: "join", text: `${bot ? "🤖 " : ""}${p.name} joined the world, landing in ${regionName(r.id)}.`, regions: [r.id], public: true });
+  emit(s, out, {
+    actor: id,
+    type: "join",
+    text: `${bot ? "🤖 " : ""}${p.name} joined the world, landing in ${regionName(r.id)}${first ? ` with a gondola line to ${regionName(first.id)}` : ""}.`,
+    regions: first ? [r.id, first.id] : [r.id],
+    public: true,
+  });
   // The very first Kird starts playing straight away, dice and all.
   if (s.players.length === 1) startTurn(s, out);
   return out;
@@ -419,8 +459,10 @@ export function applyAction(s: GameState, actorId: string, a: Action, now: numbe
 function applyActionTo(s: GameState, actorId: string, a: Action, now: number): GameEvent[] {
   const out: GameEvent[] = [];
   const me = playerById(s, actorId);
+  if (s.winner) fail("This game is over.");
   if (a.type === "skipTurn") {
-    const host = s.players[0];
+    // The host is the first person at the table (computer players can't be hosts).
+    const host = s.players.find((p) => !p.bot) ?? s.players[0];
     if (me.id !== host.id) fail("Only the game's host can skip a turn.");
     if (activePlayer(s).id === me.id) fail("Just end your own turn.");
     if (now - s.turnStartedAt < 12 * 3600 * 1000) fail("You can skip someone after they've had 12 hours.");
@@ -489,6 +531,15 @@ function applyActionTo(s: GameState, actorId: string, a: Action, now: number): G
       pay(me, { [a.give]: rate }, `a ${rate}:1 trade`);
       me.goods[a.get] += 1;
       emit(s, out, { actor: me.id, type: "bank", text: `${me.name} traded ${rate} ${GOOD_INFO[a.give].icon} for 1 ${GOOD_INFO[a.get].icon} at the World Bank.`, regions: [], only: [me.id] });
+      break;
+    }
+    case "buy": {
+      if (!RESOURCES.includes(a.good)) fail("The bank only sells resources.");
+      const n = positiveInt(a.count, 20);
+      const price = buyPrice(s, me.id);
+      pay(me, { coin: price * n }, `${n} ${GOOD_INFO[a.good].label}`);
+      me.goods[a.good] += n;
+      emit(s, out, { actor: me.id, type: "bank", text: `${me.name} bought ${n} ${GOOD_INFO[a.good].icon} for ${price * n} 🪙 at the World Bank.`, regions: [], only: [me.id] });
       break;
     }
     case "exchange": {
@@ -620,7 +671,23 @@ function applyActionTo(s: GameState, actorId: string, a: Action, now: number): G
     default:
       fail("Unknown action.");
   }
+  checkVictory(s, out);
   return out;
+}
+
+// The first Kird to reach the goal wins (only in games that have one).
+function checkVictory(s: GameState, out: GameEvent[]) {
+  if (!s.goal || s.winner) return;
+  const champ = s.players.find((p) => ownedRegions(s, p.id).length >= s.goal!);
+  if (!champ) return;
+  s.winner = champ.id;
+  emit(s, out, {
+    actor: champ.id,
+    type: "victory",
+    text: `🏆 ${champ.name} holds ${ownedRegions(s, champ.id).length} regions and wins the world! The game is over.`,
+    regions: [champ.capital],
+    public: true,
+  });
 }
 
 function breakPact(s: GameState, out: GameEvent[], me: Player, other: Player) {
@@ -901,6 +968,8 @@ function newRound(s: GameState, out: GameEvent[]) {
   }
   const card = pick(s, WORLD_EVENTS.filter((e) => e.season <= s.season));
   const text = card.apply(s, { rand: () => rand(s), emptyUnits });
+  // Older games may hold garrisons above today's caps; this brings them back into line.
+  for (const r of Object.values(s.regions)) capNatives(r);
   emit(s, out, { actor: null, type: "world", text: `🌍 Round ${s.round} — ${card.title}: ${text}`, regions: [], public: true, data: { card: card.id } });
 }
 
@@ -1097,7 +1166,9 @@ export type GameView = {
   pacts: Pact[];
   loans: Loan[];
   modifiers: Modifier[];
-  prices: { gondola: Cost; units: Record<UnitType, Cost>; heroes: Record<HeroId, Cost>; bankRate: number };
+  prices: { gondola: Cost; units: Record<UnitType, Cost>; heroes: Record<HeroId, Cost>; bankRate: number; buyPrice: number };
+  goal: number | null;
+  winner: string | null;
 };
 
 export function viewFor(s: GameState, pid: string): GameView {
@@ -1147,7 +1218,10 @@ export function viewFor(s: GameState, pid: string): GameView {
       units: Object.fromEntries(UNIT_TYPES.map((t) => [t, unitCost(s, pid, t)])) as Record<UnitType, Cost>,
       heroes: Object.fromEntries(HERO_IDS.map((h) => [h, heroCost(s, h)])) as Record<HeroId, Cost>,
       bankRate: bankRate(s, pid),
+      buyPrice: buyPrice(s, pid),
     },
+    goal: s.goal ?? null,
+    winner: s.winner ?? null,
   };
 }
 

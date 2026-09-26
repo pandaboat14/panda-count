@@ -2,6 +2,7 @@
 // give them a higher `season` and bump the game's season to put them in the deck.
 import type { GameState, Units } from "./engine";
 import { REGION_BY_ID } from "./regions";
+import { NATIVE_CAP } from "./rules";
 
 export type ModifierKind = "blight" | "gondolaStrike" | "mercMarket" | "caseySale";
 
@@ -16,6 +17,8 @@ export type WorldEvent = {
 
 const name = (id: string) => REGION_BY_ID.get(id)?.name ?? id;
 const pickOne = <T>(h: Helpers, arr: T[]) => arr[Math.floor(h.rand() * arr.length)];
+// Room left under a native nation's cap for one unit type.
+const room = (native: string, unit: keyof Units, have: number) => Math.max(0, (NATIVE_CAP[native]?.[unit] ?? 0) - have);
 
 export const WORLD_EVENTS: WorldEvent[] = [
   {
@@ -39,13 +42,18 @@ export const WORLD_EVENTS: WorldEvent[] = [
     season: 1,
     apply: (s) => {
       let n = 0;
+      let held = 0;
       for (const r of Object.values(s.regions)) {
-        if (!r.owner && r.native === "nacams") {
-          r.units.nacam += 2;
+        if (r.owner || r.native !== "nacams") continue;
+        held++;
+        const add = Math.min(2, room("nacams", "nacam", r.units.nacam));
+        if (add) {
+          r.units.nacam += add;
           n++;
         }
       }
-      return n ? `the NACAM Ogre Nation grew uglier and angrier: +2 ogres in each of its ${n} regions.` : "the ogres grumbled, but their nation has already fallen.";
+      if (!held) return "the ogres grumbled, but their nation has already fallen.";
+      return n ? `the NACAM Ogre Nation grew uglier and angrier: more ogres in ${n} of its regions.` : "the ogres grumbled, but every ogre stronghold is already full.";
     },
   },
   {
@@ -127,12 +135,13 @@ export const WORLD_EVENTS: WorldEvent[] = [
     title: "Wild Panda Migration",
     season: 1,
     apply: (s, h) => {
-      const empty = Object.values(s.regions).filter((r) => !r.owner && (r.native === "wild" || !r.native));
+      const empty = Object.values(s.regions).filter((r) => !r.owner && (r.native === "wild" || !r.native) && room("wild", "panda", r.units.panda) > 0);
       if (!empty.length) return "the pandas looked for somewhere free to live, and found the whole world taken.";
       const r = pickOne(h, empty);
+      const add = Math.min(2, room("wild", "panda", r.units.panda));
       r.native = "wild";
-      r.units.panda += 2;
-      return `2 wild pandas wandered into ${name(r.id)}.`;
+      r.units.panda += add;
+      return `${add} wild panda${add === 1 ? "" : "s"} wandered into ${name(r.id)}.`;
     },
   },
   {
@@ -149,11 +158,12 @@ export const WORLD_EVENTS: WorldEvent[] = [
     title: "CAM Spring Break",
     season: 1,
     apply: (s, h) => {
-      const beaches = Object.values(s.regions).filter((r) => !r.owner && r.native === "cams");
+      const beaches = Object.values(s.regions).filter((r) => !r.owner && r.native === "cams" && room("cams", "cam", r.units.cam) > 0);
       if (!beaches.length) return "the CAMs had nowhere left to party.";
       const r = pickOne(h, beaches);
-      r.units.cam += 2;
-      return `2 more CAMs showed up to flex in ${name(r.id)}.`;
+      const add = Math.min(2, room("cams", "cam", r.units.cam));
+      r.units.cam += add;
+      return `${add} more CAM${add === 1 ? "" : "s"} showed up to flex in ${name(r.id)}.`;
     },
   },
   {

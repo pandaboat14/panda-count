@@ -11,7 +11,13 @@ const TIMEOUT_MS = 20000;
 // game request from having to check with the auth server (the cause of the mid-game errors).
 const SESSION_REFRESH_MS = 4 * 60 * 1000;
 
+// At most one report per kind of problem a minute, so a phone that drops offline doesn't flood the log.
+const lastReport = new Map<string, number>();
+
 export function reportError(where: string, message: string, detail?: Record<string, unknown>) {
+  const key = `${where}:${message}`;
+  if (Date.now() - (lastReport.get(key) ?? 0) < 60_000) return;
+  lastReport.set(key, Date.now());
   try {
     void fetch("/api/client-error", {
       method: "POST",

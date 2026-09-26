@@ -8,6 +8,21 @@ export type Release = {
 
 export const RELEASES: Release[] = [
   {
+    date: "2026-09-27",
+    title: "A game you can actually win",
+    pr: 8,
+    notes: [
+      "Pick how long a world lasts: first to 10, 15 or 20 regions wins, or play Endless. A race bar shows how close everyone is.",
+      "New 💡 Plan tab: on your turn it suggests your best next moves, and one tap does them.",
+      "See your chance to win before you invade, and the losses to expect.",
+      "The World Bank now sells any resource for 3 🪙 (2 with a Market). Short on something? Buttons offer to buy what's missing and do the action in one tap.",
+      "Every Kird starts with a gondola line to a weak neighbour, so your first invasion is ready on turn one.",
+      "Native armies stop growing at a limit, so the regions around you can't outgrow you forever.",
+      "Computer players buy what they need, propose pacts and trades, withdraw old offers, and answer you in chat.",
+      "Fixed: private chat messages to computer players failed with an error.",
+    ],
+  },
+  {
     date: "2026-09-26",
     title: "Computer players, Stone from ogres and fewer errors",
     pr: 7,

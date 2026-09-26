@@ -607,7 +607,8 @@ i.heat { background: radial-gradient(circle, #d64828 0%, #e97846 55%, #e9b8a8 10
   .game-bottom { right: 10px; bottom: calc(52vh + 10px); }
   .game-panel.closed ~ .game-bottom { bottom: 64px; }
   .game-title .muted { display: none; }
-  .game-top-actions .btn:first-child { display: none; }
+  /* Invite lives in the ⋯ menu on phones. (Only that button: the ⋯ button must stay.) */
+  .game-top-actions .invite-btn { display: none; }
   .replay-offer, .replay-caption { width: calc(100vw - 20px); top: 110px; }
   .game-goods { top: 56px; }
   .goods-bar li { font-size: .8rem; padding: 1px 5px; }
@@ -769,3 +770,31 @@ i.heat { background: radial-gradient(circle, #d64828 0%, #e97846 55%, #e9b8a8 10
   .game-over, .game-over-reopen { top: 110px; }
   .glossary-list { max-height: 50vh; }
 }
+
+/* Plan tab: the advisor's next moves */
+.plan-list { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 10px; }
+.plan-list li { display: grid; grid-template-columns: 30px 1fr; gap: 8px; padding: 10px; border-radius: 12px; background: var(--cream); }
+.plan-list .plan-icon { font-size: 1.3rem; line-height: 1.2; }
+.plan-list p { margin: 2px 0 6px; }
+
+/* Race to the goal */
+.race { margin: 6px 0 12px; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--bamboo) 25%, var(--paper)); }
+.race-head { margin: 0 0 6px; font-weight: 800; font-size: .85rem; color: var(--forest-deep); }
+.race ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.race li { display: grid; grid-template-columns: minmax(70px, 38%) 1fr auto; align-items: center; gap: 8px; font-size: .8rem; }
+.race li.me { font-weight: 800; }
+.race-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.race-bar { height: 8px; border-radius: 8px; background: color-mix(in srgb, var(--ink) 10%, transparent); overflow: hidden; }
+.race-bar span { display: block; height: 100%; border-radius: 8px; }
+.race-n { font-variant-numeric: tabular-nums; }
+
+/* Battle odds */
+.odds { margin: 6px 0; padding: 6px 10px; border-radius: 10px; font-size: .9rem; }
+.odds.good { background: #d9efdc; color: #1d5b2c; }
+.odds.fair { background: #f6ebc8; color: #6b5210; }
+.odds.bad { background: #f6d2c8; color: #6b2d1c; }
+.odds-chip { font-size: .72rem; font-weight: 800; padding: 2px 8px; border-radius: 99px; }
+.odds-chip.good { background: #d9efdc; color: #1d5b2c; }
+.odds-chip.fair { background: #f6ebc8; color: #6b5210; }
+.odds-chip.bad { background: #f6d2c8; color: #6b2d1c; }
+.game-over-title { font-family: var(--serif); font-size: 1.3rem; margin: 4px 0 8px; }

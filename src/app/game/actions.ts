@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { hasDatabase } from "@/db";
 import { BOT_LEVELS, type BotLevel } from "@/game/engine";
+import { GOAL_CHOICES } from "@/game/rules";
 import { getUser } from "@/lib/auth/server";
 import { displayName } from "@/lib/game/names";
 import { revalidatePath } from "next/cache";
@@ -18,7 +19,10 @@ export async function createGameAction(_prev: LobbyState, form: FormData): Promi
   // Each extra seat is "human" (invite someone later) or a computer difficulty.
   const seats = form.getAll("seat").map(String).slice(0, 7);
   const bots = seats.filter((v): v is BotLevel => (BOT_LEVELS as string[]).includes(v));
-  const id = await createNewGame(name, { id: user.id, name: displayName(user), email: user.email }, bots);
+  // "endless" or one of the region goals; anything else falls back to endless.
+  const goalRaw = Number(form.get("goal"));
+  const goal = (GOAL_CHOICES as readonly number[]).includes(goalRaw) ? goalRaw : null;
+  const id = await createNewGame(name, { id: user.id, name: displayName(user), email: user.email }, bots, goal);
   redirect(`/game/${id}`);
 }
 

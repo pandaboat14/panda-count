@@ -12,6 +12,8 @@ type GameSummary = {
   code: string;
   host: boolean;
   round: number;
+  goal: number | null;
+  winnerName: string | null;
   status: "active" | "complete";
   players: { id: string; name: string; color: string; avatar: string; bot: BotLevel | null }[];
   activeName: string;
@@ -64,6 +66,15 @@ export function Lobby({ games }: { games: GameSummary[] }) {
             <label className="wide">
               Name it
               <input name="name" maxLength={60} placeholder="The Kirds' World" />
+            </label>
+            <label className="wide">
+              How long?
+              <select name="goal" defaultValue="15">
+                <option value="10">Quick: first to 10 regions wins</option>
+                <option value="15">Standard: first to 15 regions wins</option>
+                <option value="20">Long: first to 20 regions wins</option>
+                <option value="endless">Endless: it never ends (the Kirds&rsquo; classic)</option>
+              </select>
             </label>
             <div className="wide seat-list" role="group" aria-label="Players">
               <p className="seat-head">Players</p>
@@ -147,9 +158,11 @@ function GameRow({ g }: { g: GameSummary }) {
           {g.name} <span className={`status-pill${complete ? " done" : ""}`}>{complete ? "Complete" : "In progress"}</span>
         </span>
         <span className="game-meta">
-          Round {g.round} ·{" "}
+          Round {g.round} · {g.goal ? `🏁 ${g.goal}` : "♾️"} ·{" "}
           {complete ? (
-            <>Ended {g.endedAt ? new Date(g.endedAt).toLocaleDateString([], { month: "short", day: "numeric" }) : ""}</>
+            <>
+              {g.winnerName ? `🏆 ${g.winnerName} won · ` : ""}Ended {g.endedAt ? new Date(g.endedAt).toLocaleDateString([], { month: "short", day: "numeric" }) : ""}
+            </>
           ) : g.myTurn ? (
             <strong>Your turn!</strong>
           ) : (

@@ -10,6 +10,7 @@ import type { GamePayload } from "@/lib/game/store";
 import { useReducedMotion } from "@/lib/hooks";
 import { Avatar } from "../Avatar";
 import { SceneBoundary } from "../SceneBoundary";
+import { canReplay } from "@/game/battleScript";
 import { BattleView } from "./BattleView";
 import { ChatPanel, channelOf, type Channel } from "./ChatPanel";
 import type { Highlight } from "./Board";
@@ -17,11 +18,12 @@ import { Glossary, GoodsBar } from "./bits";
 import { GameOver } from "./GameOver";
 import { BankPanel, DiplomacyPanel, HeroesPanel, LogPanel, RegionPanel, meOf, playerName, regionName, regionView, usableLine, type Ctx } from "./panels";
 import { HowToPlay } from "./HowToPlay";
+import { PlanPanel } from "./PlanPanel";
 import { useGame } from "./useGame";
 
 const Board = dynamic(() => import("./Board"), { ssr: false, loading: () => null });
 
-type Tab = "region" | "heroes" | "diplomacy" | "chat" | "bank" | "log";
+type Tab = "plan" | "region" | "heroes" | "diplomacy" | "chat" | "bank" | "log";
 
 // How long each of the other Kirds' moves stays on screen, so there's time to read it.
 const FEED_MS = 8500;
@@ -56,7 +58,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
 
   const [selected, setSelected] = useState<string | null>(me.capital ?? null);
   const [dest, setDest] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("region");
+  const [tab, setTab] = useState<Tab>(myTurn ? "plan" : "region");
   const [thunder, setThunder] = useState(false);
   const [focus, setFocus] = useState<{ lat: number; lng: number; seq: number } | null>(null);
   const [highlight, setHighlight] = useState<Highlight | null>(null);
@@ -73,7 +75,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
     async (a) => {
       const evs = await rawAct(a);
       if (evs) {
-        const fought = evs.find((e) => e.type === "battle" && e.actor === view.me);
+        const fought = evs.find((e) => canReplay(e) && e.actor === view.me);
         if (fought) setBattle(fought);
       }
       return evs;
@@ -157,13 +159,15 @@ export function GameClient({ initial }: { initial: GamePayload }) {
   const [replay, setReplay] = useState<{ list: GameEvent[]; i: number } | null>(null);
   const [replayOffered, setReplayOffered] = useState(false);
 
-  // When it becomes your turn: announce it and offer the replay again.
-  const [wasMyTurn, setWasMyTurn] = useState(myTurn);
-  if (myTurn !== wasMyTurn) {
-    setWasMyTurn(myTurn);
+  // When a new turn of yours starts: announce it and open the Plan. Track the turn number, not just whose turn
+  // it is: against computer players the turn comes straight back to you in the same request.
+  const [seenTurn, setSeenTurn] = useState(view.turn);
+  if (view.turn !== seenTurn) {
+    setSeenTurn(view.turn);
     if (myTurn) {
       setToast("🎲 It's your turn!");
       setReplayOffered(false);
+      setTab("plan");
     }
   }
 
@@ -185,7 +189,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
     if (!replay || battle) return;
     const e = replay.list[replay.i];
     // Battles get the full re-enactment; the replay carries on when it's closed.
-    if (e?.type === "battle") {
+    if (e && canReplay(e)) {
       const t = setTimeout(() => setBattle(e), 900);
       return () => clearTimeout(t);
     }
@@ -234,6 +238,22 @@ export function GameClient({ initial }: { initial: GamePayload }) {
   const onReady = useCallback(() => setReady(true), []);
 
   const ctx: Ctx = { view, myTurn, busy, act, avatars: game.avatars, over };
+
+  // Pick an attack: show the source region's panel with the target lined up.
+  const planAttack = (from: string, to: string) => {
+    setSelected(from);
+    setDest(to);
+    setTab("region");
+    setPanelOpen(true);
+    focusOn(to);
+  };
+
+  const endTurn = async () => {
+    if (await act({ type: "endTurn" })) {
+      setDest(null);
+      setToast(view.players.some((p) => p.bot) ? "Turn ended. The computer players are moving…" : "Turn ended. The Kirds have been summoned.");
+    }
+  };
   const pendingOffers = view.offers.filter((o) => o.to === view.me).length;
 
   const invite = async () => {
@@ -298,6 +318,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
                 {" "}· 🎲 {view.lastRoll[0]}+{view.lastRoll[1]}={view.lastRoll[0] + view.lastRoll[1]}
               </>
             )}
+            {view.goal ? <> · 🏁 {view.goal}</> : null}
             <span className="saved" title="Every move is saved as you make it">{over ? " · 🏁 Complete" : savedAt ? " · ✓ Saved" : " · Auto-saves"}</span>
           </span>
         </div>
@@ -306,7 +327,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
           {over ? "Game over" : myTurn ? "Your turn" : `${active.bot ? "🤖 " : ""}${active.name}'s turn`}
         </div>
         <div className="game-top-actions">
-          {!over && <button className="btn ghost small" onClick={invite}>Invite</button>}
+          {!over && <button className="btn ghost small invite-btn" onClick={invite}>Invite</button>}
           {initial.notify.available && initial.notify.email && (
             <button
               className="btn ghost small"
@@ -362,8 +383,8 @@ export function GameClient({ initial }: { initial: GamePayload }) {
             {replay.i + 1} / {replay.list.length} · Round {replay.list[replay.i].round}
           </p>
           <p>{replay.list[replay.i].text}</p>
-          {replay.list[replay.i].type !== "battle" && !still && <span key={`${replay.i}-${replay.list[replay.i].seq}`} className="feed-timer" style={{ animationDuration: `${FEED_MS}ms` }} />}
-          {replay.list[replay.i].type === "battle" && !battle && (
+          {!canReplay(replay.list[replay.i]) && !still && <span key={`${replay.i}-${replay.list[replay.i].seq}`} className="feed-timer" style={{ animationDuration: `${FEED_MS}ms` }} />}
+          {canReplay(replay.list[replay.i]) && !battle && (
             <button className="btn small" onClick={() => setBattle(replay.list[replay.i])}>⚔️ Watch the battle</button>
           )}
           <div className="form-actions">
@@ -385,6 +406,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
         <nav className="panel-tabs" aria-label="Panels">
           {(
             [
+              ["plan", "💡", "Plan"],
               ["region", "🗺️", "Region"],
               ["heroes", "🦸", "Heroes"],
               ["diplomacy", "🤝", "Kirds"],
@@ -414,15 +436,19 @@ export function GameClient({ initial }: { initial: GamePayload }) {
                   dest={dest}
                   setDest={setDest}
                   startThunder={() => setThunder(true)}
-                  planAttack={(from, to) => {
-                    setSelected(from);
-                    setDest(to);
-                    focusOn(to);
-                  }}
+                  planAttack={planAttack}
                 />
               ) : (
                 <p className="panel-body muted">Tap a region on the globe.</p>
               ))}
+            {tab === "plan" && (
+              <PlanPanel
+                ctx={ctx}
+                planAttack={planAttack}
+                openTab={(t) => setTab(t)}
+                endTurn={endTurn}
+              />
+            )}
             {tab === "heroes" && <HeroesPanel ctx={ctx} selected={selected} />}
             {tab === "diplomacy" && <DiplomacyPanel ctx={ctx} selected={selected} />}
             {tab === "chat" && (
@@ -451,16 +477,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
         {over ? (
           <Link className="btn end-turn" href="/game">🎲 Start a new game</Link>
         ) : myTurn ? (
-          <button
-            className="btn end-turn"
-            disabled={busy}
-            onClick={async () => {
-              if (await act({ type: "endTurn" })) {
-                setDest(null);
-                setToast("Turn ended. The Kirds have been summoned.");
-              }
-            }}
-          >
+          <button className="btn end-turn" disabled={busy} onClick={endTurn}>
             End turn ⏭
           </button>
         ) : (

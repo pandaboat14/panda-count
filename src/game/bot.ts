@@ -24,6 +24,7 @@ import {
   applyAction,
   battle,
   bankRate,
+  buyPrice,
   emptyUnits,
   gondolaCost,
   heroCost,
@@ -73,7 +74,7 @@ type Style = {
 };
 
 const STYLE: Record<BotLevel, Style> = {
-  easy: { ratio: 2.6, winPct: 0, sims: 0, attackChance: 0.45, maxAttacks: 1, maxRecruits: 2, bankTrades: 0, heroes: 0, build: 0.3, arm: false, consolidate: false, preferHumans: false },
+  easy: { ratio: 2.2, winPct: 0, sims: 0, attackChance: 0.6, maxAttacks: 1, maxRecruits: 2, bankTrades: 1, heroes: 0, build: 0.3, arm: false, consolidate: false, preferHumans: false },
   medium: { ratio: 1.6, winPct: 0, sims: 0, attackChance: 0.85, maxAttacks: 2, maxRecruits: 5, bankTrades: 2, heroes: 0.5, build: 0.7, arm: true, consolidate: true, preferHumans: false },
   hard: { ratio: 0, winPct: 62, sims: 40, attackChance: 1, maxAttacks: 4, maxRecruits: 10, bankTrades: 4, heroes: 1, build: 1, arm: true, consolidate: true, preferHumans: true },
 };
@@ -126,7 +127,7 @@ const minus = (have: Record<Good, number>, c: Cost) =>
 // Plays the active bot's whole turn, ending it. Returns everything that happened.
 export function playBotTurn(s: GameState, now: number): GameEvent[] {
   const me = activePlayer(s);
-  if (!me?.bot) return [];
+  if (!me?.bot || s.winner) return [];
   const style = STYLE[me.bot];
   const roll = rng((s.rng ^ (s.turn * 7919) ^ (me.seat * 104729)) >>> 0);
   const out: GameEvent[] = [];
@@ -142,6 +143,7 @@ export function playBotTurn(s: GameState, now: number): GameEvent[] {
   };
 
   answerOffers(s, self, style, roll, tryAct);
+  propose(s, self, me.bot, roll, tryAct);
   heroPowers(s, self, style, tryAct);
   if (style.bankTrades) bankUp(s, self, style, tryAct);
   // Fight with what's rested first, then spend what's left on the future.
@@ -162,7 +164,7 @@ export function runBots(s: GameState, now: number, limit = 24): GameEvent[] {
   const out: GameEvent[] = [];
   for (let i = 0; i < limit; i++) {
     const p = activePlayer(s);
-    if (!p?.bot || !s.players.some((q) => !q.bot)) break;
+    if (s.winner || !p?.bot || !s.players.some((q) => !q.bot)) break;
     out.push(...playBotTurn(s, now));
   }
   return out;
@@ -184,6 +186,30 @@ function answerOffers(s: GameState, me: () => Player, style: Style, roll: () => 
     }
     act({ type: "respond", offerId: o.id, accept: yes });
   }
+}
+
+// Computer players do diplomacy too: pacts when they're the smaller neighbour, trades for what they lack.
+// One open offer at a time, and stale ones are withdrawn so nobody's inbox fills with junk.
+const PROPOSE_CHANCE: Record<BotLevel, number> = { easy: 0.3, medium: 0.2, hard: 0.15 };
+
+function propose(s: GameState, me: () => Player, level: BotLevel, roll: () => number, act: Act) {
+  const id = me().id;
+  for (const o of s.offers.filter((x) => x.from === id && s.turn - x.turn >= s.players.length * 2)) act({ type: "cancelOffer", offerId: o.id });
+  if (s.offers.some((o) => o.from === id) || roll() >= PROPOSE_CHANCE[level]) return;
+  const mine = ownedRegions(s, id);
+  const neighbours = s.players.filter(
+    (p) => !p.bot && p.id !== id && !inPact(s, id, p.id) && mine.some((r) => NEIGHBORS.get(r.id)!.some((n) => s.regions[n].owner === p.id)),
+  );
+  const human = neighbours[Math.floor(roll() * neighbours.length)];
+  if (!human) return;
+  if (ownedRegions(s, human.id).length > mine.length || level === "easy") {
+    act({ type: "offerPact", to: human.id });
+    return;
+  }
+  const p = me();
+  const spare = RESOURCES.filter((g) => p.goods[g] >= 4).sort((a, b) => p.goods[b] - p.goods[a])[0];
+  const want = RESOURCES.filter((g) => g !== spare).sort((a, b) => p.goods[a] - p.goods[b])[0];
+  if (spare && want) act({ type: "offerTrade", to: human.id, give: { [spare]: level === "hard" ? 1 : 2 }, get: { [want]: 1 } });
 }
 
 function heroPowers(s: GameState, me: () => Player, style: Style, act: Act) {
@@ -217,6 +243,14 @@ function bankUp(s: GameState, me: () => Player, style: Style, act: Act) {
     if (!missing) break;
     const spare = RESOURCES.filter((g) => g !== missing && p.goods[g] - (want[g] ?? 0) >= rate).sort((a, b) => p.goods[b] - p.goods[a])[0];
     if (!spare || !act({ type: "bankTrade", give: spare, get: missing })) break;
+  }
+  // Then buy whatever is still missing with Coin, keeping enough back to pay the ogres.
+  const ogres = ownedRegions(s, me().id).reduce((n, r) => n + r.units.nacam, 0);
+  for (const g of RESOURCES) {
+    const short = (want[g] ?? 0) - me().goods[g];
+    if (short <= 0) continue;
+    if (me().goods.coin - buyPrice(s, me().id) * short < ogres + 1) break;
+    act({ type: "buy", good: g, count: short });
   }
   // PandaCoin piles up; turn the spare into Coin (ogre wages, markets) and CamCoin (CAMs, Casey).
   for (let i = 0; i < 4 && me().goods.pandaCoin > 8; i++) {
@@ -313,12 +347,18 @@ function expand(s: GameState, me: () => Player, style: Style, roll: () => number
         plans.push({ from, to, send, value });
       }
     }
-    const best = plans.sort((a, b) => b.value - a.value)[0];
-    if (!best) return;
-    if (!lineUsable(s, id, best.from.id, best.to.id)) {
-      if (s.lines[lineId(best.from.id, best.to.id)] || !act({ type: "gondola", from: best.from.id, to: best.to.id })) return;
+    // Work down the list: a target we already have a line to beats a better one we can't reach this turn.
+    let attacked = false;
+    for (const plan of plans.sort((a, b) => b.value - a.value)) {
+      if (!lineUsable(s, id, plan.from.id, plan.to.id)) {
+        if (s.lines[lineId(plan.from.id, plan.to.id)] || !act({ type: "gondola", from: plan.from.id, to: plan.to.id })) continue;
+      }
+      if (act({ type: "move", from: plan.from.id, to: plan.to.id, units: plan.send })) {
+        attacked = true;
+        break;
+      }
     }
-    if (!act({ type: "move", from: best.from.id, to: best.to.id, units: best.send })) return;
+    if (!attacked) return;
   }
 }
 
