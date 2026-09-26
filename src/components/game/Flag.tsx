@@ -13,15 +13,6 @@ export function initialOf(name: string) {
   return ([...name.trim()][0] ?? "?").toUpperCase();
 }
 
-// Dark or light text, whichever reads better on a Kird's colour (gold and teal need dark ink).
-export function inkOn(hex: string) {
-  const lin = (i: number) => {
-    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
-    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-  };
-  return 0.2126 * lin(1) + 0.7152 * lin(3) + 0.0722 * lin(5) > 0.2 ? "#1c1b17" : "#fffaf3";
-}
-
 // The cloth's outline: top edge left to right, bottom edge back again, with a gentle wave.
 function clothOutline(): [number, number][] {
   const wave = (x: number) => Math.sin((x - CLOTH.left) / 16) * 4;

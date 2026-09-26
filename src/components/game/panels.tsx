@@ -25,7 +25,8 @@ import { attackOdds, type Odds } from "@/game/odds";
 import { Avatar } from "../Avatar";
 import { Race } from "./Race";
 import { CostChips, Stepper, affordable, times } from "./bits";
-import { FlagIcon, initialOf, inkOn } from "./Flag";
+import { inkOn } from "./colors";
+import { FlagIcon, initialOf } from "./Flag";
 
 export type Ctx = {
   view: GameView;

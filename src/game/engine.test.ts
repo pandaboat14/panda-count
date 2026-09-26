@@ -1058,3 +1058,23 @@ test("names: in games from before renaming, any region you hold except your home
   assert.equal(s.regions[old].name, "Old Conquest");
   assert.throws(() => applyAction(s, a.id, { type: "rename", region: a.capital, name: "Homeland" }, NOW), /conquerors/);
 });
+
+test("names: land your autopilot conquers while you're away is yours to rename when you're back", () => {
+  const s = newWorld(31, NOW);
+  addPlayer(s, "taylor", "Taylor");
+  addPlayer(s, "alex", "Alex");
+  applyAction(s, "alex", { type: "autopilot", on: true, level: "hard" }, NOW);
+  const taken = () => ownedRegions(s, "alex").find((r) => r.conqueror === "alex");
+  for (let round = 0; round < 40 && !taken(); round++) {
+    applyAction(s, "taylor", { type: "endTurn" }, NOW);
+    runBots(s, NOW);
+  }
+  const won = taken();
+  assert.ok(won, "autopilot conquered something");
+  applyAction(s, "alex", { type: "autopilot", on: false }, NOW);
+  applyAction(s, "taylor", { type: "endTurn" }, NOW);
+  assert.equal(activePlayer(s).id, "alex", "back in command, it's Alex's turn");
+  assert.equal(viewFor(s, "alex").regions.find((r) => r.id === won.id)!.renamable, true);
+  applyAction(s, "alex", { type: "rename", region: won.id, name: "Alexandria" }, NOW);
+  assert.equal(s.regions[won.id].name, "Alexandria");
+});
