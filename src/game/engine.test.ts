@@ -11,6 +11,7 @@ import {
   eventVisible,
   lineUsable,
   ownedRegions,
+  removePlayer,
   unitTotal,
   viewFor,
   visibleRegions,
@@ -18,6 +19,7 @@ import {
   type GameEvent,
   type GameState,
 } from "./engine";
+import { battleScript } from "./battleScript";
 import { NEIGHBORS, REGIONS, lineEnds, lineId } from "./regions";
 import { BUILDING_TYPES, EXCHANGE, GOODS, HERO_IDS, RESOURCES, UNIT_TYPES } from "./rules";
 
@@ -173,6 +175,60 @@ test("fog of war: views hide what you can't see and other Kirds' purses", () => 
   }
 });
 
+test("leaving: land goes wild, heroes return, seats close up, the turn moves on", () => {
+  const { s } = newGame(3);
+  const [a, b, c] = s.players;
+  s.heroes.ping = { owner: b.id, region: b.capital, movedTurn: 0 };
+  s.lines[lineId(b.capital, NEIGHBORS.get(b.capital)![0])] = { owner: b.id, builtTurn: 0 };
+  applyAction(s, a.id, { type: "offerPact", to: b.id }, NOW);
+  applyAction(s, a.id, { type: "endTurn" }, NOW);
+  assert.equal(activePlayer(s).id, b.id);
+  removePlayer(s, b.id, NOW);
+  assert.equal(s.players.length, 2);
+  assert.deepEqual(s.players.map((p) => p.seat), [0, 1]);
+  assert.equal(activePlayer(s).id, c.id, "the leaver's turn passed to the next Kird");
+  assert.equal(ownedRegions(s, b.id).length, 0);
+  assert.equal(s.regions[b.capital].native, "wild");
+  assert.equal(s.heroes.ping.owner, null);
+  assert.equal(Object.values(s.lines).filter((l) => l.owner === b.id).length, 0);
+  assert.equal(s.offers.length, 0);
+});
+
+test("battle animation script matches what the engine decided", () => {
+  const { s } = newGame(2, 5);
+  const [a, b] = s.players;
+  let checked = 0;
+  for (let i = 0; i < 60; i++) {
+    const from = a.capital;
+    const to = b.capital;
+    s.regions[from].owner = a.id;
+    s.regions[from].units = { panda: 3, armedPanda: 1, nacam: 4, cam: 2 };
+    s.regions[from].tired = emptyUnits();
+    s.regions[to].owner = b.id;
+    s.regions[to].native = null;
+    s.regions[to].units = { panda: 4, armedPanda: 2, nacam: 1, cam: 1 };
+    s.lines[lineId(from, to)] = { owner: a.id, builtTurn: 0 };
+    s.activeSeat = a.seat;
+    s.pacts = [];
+    const evs = applyAction(s, a.id, { type: "move", from, to, units: { panda: 2, armedPanda: 1, nacam: 4, cam: 2 } }, NOW);
+    const battleEv = evs.find((e) => e.type === "battle");
+    if (!battleEv) continue;
+    const data = battleEv.data as unknown as import("./engine").BattleData;
+    const { soldiers } = battleScript(data);
+    for (const side of ["atk", "def"] as const) {
+      const lost = side === "atk" ? data.attackerLost : data.defenderLost;
+      for (const t of UNIT_TYPES) {
+        const dead = soldiers.filter((x) => x.side === side && x.type === t && x.diesAt !== null).length;
+        assert.equal(dead, lost[t], `${side} ${t} deaths match`);
+      }
+    }
+    checked++;
+    // put a back in charge for the next go
+    s.regions[from].owner = a.id;
+  }
+  assert.ok(checked > 20);
+});
+
 // ---------------------------------------------------------------- fuzz
 
 function randomAction(s: GameState, rnd: () => number): Action {
@@ -257,6 +313,8 @@ test("fuzz: thousands of random actions never break the world", () => {
     for (let step = 0; step < 4000; step++) {
       // Late joiners are welcome in a never-ending game.
       if (step === 1500 && s.players.length < 8) events.push(...addPlayer(s, "late", "Late Kird"));
+      // …and Kirds sometimes leave.
+      if (step === 2500 && s.players.length > 1) events.push(...removePlayer(s, s.players[Math.floor(rnd() * s.players.length)].id, NOW));
       const actor = rnd() < 0.02 ? s.players[Math.floor(rnd() * s.players.length)].id : activePlayer(s).id;
       const a = randomAction(s, rnd);
       const snapshot = JSON.stringify(s);

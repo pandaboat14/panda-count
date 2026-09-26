@@ -2,14 +2,16 @@
 
 import Link from "next/link";
 import { useActionState } from "react";
-import { createGameAction, joinByCodeAction, type LobbyState } from "@/app/game/actions";
+import { createGameAction, endGameAction, joinByCodeAction, leaveGameAction, type LobbyState } from "@/app/game/actions";
+import { Avatar } from "../Avatar";
 
 type GameSummary = {
   id: number;
   name: string;
   code: string;
+  host: boolean;
   round: number;
-  players: { name: string; color: string }[];
+  players: { id: string; name: string; color: string; avatar: string }[];
   activeName: string;
   myTurn: boolean;
 };
@@ -26,7 +28,7 @@ export function Lobby({ games }: { games: GameSummary[] }) {
         ) : (
           <ul className="game-list">
             {games.map((g) => (
-              <li key={g.id}>
+              <li key={g.id} className="game-row">
                 <Link href={`/game/${g.id}`} className={`game-card${g.myTurn ? " my-turn" : ""}`}>
                   <span className="game-name">{g.name}</span>
                   <span className="game-meta">
@@ -34,10 +36,25 @@ export function Lobby({ games }: { games: GameSummary[] }) {
                   </span>
                   <span className="game-players">
                     {g.players.map((p) => (
-                      <span key={p.name} className="player-dot" style={{ background: p.color }} title={p.name} />
+                      <span key={p.id} className="avatar-ring" style={{ borderColor: p.color }} title={p.name}>
+                        <Avatar value={p.avatar} userId={p.id} size={26} />
+                      </span>
                     ))}
+                    {g.players.length === 1 && <span className="muted small"> solo</span>}
                   </span>
                 </Link>
+                <form
+                  action={g.host ? endGameAction : leaveGameAction}
+                  onSubmit={(e) => {
+                    const msg = g.host
+                      ? `End "${g.name}" for everyone? The whole world and its history will be deleted.`
+                      : `Leave "${g.name}"? Your land goes back to the wild pandas.`;
+                    if (!confirm(msg)) e.preventDefault();
+                  }}
+                >
+                  <input type="hidden" name="id" value={g.id} />
+                  <button className="game-end">{g.host ? "End game" : "Leave"}</button>
+                </form>
               </li>
             ))}
           </ul>

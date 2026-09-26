@@ -10,6 +10,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <NeonAuthUIProvider
       authClient={authClient}
+      // Emailed links (password reset, verification) must point back at this site. Without an absolute
+      // base URL the library sends a relative path, which Neon resolves against its own domain.
+      baseURL={typeof window === "undefined" ? process.env.NEXT_PUBLIC_SITE_URL : window.location.origin}
+      credentials={{ forgotPassword: true }}
       defaultTheme="light"
       redirectTo="/"
       navigate={router.push}

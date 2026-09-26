@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 import { hasDatabase } from "@/db";
 import { getUser } from "@/lib/auth/server";
 import { displayName } from "@/lib/game/names";
-import { createNewGame, gameIdForCode } from "@/lib/game/store";
+import { revalidatePath } from "next/cache";
+import { createNewGame, deleteGame, gameIdForCode, leaveGame } from "@/lib/game/store";
 
 export type LobbyState = { error?: string };
 
@@ -22,4 +23,20 @@ export async function joinByCodeAction(_prev: LobbyState, form: FormData): Promi
   if (!/^[A-Z0-9]{6}$/.test(code)) return { error: "Invite codes are 6 letters and numbers." };
   if (!(await gameIdForCode(code))) return { error: "No game with that code." };
   redirect(`/game/join/${code}`);
+}
+
+export async function leaveGameAction(form: FormData) {
+  const user = await getUser();
+  if (!user) redirect("/auth/sign-in?redirectTo=/game");
+  await leaveGame(Number(form.get("id")), user.id);
+  revalidatePath("/game");
+  redirect("/game");
+}
+
+export async function endGameAction(form: FormData) {
+  const user = await getUser();
+  if (!user) redirect("/auth/sign-in?redirectTo=/game");
+  await deleteGame(Number(form.get("id")), user.id);
+  revalidatePath("/game");
+  redirect("/game");
 }

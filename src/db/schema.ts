@@ -1,4 +1,4 @@
-import { boolean, doublePrecision, integer, jsonb, pgEnum, pgTable, primaryKey, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { boolean, doublePrecision, index, integer, jsonb, pgEnum, pgTable, primaryKey, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
 export const pandaStatus = pgEnum("panda_status", ["resident", "incoming"]);
 export const pandaSex = pgEnum("panda_sex", ["Male", "Female"]);
@@ -128,3 +128,26 @@ export const gameEvents = pgTable(
   },
   (t) => [uniqueIndex("game_events_game_seq").on(t.gameId, t.seq)],
 );
+
+// In-game chat: to_id null means everyone in the game, otherwise a private message.
+export const gameMessages = pgTable(
+  "game_messages",
+  {
+    id: serial("id").primaryKey(),
+    gameId: integer("game_id")
+      .notNull()
+      .references(() => games.id, { onDelete: "cascade" }),
+    fromId: text("from_id").notNull(),
+    toId: text("to_id"),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("game_messages_game").on(t.gameId, t.id)],
+);
+
+// Site-wide profile bits that Neon Auth doesn't store: the avatar a Kird picked.
+export const userProfiles = pgTable("user_profiles", {
+  userId: text("user_id").primaryKey(),
+  avatar: text("avatar").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

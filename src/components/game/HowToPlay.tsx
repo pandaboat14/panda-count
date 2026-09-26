@@ -83,6 +83,12 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
         </p>
         <h3>☁️ Fog of war</h3>
         <p>You see your regions, their neighbours, and the ends of your gondola lines. Everything else is cloud.</p>
+        <h3>💬 Chat, log and leaving</h3>
+        <p>
+          Talk to everyone in the Chat tab, or pick one Kird to message privately. The Log tab keeps every event in the world, and you can
+          ▶ watch any battle again. Pick your face under ⋯ → Your avatar. Leaving a world turns your lands wild; the host can end a world for
+          everyone.
+        </p>
       </article>
     </dialog>
   );

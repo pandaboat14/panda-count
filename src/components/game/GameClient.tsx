@@ -2,12 +2,16 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { GameEvent } from "@/game/engine";
 import { NEIGHBORS, REGION_BY_ID } from "@/game/regions";
 import type { GamePayload } from "@/lib/game/store";
 import { useReducedMotion } from "@/lib/hooks";
+import { Avatar } from "../Avatar";
 import { SceneBoundary } from "../SceneBoundary";
+import { BattleView } from "./BattleView";
+import { ChatPanel, channelOf, type Channel } from "./ChatPanel";
 import type { Highlight } from "./Board";
 import { GoodsBar } from "./bits";
 import { BankPanel, DiplomacyPanel, HeroesPanel, LogPanel, RegionPanel, meOf, playerName, regionName, regionView, usableLine, type Ctx } from "./panels";
@@ -16,7 +20,7 @@ import { useGame } from "./useGame";
 
 const Board = dynamic(() => import("./Board"), { ssr: false, loading: () => null });
 
-type Tab = "region" | "heroes" | "diplomacy" | "bank" | "log";
+type Tab = "region" | "heroes" | "diplomacy" | "chat" | "bank" | "log";
 
 const TONE: Record<string, Highlight["tone"]> = {
   battle: "battle",
@@ -35,7 +39,8 @@ const TONE: Record<string, Highlight["tone"]> = {
 };
 
 export function GameClient({ initial }: { initial: GamePayload }) {
-  const { game, act, busy, error, clearError } = useGame(initial);
+  const { game, act: rawAct, send, loadOlder, olderDone, busy, error, clearError } = useGame(initial);
+  const router = useRouter();
   const { view } = game;
   const me = meOf(view);
   const active = view.players.find((p) => p.seat === view.activeSeat)!;
@@ -53,6 +58,72 @@ export function GameClient({ initial }: { initial: GamePayload }) {
   const [panelOpen, setPanelOpen] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
   const [emailOn, setEmailOn] = useState(initial.notify.on);
+  const [battle, setBattle] = useState<GameEvent | null>(null);
+  const [menu, setMenu] = useState(false);
+
+  // Every move goes through here so a battle you just fought plays out on screen.
+  const act: typeof rawAct = async (a) => {
+    const evs = await rawAct(a);
+    if (evs) {
+      const fought = evs.find((e) => e.type === "battle" && e.actor === view.me);
+      if (fought) setBattle(fought);
+    }
+    return evs;
+  };
+
+  // ---- chat: which conversation is open, and what's unread ----
+  const [channel, setChannel] = useState<Channel>("all");
+  const readKey = `pd-read-${game.id}`;
+  const [lastRead, setLastRead] = useState<Record<string, number>>({});
+  useEffect(() => {
+    // Read after mount so the server render and the first client render agree.
+    const t = setTimeout(() => {
+      try {
+        setLastRead(JSON.parse(localStorage.getItem(readKey) ?? "{}"));
+      } catch {
+        /* private mode */
+      }
+    });
+    return () => clearTimeout(t);
+  }, [readKey]);
+  const unread = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const m of game.messages) {
+      if (m.from === view.me) continue;
+      const ch = channelOf(m, view.me);
+      if (m.id > (lastRead[ch] ?? 0)) out[ch] = (out[ch] ?? 0) + 1;
+    }
+    return out;
+  }, [game.messages, lastRead, view.me]);
+  const unreadTotal = Object.values(unread).reduce((a, b) => a + b, 0);
+  const viewingChat = tab === "chat" && panelOpen;
+  useEffect(() => {
+    if (!viewingChat || !unread[channel]) return;
+    const top = Math.max(...game.messages.filter((m) => channelOf(m, view.me) === channel).map((m) => m.id));
+    // Deferred so the badge clears after this render, not during it.
+    const t = setTimeout(() =>
+      setLastRead((prev) => {
+        const next = { ...prev, [channel]: top };
+        try {
+          localStorage.setItem(readKey, JSON.stringify(next));
+        } catch {
+          /* private mode */
+        }
+        return next;
+      }),
+    );
+    return () => clearTimeout(t);
+  }, [viewingChat, channel, unread, game.messages, view.me, readKey]);
+
+  const leave = async (end: boolean) => {
+    const msg = end
+      ? `End "${game.name}" for everyone? The world and its history will be deleted.`
+      : `Leave "${game.name}"? Your land goes back to the wild pandas.`;
+    if (!confirm(msg)) return;
+    const res = await fetch(end ? `/api/game/${game.id}` : `/api/game/${game.id}/leave`, { method: end ? "DELETE" : "POST" });
+    if (res.ok) router.push("/game");
+    else setToast((await res.json().catch(() => ({}))).error ?? "That didn't work.");
+  };
 
   const toggleEmail = async () => {
     const on = !emailOn;
@@ -87,15 +158,18 @@ export function GameClient({ initial }: { initial: GamePayload }) {
   }
 
   const replayEvent = replay?.list[replay.i] ?? null;
+  const nextReplay = () => setReplay((r) => (r && r.i + 1 < r.list.length ? { ...r, i: r.i + 1 } : null));
   useEffect(() => {
-    if (!replay) return;
+    if (!replay || battle) return;
     const e = replay.list[replay.i];
-    const t = setTimeout(
-      () => setReplay((r) => (r && r.i + 1 < r.list.length ? { ...r, i: r.i + 1 } : null)),
-      e?.regions.length ? 2600 : 1800,
-    );
+    // Battles get the full re-enactment; the replay carries on when it's closed.
+    if (e?.type === "battle") {
+      const t = setTimeout(() => setBattle(e), 900);
+      return () => clearTimeout(t);
+    }
+    const t = setTimeout(nextReplay, e?.regions.length ? 2600 : 1800);
     return () => clearTimeout(t);
-  }, [replay]);
+  }, [replay, battle]);
 
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -136,7 +210,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
     setPanelOpen(true);
   };
 
-  const ctx: Ctx = { view, myTurn, busy, act };
+  const ctx: Ctx = { view, myTurn, busy, act, avatars: game.avatars };
   const pendingOffers = view.offers.filter((o) => o.to === view.me).length;
 
   const invite = async () => {
@@ -196,7 +270,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
           </span>
         </div>
         <div className={`turn-banner${myTurn ? " mine" : ""}`} style={{ borderColor: active.color }}>
-          <span className="player-dot" style={{ background: active.color }} />
+          <Avatar value={game.avatars[active.id]} userId={active.id} size={24} />
           {myTurn ? "Your turn" : `${active.name}'s turn`}
         </div>
         <div className="game-top-actions">
@@ -212,6 +286,21 @@ export function GameClient({ initial }: { initial: GamePayload }) {
             </button>
           )}
           <button className="btn ghost small" onClick={() => setHelp(true)} aria-label="How to play">?</button>
+          <div className="menu-wrap">
+            <button className="btn ghost small" onClick={() => setMenu(!menu)} aria-expanded={menu} aria-label="Game menu">⋯</button>
+            {menu && (
+              <div className="game-menu" role="menu" onClick={() => setMenu(false)}>
+                <Link role="menuitem" href={`/profile?back=/game/${game.id}`}>🐼 Change your avatar</Link>
+                <button role="menuitem" onClick={invite}>📨 Invite the Kirds</button>
+                <button role="menuitem" onClick={() => setHelp(true)}>📜 How to play</button>
+                <Link role="menuitem" href="/game">🎲 All your games</Link>
+                <button role="menuitem" className="danger" onClick={() => leave(false)}>🚪 Leave this game</button>
+                {game.hostId === view.me && (
+                  <button role="menuitem" className="danger" onClick={() => leave(true)}>🗑️ End game for everyone</button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -237,9 +326,12 @@ export function GameClient({ initial }: { initial: GamePayload }) {
             {replay.i + 1} / {replay.list.length} · Round {replay.list[replay.i].round}
           </p>
           <p>{replay.list[replay.i].text}</p>
+          {replay.list[replay.i].type === "battle" && !battle && (
+            <button className="btn small" onClick={() => setBattle(replay.list[replay.i])}>⚔️ Watch the battle</button>
+          )}
           <div className="form-actions">
             <button className="btn ghost small" onClick={() => setReplay({ ...replay, i: Math.max(0, replay.i - 1) })} disabled={replay.i === 0}>◀</button>
-            <button className="btn ghost small" onClick={() => setReplay({ ...replay, i: replay.i + 1 })}>▶</button>
+            <button className="btn ghost small" onClick={nextReplay}>▶</button>
             <button className="btn small" onClick={() => setReplay(null)}>Done</button>
           </div>
         </div>
@@ -259,6 +351,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
               ["region", "🗺️", "Region"],
               ["heroes", "🦸", "Heroes"],
               ["diplomacy", "🤝", "Kirds"],
+              ["chat", "💬", "Chat"],
               ["bank", "🏦", "Bank"],
               ["log", "📜", "Log"],
             ] as [Tab, string, string][]
@@ -266,6 +359,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
             <button key={t} className={tab === t ? "on" : ""} onClick={() => { setTab(t); setPanelOpen(true); }}>
               <span aria-hidden="true">{icon}</span> {label}
               {t === "diplomacy" && pendingOffers > 0 && <span className="dot-count">{pendingOffers}</span>}
+              {t === "chat" && unreadTotal > 0 && <span className="dot-count">{unreadTotal}</span>}
             </button>
           ))}
           <button className="panel-toggle" onClick={() => setPanelOpen(!panelOpen)} aria-label={panelOpen ? "Hide panel" : "Show panel"}>
@@ -294,10 +388,17 @@ export function GameClient({ initial }: { initial: GamePayload }) {
               ))}
             {tab === "heroes" && <HeroesPanel ctx={ctx} selected={selected} />}
             {tab === "diplomacy" && <DiplomacyPanel ctx={ctx} selected={selected} />}
+            {tab === "chat" && (
+              <ChatPanel view={view} messages={game.messages} avatars={game.avatars} channel={channel} setChannel={setChannel} unread={unread} send={send} />
+            )}
             {tab === "bank" && <BankPanel ctx={ctx} />}
             {tab === "log" && (
               <LogPanel
                 events={game.events}
+                me={view.me}
+                onWatch={setBattle}
+                loadOlder={loadOlder}
+                olderDone={olderDone}
                 onPick={(e) => {
                   if (!e.regions.length) return;
                   focusOn(e.regions[e.regions.length - 1]);
@@ -340,6 +441,19 @@ export function GameClient({ initial }: { initial: GamePayload }) {
       )}
 
       {help && <HowToPlay onClose={() => setHelp(false)} />}
+      {battle && (
+        <BattleView
+          key={battle.seq}
+          event={battle}
+          view={view}
+          still={still}
+          onClose={() => {
+            const wasReplaying = replay?.list[replay.i]?.seq === battle.seq;
+            setBattle(null);
+            if (wasReplaying) nextReplay();
+          }}
+        />
+      )}
       <span className="sr-only" aria-live="polite">{myTurn ? "Your turn" : `${playerName(view, active.id)}'s turn`}</span>
     </main>
   );

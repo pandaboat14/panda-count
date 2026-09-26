@@ -29,6 +29,13 @@
       "when": 1790391767509,
       "tag": "0003_notify",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790393970873,
+      "tag": "0004_chat_avatars",
+      "breakpoints": true
     }
   ]
 }

@@ -112,6 +112,22 @@ export type GameEvent = {
   data?: Record<string, unknown>;
 };
 
+// What a battle event carries, so the board can re-enact it.
+export type BattleData = {
+  attacker: Units;
+  attackerLost: Units;
+  defenderStart: Units;
+  defenderLost: Units;
+  won: boolean;
+  rolls: { a: number[]; d: number[] }[];
+  atkBonus: number;
+  defBonus: number;
+  defender: string | null;
+  defenderName: string;
+  from: string;
+  to: string;
+};
+
 export type Action =
   | { type: "build"; region: string; building: BuildingType }
   | { type: "recruit"; region: string; unit: "panda" | "nacam" | "cam"; count: number }
@@ -345,6 +361,41 @@ export function addPlayer(s: GameState, id: string, name: string): GameEvent[] {
   emit(s, out, { actor: id, type: "join", text: `${p.name} joined the world, landing in ${regionName(r.id)}.`, regions: [r.id], public: true });
   // The very first Kird starts playing straight away, dice and all.
   if (s.players.length === 1) startTurn(s, out);
+  return out;
+}
+
+// A Kird leaves for good: their land goes wild, heroes return to the Hall, their lines come down,
+// and every deal involving them is off. The turn passes on if it was theirs.
+export function removePlayer(s: GameState, id: string, now: number): GameEvent[] {
+  const i = s.players.findIndex((p) => p.id === id);
+  if (i < 0) fail("That Kird isn't in this game.");
+  const out: GameEvent[] = [];
+  const leaving = s.players[i];
+  const wasActive = s.activeSeat === leaving.seat;
+  for (const r of Object.values(s.regions)) {
+    if (r.owner !== id) continue;
+    r.owner = null;
+    r.native = unitTotal(r.units) > 0 ? "wild" : null;
+    r.tired = emptyUnits();
+  }
+  for (const h of HERO_IDS) if (s.heroes[h].owner === id) s.heroes[h] = { owner: null, region: null, movedTurn: 0 };
+  for (const [lid, line] of Object.entries(s.lines)) if (line.owner === id) delete s.lines[lid];
+  s.offers = s.offers.filter((o) => o.from !== id && o.to !== id);
+  s.pacts = s.pacts.filter((p) => p.a !== id && p.b !== id);
+  s.loans = s.loans.filter((l) => l.from !== id && l.to !== id);
+  s.players.splice(i, 1);
+  s.players.forEach((p, seat) => (p.seat = seat));
+  emit(s, out, { actor: id, type: "leave", text: `👋 ${leaving.name} left the world. Their land went back to the wild pandas.`, regions: [], public: true });
+  if (!s.players.length) return out;
+  if (wasActive) {
+    s.activeSeat = i % s.players.length;
+    if (s.activeSeat === 0) newRound(s, out);
+    s.turn += 1;
+    s.turnStartedAt = now;
+    startTurn(s, out);
+  } else if (i < s.activeSeat) {
+    s.activeSeat -= 1;
+  }
   return out;
 }
 
@@ -677,6 +728,7 @@ function move(s: GameState, out: GameEvent[], me: Player, a: Extract<Action, { t
 
   const atkBonus = heroBonus(s, me.id, from.id);
   const defBonus = (to.buildings.includes("fort") ? 1 : 0) + (defender ? heroBonus(s, defender.id, to.id) : 0);
+  const defenderStart = { ...to.units };
   const result = battle(s, units, atkBonus, { ...to.units }, defBonus);
   to.units = result.defender;
   to.tired = clampTired(to.tired, to.units);
@@ -689,7 +741,20 @@ function move(s: GameState, out: GameEvent[], me: Player, a: Extract<Action, { t
     text,
     regions: [from.id, to.id],
     public: Boolean(defender),
-    data: { attacker: units, attackerLost: result.attackerLost, defenderLost: result.defenderLost, won: result.attackerWon, rolls: result.rolls, defender: defender?.id ?? to.native },
+    data: {
+      attacker: units,
+      attackerLost: result.attackerLost,
+      defenderStart,
+      defenderLost: result.defenderLost,
+      won: result.attackerWon,
+      rolls: result.rolls,
+      atkBonus,
+      defBonus,
+      defender: defender?.id ?? to.native,
+      defenderName,
+      from: from.id,
+      to: to.id,
+    } satisfies BattleData,
   });
   if (result.attackerWon) capture(s, out, me, to, result.attacker, defender);
   else if (!to.owner && unitTotal(to.units) === 0) to.native = null;
