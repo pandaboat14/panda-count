@@ -33,7 +33,10 @@ export function ChatPanel({
   const [sending, setSending] = useState(false);
   const list = useMemo(() => messages.filter((m) => inChannel(m, channel, view.me)), [messages, channel, view.me]);
   const bottom = useRef<HTMLDivElement>(null);
-  useEffect(() => bottom.current?.scrollIntoView({ block: "end" }), [list.length, channel]);
+  // Keep the braces: scrollIntoView returns a Promise in newer browsers, and React would call anything returned as a cleanup.
+  useEffect(() => {
+    bottom.current?.scrollIntoView({ block: "end" });
+  }, [list.length, channel]);
   const others = view.players.filter((p) => p.id !== view.me);
   const who = (id: string) => view.players.find((p) => p.id === id);
 

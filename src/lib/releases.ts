@@ -9,6 +9,13 @@ export type Release = {
 export const RELEASES: Release[] = [
   {
     date: "2026-09-26",
+    title: "Chat works again in Chrome",
+    notes: [
+      "Fixed: in the latest Chrome and Edge, chat crashed the game to a blank page when a message was sent or arrived, when you switched conversations, or when you left the Chat tab.",
+    ],
+  },
+  {
+    date: "2026-09-26",
     title: "A longer war, and the chance cubes",
     pr: 9,
     notes: [
