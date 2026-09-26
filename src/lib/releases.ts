@@ -9,6 +9,19 @@ export type Release = {
 export const RELEASES: Release[] = [
   {
     date: "2026-09-26",
+    title: "Buildings you can see, troops you can drag",
+    pr: 15,
+    notes: [
+      "Buildings stand on the globe as little 3D models, each with a pin showing its icon: a pagoda with a panda in its bamboo, a gym with a giant barbell on the roof, a striped market stall, and stone walls round the whole region for a fort.",
+      "A new 🏗️ Build tab lists every building with what it does, what it costs and where you already have one. Pick one, tap a glowing region, and watch it rise out of the ground.",
+      "Troops are easy to spot. Zoomed out, each army is one big figure with a badge showing how many are there. Zoom in and you see the squad itself, mixed like the real army: pandas with bamboo, armed pandas in tin helmets, club-swinging ogres and flexing CAMs.",
+      "Drag your troops to move them: on your turn, grab an army and drop it on a glowing region it can reach by gondola. The move bar opens ready to choose who goes, with your chance to win if it's an invasion.",
+      "The camera leans in as you zoom, so you see everything from the side. Each hex's number now sits at its front tip, where nothing can hide it, flags fly from the back of the hex, and gondola cables leave from a mast so they pass over the buildings.",
+      "Battle replays use the new figures.",
+    ],
+  },
+  {
+    date: "2026-09-26",
     title: "Plant your flag",
     notes: [
       "Your land is unmistakable now: every region you hold flies your flag (your colour with a white star) and glows with a thick border in your colour. Other Kirds' flags carry their initial.",

@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { unitTotal, type BattleData, type GameEvent } from "@/game/engine";
 import { NEIGHBORS, REGION_BY_ID } from "@/game/regions";
+import { BUILDINGS, type BuildingType } from "@/game/rules";
+import { fillCost } from "@/game/advisor";
 import { rollShow, type RollShow } from "@/game/rollReport";
 import type { GamePayload } from "@/lib/game/store";
 import { useReducedMotion } from "@/lib/hooks";
@@ -15,11 +17,12 @@ import { canReplay } from "@/game/battleScript";
 import { BattleView } from "./BattleView";
 import { DiceRoll } from "./DiceRoll";
 import { ChatPanel, channelOf, type Channel } from "./ChatPanel";
-import type { BoardLabel, Highlight, MarkKind } from "./Board";
+import type { BoardLabel, Built, Highlight, MarkKind } from "./Board";
 import { FlagIcon } from "./Flag";
-import { Glossary, GoodsBar } from "./bits";
+import { Glossary, GoodsBar, affordable } from "./bits";
 import { GameOver } from "./GameOver";
-import { BankPanel, DiplomacyPanel, HeroesPanel, LogPanel, RegionPanel, RenameCard, meOf, playerName, regionName, regionView, usableLine, type Ctx } from "./panels";
+import { BankPanel, DiplomacyPanel, HeroesPanel, LogPanel, RegionPanel, RenameCard, buyThen, meOf, playerName, regionName, regionView, usableLine, type Ctx } from "./panels";
+import { BuildPanel, sitesFor, type Placement } from "./BuildPanel";
 import { restedIn } from "@/game/army";
 import { attackOdds } from "@/game/odds";
 import { HowToPlay } from "./HowToPlay";
@@ -30,7 +33,7 @@ import { useGame } from "./useGame";
 
 const Board = dynamic(() => import("./Board"), { ssr: false, loading: () => null });
 
-type Tab = "plan" | "army" | "region" | "heroes" | "diplomacy" | "chat" | "bank" | "log";
+type Tab = "plan" | "army" | "region" | "build" | "heroes" | "diplomacy" | "chat" | "bank" | "log";
 
 // How long each of the other Kirds' moves stays on screen, so there's time to read it.
 const FEED_MS = 8500;
@@ -88,9 +91,19 @@ export function GameClient({ initial }: { initial: GamePayload }) {
   const [emailOn, setEmailOn] = useState(initial.notify.on);
   const [battle, setBattle] = useState<GameEvent | null>(null);
   const [menu, setMenu] = useState(false);
+  // The Build tab's pick: which building you're placing, and where.
+  const [placing, setPlacing] = useState<Placement | null>(null);
+  // The building you just put up, so the globe raises it out of the ground (only for as long as that takes,
+  // so it never plays twice).
+  const [built, setBuilt] = useState<Built | null>(null);
+  useEffect(() => {
+    if (!built) return;
+    const t = setTimeout(() => setBuilt(null), 3200);
+    return () => clearTimeout(t);
+  }, [built]);
 
-  // Every move goes through here so a battle you just fought plays out on screen, and a region you
-  // just took gets offered a new name once it has.
+  // Every move goes through here so a battle you just fought plays out on screen, a region you
+  // just took gets offered a new name once it has, and a building you just put up rises on the globe.
   const act: typeof rawAct = useCallback(
     async (a) => {
       const evs = await rawAct(a);
@@ -101,6 +114,8 @@ export function GameClient({ initial }: { initial: GamePayload }) {
         if (took) setRenameAsk((took.data as Partial<BattleData> | undefined)?.to ?? took.regions.at(-1) ?? null);
         const renamed = evs.find((e) => e.type === "rename" && e.actor === view.me);
         if (renamed) setToast(renamed.text);
+        const b = evs.find((e) => e.type === "build" && e.actor === view.me && e.regions[0]);
+        if (b) setBuilt({ region: b.regions[0], building: b.data?.building as BuildingType, seq: b.seq });
       }
       return evs;
     },
@@ -227,10 +242,11 @@ export function GameClient({ initial }: { initial: GamePayload }) {
   const [seenTurn, setSeenTurn] = useState(view.turn);
   if (view.turn !== seenTurn) {
     setSeenTurn(view.turn);
-    // A turn change always ends any troop move or rename that was under way.
+    // A turn change always ends any troop move, building placement or rename that was under way.
     setMove(null);
     setMoveNote(null);
     setRenameAsk(null);
+    setPlacing(null);
     if (restorePanel) {
       setPanelOpen(true);
       setRestorePanel(false);
@@ -301,6 +317,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
   const startMove = useCallback(
     (from: string | null, to: string | null = null) => {
       setThunder(false);
+      setPlacing(null);
       setReplay(null);
       setMove({ from, to });
       setMoveNote(null);
@@ -351,8 +368,30 @@ export function GameClient({ initial }: { initial: GamePayload }) {
     [thunder, view],
   );
 
+  // Tapping the region you picked for a building a second time builds it there (buying anything missing first).
+  const buildHere = useCallback(
+    async (type: BuildingType, id: string) => {
+      const { cost, label } = BUILDINGS[type];
+      if (!affordable(cost, me.goods) && !fillCost(me.goods ?? {}, cost, view.prices.buyPrice)) {
+        setToast(`You can't afford a ${label} yet, even with the Bank.`);
+        return;
+      }
+      if (await buyThen({ view, myTurn, busy, act, avatars: game.avatars, over }, cost, { type: "build", region: id, building: type })) setPlacing(null);
+    },
+    [me.goods, view, myTurn, busy, act, game.avatars, over],
+  );
+
   const onSelect = useCallback(
     (id: string) => {
+      // Choosing where a building goes: tap a glowing region, then tap it again (or press Build) to put it there.
+      if (placing) {
+        const r = regionView(view, id);
+        if (r.owner !== view.me) setToast(`You can only build in your own regions.`);
+        else if (r.buildings?.includes(placing.type)) setToast(`${regionName(view, id)} already has a ${BUILDINGS[placing.type].label}.`);
+        else if (placing.site === id) void buildHere(placing.type, id);
+        else setPlacing({ ...placing, site: id });
+        return;
+      }
       if (thunder) {
         if (thunderTargets.includes(id) && confirm(`Call Casey's thunder down on ${regionName(view, id)}?`)) {
           act({ type: "thunder", target: id });
@@ -385,7 +424,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
       setTab("region");
       setPanelOpen(true);
     },
-    [thunder, thunderTargets, move, view, act],
+    [placing, buildHere, thunder, thunderTargets, move, view, act],
   );
   const onReady = useCallback(() => setReady(true), []);
 
@@ -394,6 +433,22 @@ export function GameClient({ initial }: { initial: GamePayload }) {
 
   // Pick an attack (Sun Tzu's, or from a region's panel): straight into move mode, ready to choose who goes.
   const planAttack = (from: string, to: string) => startMove(from, to);
+
+  // Placing a building from the Build tab: the camera swings round to where it can go, and any troop move stops.
+  const startPlacing = useCallback(
+    (p: Placement | null) => {
+      if (p && !placing) {
+        stopMove();
+        setThunder(false);
+        const sites = sitesFor(view, p.type);
+        const at = selected && sites.includes(selected) ? selected : sites[0];
+        if (at) focusOn(at);
+      }
+      if (p?.site && p.site !== placing?.site) focusOn(p.site);
+      setPlacing(p);
+    },
+    [placing, stopMove, view, selected, focusOn],
+  );
 
   const setAutopilot = async (on: boolean, level: "medium" | "hard" = "medium") => {
     if (
@@ -453,10 +508,14 @@ export function GameClient({ initial }: { initial: GamePayload }) {
         : highlight ?? (move?.to ? { regions: [move.to], tone: regionView(view, move.to).owner === view.me ? "move" : "battle" } : null),
     [replayEvent, highlight, move, view],
   );
-  // Rings for whatever you're doing: where troops can leave from, where they can go, or what thunder can hit.
+  // Rings for whatever you're doing: where a building can go, where troops can leave from, where they can go,
+  // or what thunder can hit.
+  const buildSites = useMemo(() => (placing ? sitesFor(view, placing.type) : []), [placing, view]);
   const boardMarks = useMemo(() => {
     const marks: Record<string, MarkKind> = {};
-    if (thunder) {
+    if (placing) {
+      for (const id of buildSites) marks[id] = "site";
+    } else if (thunder) {
       for (const id of thunderTargets) marks[id] = "thunder";
     } else if (move && myTurn) {
       if (!move.from) {
@@ -470,10 +529,11 @@ export function GameClient({ initial }: { initial: GamePayload }) {
       }
     }
     return marks;
-  }, [thunder, thunderTargets, move, myTurn, view]);
+  }, [placing, buildSites, thunder, thunderTargets, move, myTurn, view]);
   // Name tags: where troops are moving from and to (with your odds), what a replay is about, or what you picked.
   const boardLabels = useMemo<BoardLabel[]>(() => {
     if (replayRegion) return [{ id: replayRegion, text: regionName(view, replayRegion) }];
+    if (placing) return buildSites.map((id) => ({ id, text: `${id === placing.site ? "✓" : "🏗️"} ${regionName(view, id)}`, tone: "site" }));
     if (thunder) return [];
     if (!move) {
       const named: BoardLabel[] = view.regions.filter((r) => r.name).map((r) => ({ id: r.id, text: r.name!, tone: "named" }));
@@ -492,7 +552,24 @@ export function GameClient({ initial }: { initial: GamePayload }) {
       } else if (id === move.to) labels.push({ id, text: `🚡 ${regionName(view, id)}`, tone: kind });
     }
     return labels;
-  }, [replayRegion, thunder, move, selected, view, boardMarks]);
+  }, [replayRegion, placing, buildSites, thunder, move, selected, view, boardMarks]);
+  // Placing a building: a see-through preview bobs over each region it could go in.
+  const boardPlacing = useMemo(() => (placing ? { type: placing.type, site: placing.site, sites: buildSites } : null), [placing, buildSites]);
+  // Another Kird's building rises during the replay too.
+  const boardBuilt = useMemo<Built | null>(
+    () =>
+      replayEvent?.type === "build" && replayEvent.regions[0]
+        ? { region: replayEvent.regions[0], building: replayEvent.data?.building as BuildingType, seq: replayEvent.seq }
+        : built,
+    [replayEvent, built],
+  );
+  // Armies you can pick up and drag to a neighbour: rested troops with a gondola line to ride.
+  const movable = useMemo(
+    () => new Map(myTurn && !over && !placing && !busy ? moveSources(view).map((r) => [r.id, moveOptions(view, r.id).lines] as const) : []),
+    [myTurn, over, placing, busy, view],
+  );
+  // Dropping troops on a region opens the move bar, ready to choose who goes.
+  const onDrop = useCallback((from: string, to: string) => startMove(from, to), [startMove]);
   const renaming = renameAsk && myTurn && !battle && !dice && view.regions.some((r) => r.id === renameAsk && r.renamable) ? renameAsk : null;
 
   return (
@@ -508,7 +585,11 @@ export function GameClient({ initial }: { initial: GamePayload }) {
             highlight={boardHighlight}
             focus={boardFocus}
             still={still}
+            placing={boardPlacing}
+            built={boardBuilt}
+            movable={movable}
             onSelect={onSelect}
+            onDrop={onDrop}
             onReady={onReady}
           />
         </SceneBoundary>
@@ -616,7 +697,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
       {over && <GameOver view={view} avatars={game.avatars} endedAt={game.endedAt} />}
 
       <div className="game-prompts">
-        {!over && unseen.length > 0 && !replay && !replayOffered && (
+        {!over && unseen.length > 0 && !replay && !replayOffered && !placing && (
           <div className="replay-offer">
             <p>
               <strong>{unseen.length}</strong> thing{unseen.length === 1 ? "" : "s"} happened since your last turn.
@@ -643,6 +724,16 @@ export function GameClient({ initial }: { initial: GamePayload }) {
               <button className="btn ghost small" onClick={nextReplay}>▶</button>
               <button className="btn small" onClick={() => setReplay(null)}>{replay.i + 1 < replay.list.length ? "Skip all ⏭" : "Done"}</button>
             </div>
+          </div>
+        )}
+
+        {placing && (
+          <div className="replay-caption placing-caption" role="status">
+            <p>
+              🏗️ Placing a {BUILDINGS[placing.type].label}:{" "}
+              {placing.site ? `tap ${regionName(view, placing.site)} again, or press Build, to put it there.` : "tap a glowing region."}
+            </p>
+            <button className="btn ghost small" onClick={() => setPlacing(null)}>Cancel</button>
           </div>
         )}
 
@@ -673,6 +764,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
               ["plan", "💡", "Plan"],
               ["army", "⚔️", "Army"],
               ["region", "🗺️", "Region"],
+              ["build", "🏗️", "Build"],
               ["heroes", "🦸", "Heroes"],
               ["diplomacy", "🤝", "Kirds"],
               ["chat", "💬", "Chat"],
@@ -730,6 +822,7 @@ export function GameClient({ initial }: { initial: GamePayload }) {
                 openHeroes={() => setTab("heroes")}
               />
             )}
+            {tab === "build" && <BuildPanel ctx={ctx} placing={placing} setPlacing={startPlacing} />}
             {tab === "heroes" && <HeroesPanel ctx={ctx} selected={selected} />}
             {tab === "diplomacy" && <DiplomacyPanel ctx={ctx} selected={selected} />}
             {tab === "chat" && (

@@ -91,6 +91,11 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
           </li>
         </ol>
         <p>Units can ride one line per turn, and fresh recruits rest until next turn.</p>
+        <p>
+          <strong>Or drag them:</strong> on your turn, grab one of your armies on the globe and drop it on a ringed region it can reach.
+          The move bar opens at <strong>Who goes</strong>, with everyone who&rsquo;s ready picked and your chance to win if it&rsquo;s an
+          invasion.
+        </p>
         <h3>✏️ Renaming what you conquer</h3>
         <p>
           Conquerors name what they take. When you capture a region you&rsquo;re offered the chance to rename it, or keep its name, and you
@@ -117,6 +122,10 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
           ))}
         </ul>
         <h3>Buildings</h3>
+        <p>
+          Open the <strong>🏗️ Build</strong> tab: pick a building, tap one of your glowing regions, and it goes up on the globe. Each region
+          holds one of each.
+        </p>
         <ul>
           {BUILDING_TYPES.map((b) => (
             <li key={b}>
