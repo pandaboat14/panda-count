@@ -3,7 +3,7 @@
 import { memo, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html, OrbitControls, Text } from "@react-three/drei";
-import { CatmullRomCurve3, Quaternion, Vector3, type Group, type Mesh, type MeshBasicMaterial, type PerspectiveCamera } from "three";
+import { CatmullRomCurve3, Matrix4, Quaternion, Vector3, type Group, type Mesh, type MeshBasicMaterial, type PerspectiveCamera } from "three";
 import { latLngToVector3, RADIUS } from "@/components/globe/geo";
 import { makeEarthTexture } from "@/components/globe/textures";
 import type { GameView, RegionView } from "@/game/engine";
@@ -119,11 +119,16 @@ function World({ view, selected, targets, highlight, still, onSelect }: Omit<Pro
   );
 }
 
+// Stands a tile on the globe with its top (-z) facing north. The camera keeps north up, so every
+// number token reads the right way up (a bare setFromUnitVectors leaves each tile twisted by its longitude).
 function useSurface(id: string, lift = 0) {
   return useMemo(() => {
     const def = REGION_BY_ID.get(id)!;
     const pos = latLngToVector3(def.lat, def.lng, RADIUS + lift);
-    const q = new Quaternion().setFromUnitVectors(UP, pos.clone().normalize());
+    const normal = pos.clone().normalize();
+    const east = new Vector3().crossVectors(UP, normal).normalize();
+    const south = new Vector3().crossVectors(east, normal);
+    const q = new Quaternion().setFromRotationMatrix(new Matrix4().makeBasis(east, normal, south));
     return { pos, q };
   }, [id, lift]);
 }

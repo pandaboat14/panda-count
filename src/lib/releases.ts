@@ -9,6 +9,14 @@ export type Release = {
 export const RELEASES: Release[] = [
   {
     date: "2026-09-26",
+    title: "Hex numbers the right way up",
+    notes: [
+      "Fixed: many hexes on the map showed their number upside down or sideways, so a 6 could pass for a 9. Every number now reads the right way up.",
+      "Every hex is laid out the same way now, with its army on the right and its buildings on the left.",
+    ],
+  },
+  {
+    date: "2026-09-26",
     title: "The Army tab",
     pr: 10,
     notes: [
