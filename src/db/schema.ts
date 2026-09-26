@@ -1,4 +1,4 @@
-import { doublePrecision, integer, pgEnum, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, doublePrecision, integer, jsonb, pgEnum, pgTable, primaryKey, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
 export const pandaStatus = pgEnum("panda_status", ["resident", "incoming"]);
 export const pandaSex = pgEnum("panda_sex", ["Male", "Female"]);
@@ -82,3 +82,49 @@ export const wildRanges = pgTable("wild_ranges", {
   updatedByName: text("updated_by_name"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ---- Panda Diplomacy (the Kirds' never-ending game) ----
+export const games = pgTable("games", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  // Invite code for /game/join/CODE.
+  code: text("code").notNull().unique(),
+  hostId: text("host_id").notNull(),
+  // The whole world as the engine sees it (see src/game/engine.ts). Never sent to browsers unfiltered.
+  state: jsonb("state").notNull(),
+  // Bumped on every change; used for optimistic locking and cheap polling.
+  version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const gamePlayers = pgTable(
+  "game_players",
+  {
+    gameId: integer("game_id")
+      .notNull()
+      .references(() => games.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    name: text("name").notNull(),
+    // For "it's your turn" emails; players can switch them off in the game.
+    email: text("email"),
+    notify: boolean("notify").notNull().default(true),
+    joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.gameId, t.userId] })],
+);
+
+// Everything that ever happened, for the "since your last turn" replay.
+export const gameEvents = pgTable(
+  "game_events",
+  {
+    id: serial("id").primaryKey(),
+    gameId: integer("game_id")
+      .notNull()
+      .references(() => games.id, { onDelete: "cascade" }),
+    seq: integer("seq").notNull(),
+    event: jsonb("event").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("game_events_game_seq").on(t.gameId, t.seq)],
+);
