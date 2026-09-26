@@ -612,3 +612,99 @@ i.heat { background: radial-gradient(circle, #d64828 0%, #e97846 55%, #e9b8a8 10
   .game-goods { top: 56px; }
   .goods-bar li { font-size: .8rem; padding: 1px 5px; }
 }
+
+/* ---------- Avatars & profile ---------- */
+.avatar { display: inline-block; vertical-align: middle; border-radius: 50%; flex: none; }
+.avatar-ring { display: inline-flex; border: 2px solid; border-radius: 50%; line-height: 0; }
+.profile-head { display: flex; align-items: center; gap: 18px; margin-bottom: 8px; }
+.profile-head h1 { margin: 0; }
+.avatar-row h2 { font-family: var(--serif); font-size: 1.05rem; margin: 18px 0 8px; }
+.avatar-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.avatar-pick { appearance: none; border: 3px solid transparent; border-radius: 50%; padding: 2px; background: none; cursor: pointer; line-height: 0; }
+.avatar-pick:hover { border-color: var(--bamboo); }
+.avatar-pick.on { border-color: var(--forest); }
+.avatar-pick:focus-visible { outline: 3px solid var(--bamboo-deep); }
+
+/* ---------- Lobby rows ---------- */
+.game-row { display: flex; align-items: stretch; gap: 8px; }
+.game-row .game-card { flex: 1; }
+.game-players { align-items: center; }
+.game-end {
+  appearance: none; border: 0; cursor: pointer; border-radius: 12px; padding: 0 12px; height: 100%;
+  background: color-mix(in srgb, #a24a30 12%, var(--paper)); color: #a24a30; font: 700 .78rem var(--sans);
+}
+.game-end:hover { background: #a24a30; color: var(--paper); }
+
+/* ---------- Game menu ---------- */
+.menu-wrap { position: relative; }
+.game-menu {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 40; min-width: 220px;
+  display: grid; padding: 6px; border-radius: 14px; background: var(--paper);
+  box-shadow: 0 16px 40px -16px rgba(0,0,0,.5);
+}
+.game-menu a, .game-menu button {
+  appearance: none; border: 0; background: none; text-align: left; cursor: pointer; text-decoration: none;
+  font: 600 .88rem var(--sans); color: var(--ink); padding: 8px 10px; border-radius: 8px;
+}
+.game-menu a:hover, .game-menu button:hover { background: var(--cream); }
+.game-menu .danger { color: #a24a30; }
+.turn-banner .avatar { margin: -2px 0; }
+
+/* ---------- Chat ---------- */
+.chat { display: flex; flex-direction: column; gap: 6px; min-height: 100%; }
+.chat-channels { display: flex; flex-wrap: wrap; gap: 6px; }
+.chat-channels .chip { gap: 6px; }
+.dot-count.inline { position: static; margin-left: 4px; }
+.chat-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; flex: 1; align-content: start; }
+.chat-list li { display: flex; gap: 8px; align-items: flex-start; }
+.chat-list li p { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--cream); padding: 6px 10px; border-radius: 4px 12px 12px 12px; }
+.chat-list li.mine p { background: color-mix(in srgb, var(--forest) 14%, var(--paper)); }
+.chat-meta { font-size: .72rem; color: var(--ink-soft); }
+.chat-form { display: flex; gap: 6px; align-items: flex-end; position: sticky; bottom: 0; background: var(--paper); padding-top: 6px; }
+.chat-form textarea { flex: 1; font: 400 .92rem var(--sans); padding: 8px 10px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--bamboo-deep) 50%, transparent); resize: none; }
+
+/* ---------- Log ---------- */
+.log-round { margin: 10px 0 2px; font-size: .7rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--bamboo-deep); }
+.log-row { display: flex; align-items: center; gap: 6px; }
+.log-row > button:first-child { flex: 1; }
+
+/* ---------- Battles ---------- */
+.battle-dialog { border: 0; padding: 0; width: min(760px, calc(100% - 16px)); max-width: none; background: transparent; margin: auto; }
+.battle-dialog::backdrop { background: rgba(14, 30, 22, .78); }
+.battle-stage {
+  position: relative; height: min(520px, 80vh); border-radius: 20px; overflow: hidden;
+  background: radial-gradient(ellipse at 50% 30%, #fbe9cc 0%, #e9d8b6 70%);
+}
+.battle-top { position: absolute; top: 10px; left: 10px; right: 10px; display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: start; }
+.battle-side { display: grid; gap: 2px; background: color-mix(in srgb, var(--paper) 92%, transparent); padding: 8px 10px; border-radius: 12px; border-left: 5px solid; font-size: .9rem; }
+.battle-side.right { text-align: right; border-left: 0; border-right: 5px solid; }
+.battle-title { text-align: center; display: grid; }
+.battle-title strong { font-family: var(--serif); font-size: 1.3rem; }
+.battle-dice {
+  position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 12px; padding: 8px 14px; border-radius: 99px;
+  background: color-mix(in srgb, var(--ink) 88%, transparent); color: var(--paper);
+}
+.battle-dice p { margin: 0; }
+.battle-dice .vs { font-size: .75rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; opacity: .8; }
+.dice { display: flex; gap: 4px; }
+.dice b { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 7px; font-weight: 800; animation: roll .35s ease-out; }
+.dice.atk b { background: #d64a2b; }
+.dice.def b { background: var(--paper); color: var(--ink); }
+@keyframes roll { from { transform: rotate(-90deg) scale(.4); opacity: 0; } }
+.battle-result {
+  position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); width: min(520px, calc(100% - 24px));
+  text-align: center; padding: 14px 16px; border-radius: 16px; background: var(--paper); box-shadow: 0 12px 30px -12px rgba(0,0,0,.5);
+  animation: pop .45s cubic-bezier(.2,1.4,.3,1);
+}
+.battle-result h2 { font-family: var(--serif); margin: 0 0 4px; }
+.battle-result p { margin: 0 0 8px; }
+.battle-result .form-actions { justify-content: center; }
+.battle-result.win { box-shadow: 0 0 0 4px var(--forest), 0 12px 30px -12px rgba(0,0,0,.5); }
+.battle-result.loss { box-shadow: 0 0 0 4px #a24a30, 0 12px 30px -12px rgba(0,0,0,.5); }
+.battle-skip { position: absolute; right: 10px; bottom: 10px; }
+@media (max-width: 760px) {
+  .panel-tabs button { font-size: .66rem; }
+  .battle-top { grid-template-columns: 1fr 1fr; }
+  .battle-title { grid-column: 1 / -1; grid-row: 1; }
+}

@@ -1,5 +1,4 @@
 import "server-only";
-import { neon } from "@neondatabase/serverless";
 import { randomInt } from "node:crypto";
 import { emailEnabled, escapeHtml, sendEmail } from "./email";
 import {
@@ -8,6 +7,7 @@ import {
   addPlayer,
   applyAction,
   createGame,
+  removePlayer,
   eventVisible,
   viewFor,
   type Action,
@@ -16,7 +16,9 @@ import {
   type GameView,
 } from "@/game/engine";
 
-const sql = () => neon(process.env.DATABASE_URL!);
+import { messagesFor, type ChatMessage } from "./chat";
+import { avatarsFor } from "./profiles";
+import { sql } from "./sql";
 
 export type GameRow = { id: number; name: string; code: string; hostId: string; state: GameState; version: number };
 
@@ -30,6 +32,8 @@ export type GamePayload = {
   events: GameEvent[];
   // Turn emails for this player.
   notify: { on: boolean; email: string | null; available: boolean };
+  messages: ChatMessage[];
+  avatars: Record<string, string>;
 };
 
 export async function loadGame(id: number): Promise<GameRow | null> {
@@ -212,18 +216,21 @@ export async function payloadFor(gameId: number, userId: string, sinceSeq?: numb
     view: viewFor(row.state, userId),
     events,
     notify: { on: Boolean(pref[0]?.notify ?? true), email: (pref[0]?.email as string | null) ?? null, available: emailEnabled() },
+    messages: await messagesFor(gameId, userId),
+    avatars: await avatarsFor(row.state.players.map((p) => p.id)),
   };
 }
 
 export async function myGames(userId: string) {
   const rows = await sql().query(
-    `SELECT g.id, g.name, g.code, g.state, g.updated_at AS "updatedAt"
+    `SELECT g.id, g.name, g.code, g.host_id AS "hostId", g.state, g.updated_at AS "updatedAt"
        FROM games g JOIN game_players p ON p.game_id = g.id
       WHERE p.user_id = $1
       ORDER BY g.updated_at DESC
       LIMIT 50`,
     [userId],
   );
+  const avatars = await avatarsFor([...new Set(rows.flatMap((r) => (r.state as GameState).players.map((p) => p.id)))]);
   return rows.map((r) => {
     const s = r.state as GameState;
     const active = s.players.find((p) => p.seat === s.activeSeat);
@@ -231,11 +238,46 @@ export async function myGames(userId: string) {
       id: r.id as number,
       name: r.name as string,
       code: r.code as string,
+      host: r.hostId === userId,
       round: s.round,
-      players: s.players.map((p) => ({ name: p.name, color: p.color })),
+      players: s.players.map((p) => ({ id: p.id, name: p.name, color: p.color, avatar: avatars[p.id] })),
       activeName: active?.name ?? "",
       myTurn: active?.id === userId,
       updatedAt: r.updatedAt as string,
     };
   });
+}
+
+// Older events for the full log, newest first, only what this player may see.
+export async function olderEvents(gameId: number, userId: string, beforeSeq: number, limit = 150) {
+  const row = await loadGame(gameId);
+  if (!row || !row.state.players.some((p) => p.id === userId)) return null;
+  const rows = await sql().query(
+    `SELECT event FROM game_events WHERE game_id = $1 AND seq < $2 ORDER BY seq DESC LIMIT $3`,
+    [gameId, beforeSeq, limit],
+  );
+  const events = (rows.map((r) => r.event) as GameEvent[]).filter((e) => eventVisible(row.state, e, userId)).reverse();
+  return { events, more: rows.length === limit };
+}
+
+// Leave a game for good. The last Kird out turns off the lights (the game is deleted).
+export async function leaveGame(gameId: number, userId: string) {
+  const row = await loadGame(gameId);
+  if (!row || !row.state.players.some((p) => p.id === userId)) throw new GameError("You're not in that game.");
+  if (row.state.players.length === 1) {
+    await deleteGame(gameId, userId);
+    return;
+  }
+  const { state } = await mutate(gameId, (s) => removePlayer(s, userId, Date.now()));
+  await sql().query(
+    `WITH gone AS (DELETE FROM game_players WHERE game_id = $1 AND user_id = $2)
+     UPDATE games SET host_id = $3 WHERE id = $1 AND host_id = $2`,
+    [gameId, userId, state.players[0].id],
+  );
+}
+
+// Only the host can end a game outright.
+export async function deleteGame(gameId: number, userId: string) {
+  const rows = await sql().query(`DELETE FROM games WHERE id = $1 AND host_id = $2 RETURNING id`, [gameId, userId]);
+  if (!rows.length) throw new GameError("Only the host can end this game.");
 }

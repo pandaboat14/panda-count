@@ -19,13 +19,15 @@ import {
   type HeroId,
   type UnitType,
 } from "@/game/rules";
+import { Avatar } from "../Avatar";
 import { CostChips, Stepper, affordable, times } from "./bits";
 
 export type Ctx = {
   view: GameView;
   myTurn: boolean;
   busy: boolean;
-  act: (a: Action) => Promise<boolean>;
+  act: (a: Action) => Promise<GameEvent[] | false>;
+  avatars: Record<string, string>;
 };
 
 export const regionName = (id: string) => REGION_BY_ID.get(id)?.name ?? id;
@@ -474,7 +476,9 @@ export function DiplomacyPanel({ ctx, selected }: { ctx: Ctx; selected: string |
           return (
             <div key={p.id} className="kird">
               <div className="kird-head">
-                <span className="player-dot" style={{ background: p.color }} />
+                <span className="avatar-ring" style={{ borderColor: p.color }}>
+                  <Avatar value={ctx.avatars[p.id]} userId={p.id} size={26} />
+                </span>
                 <strong>{p.id === view.me ? `${p.name} (you)` : p.name}</strong>
                 {active && <span className="badge">playing</span>}
                 {pact && <span className="badge">🤝 pact</span>}
@@ -648,20 +652,77 @@ export function BankPanel({ ctx }: { ctx: Ctx }) {
 
 // ---------------------------------------------------------------- log
 
-export function LogPanel({ events, onPick }: { events: GameEvent[]; onPick: (e: GameEvent) => void }) {
-  const list = useMemo(() => [...events].reverse().filter((e) => e.type !== "endTurn"), [events]);
+const LOG_FILTERS: Record<string, { label: string; types?: string[]; mine?: boolean }> = {
+  all: { label: "All" },
+  battles: { label: "⚔️ Battles", types: ["battle", "capture", "thunder", "heroCaptured", "heroFled", "asylum"] },
+  diplomacy: { label: "🤝 Diplomacy", types: ["offer", "pact", "loan", "betrayal", "trade", "decline", "pickpocket"] },
+  world: { label: "🌍 World", types: ["world", "roll", "join", "leave", "skip"] },
+  mine: { label: "🙋 Mine", mine: true },
+};
+
+export function LogPanel({
+  events,
+  me,
+  onPick,
+  onWatch,
+  loadOlder,
+  olderDone,
+}: {
+  events: GameEvent[];
+  me: string;
+  onPick: (e: GameEvent) => void;
+  onWatch: (e: GameEvent) => void;
+  loadOlder: () => Promise<void>;
+  olderDone: boolean;
+}) {
+  const [filter, setFilter] = useState("all");
+  const [loading, setLoading] = useState(false);
+  const f = LOG_FILTERS[filter];
+  const list = useMemo(() => {
+    const kept = [...events]
+      .reverse()
+      .filter((e) => e.type !== "endTurn")
+      .filter((e) => (f.types ? f.types.includes(e.type) : true) && (f.mine ? e.actor === me : true));
+    return kept.map((e, i) => ({ e, header: i === 0 || kept[i - 1].round !== e.round }));
+  }, [events, f, me]);
   return (
     <div className="panel-body">
-      <h2>What happened</h2>
-      <ol className="log">
-        {list.map((e) => (
-          <li key={e.seq} className={`log-${e.type}`}>
-            <button type="button" onClick={() => onPick(e)} disabled={!e.regions.length}>
-              <span className="log-meta">R{e.round}</span> {e.text}
-            </button>
-          </li>
+      <h2>Everything that happened</h2>
+      <div className="dest-list" role="group" aria-label="Filter">
+        {Object.entries(LOG_FILTERS).map(([k, v]) => (
+          <button key={k} className={`chip${filter === k ? " on" : ""}`} onClick={() => setFilter(k)}>{v.label}</button>
         ))}
+      </div>
+      <ol className="log">
+        {list.map(({ e, header }) => {
+          return (
+            <li key={e.seq} className={`log-${e.type}`}>
+              {header && <p className="log-round">Round {e.round}</p>}
+              <div className="log-row">
+                <button type="button" onClick={() => onPick(e)} disabled={!e.regions.length}>{e.text}</button>
+                {e.type === "battle" && (
+                  <button type="button" className="chip" onClick={() => onWatch(e)}>▶ Watch</button>
+                )}
+              </div>
+            </li>
+          );
+        })}
       </ol>
+      {!olderDone ? (
+        <button
+          className="btn ghost small"
+          disabled={loading}
+          onClick={async () => {
+            setLoading(true);
+            await loadOlder();
+            setLoading(false);
+          }}
+        >
+          {loading ? "Loading…" : "Load older events"}
+        </button>
+      ) : (
+        <p className="muted small">That&rsquo;s everything since the world began.</p>
+      )}
     </div>
   );
 }

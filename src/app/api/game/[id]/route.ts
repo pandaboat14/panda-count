@@ -2,7 +2,8 @@ import { NextResponse, after } from "next/server";
 import { hasDatabase } from "@/db";
 import { GameError, type Action } from "@/game/engine";
 import { getUser } from "@/lib/auth/server";
-import { act, loadGame, payloadFor } from "@/lib/game/store";
+import { latestMessageId } from "@/lib/game/chat";
+import { act, deleteGame, loadGame, payloadFor } from "@/lib/game/store";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -21,10 +22,12 @@ export async function GET(req: Request, ctx: Ctx) {
   if ("error" in w) return w.error;
   const url = new URL(req.url);
   const v = Number(url.searchParams.get("v") ?? 0);
+  const m = Number(url.searchParams.get("m") ?? 0);
   const since = url.searchParams.has("since") ? Number(url.searchParams.get("since")) : undefined;
   if (v) {
-    const row = await loadGame(w.id);
-    if (row && row.version === v) return NextResponse.json({ changed: false });
+    // Nothing new unless the world moved on or someone said something.
+    const [row, lastMsg] = await Promise.all([loadGame(w.id), latestMessageId(w.id, w.user.id)]);
+    if (row && row.version === v && lastMsg <= m) return NextResponse.json({ changed: false });
   }
   const payload = await payloadFor(w.id, w.user.id, since);
   if (!payload) return NextResponse.json({ error: "You're not in this game." }, { status: 403 });
@@ -50,4 +53,17 @@ export async function POST(req: Request, ctx: Ctx) {
   }
   const payload = await payloadFor(w.id, w.user.id, body.since);
   return NextResponse.json({ changed: true, ...payload });
+}
+
+// The host ends the game for everyone.
+export async function DELETE(_req: Request, ctx: Ctx) {
+  const w = await who(ctx);
+  if ("error" in w) return w.error;
+  try {
+    await deleteGame(w.id, w.user.id);
+  } catch (e) {
+    if (e instanceof GameError) return NextResponse.json({ error: e.message }, { status: 403 });
+    throw e;
+  }
+  return NextResponse.json({ ok: true });
 }
